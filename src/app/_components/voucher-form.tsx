@@ -3,7 +3,7 @@
 import React from 'react'
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Form, FormProvider, useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -14,20 +14,20 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import Link from 'next/link'
+import { formatPhone } from '@/lib/utils/utils'
 
 export default function VoucherForm() {
   const formSchema = z.object({
     name: z.string().min(1, 'Nome é obrigatorio').max(100, 'Nome deve ser menor que 100 caracteres'),
     phone: z.string().trim(),
-    peopleQty: z.coerce.number().gte(1, 'Quantidade inválida').lte(10, 'No maximo 10 pessoas').int().positive(),
+    peopleQty: z.coerce.number().gte(1, 'Quantidade inválida').lte(10, 'No maximo 10 pessoas').int(),
   }).refine(
     (data) => {
-      return data.phone.length === 11 &&
+      return data.phone.length >= 11 &&
         data.phone.charAt(2) === '9';
     },
     {
-      message: 'Número incorreto.',
+      message: 'Número incorreto, não se esqueça de colocar o DDD e o 9 no início',
       path: ['phone'],
     })
 
@@ -42,21 +42,9 @@ export default function VoucherForm() {
     },
   });
 
-  function formatPhone(input: string): string {
-    console.log('🚀 ~ formatPhone ~ input:', input);
-    const cleanNumber = input.replace(/\D/g, '');
-
-    // Formatação: (XX) 9 XXXX-XXXX
-    if (cleanNumber.length === 11) {
-      const ddd = cleanNumber.substring(0, 2);
-      const parte1 = cleanNumber.substring(2, 3);
-      const parte2 = cleanNumber.substring(3, 7);
-      const parte3 = cleanNumber.substring(7);
-
-      return `(${ddd}) ${parte1} ${parte2}-${parte3}`;
-    }
-    return input;
-  }
+  function normalizePhone(value: string) {
+    return value.replace(/\D/g, '');
+  };
 
   const onSubmit = (data: FormSchema) => {
     console.log(data);
@@ -86,11 +74,19 @@ export default function VoucherForm() {
           </div>
           <div className="grid gap-2">
             <Label htmlFor="email">Telefone</Label>
-            <Input
-              id="phone"
-              type="tel"
-              placeholder="(XX) 99999-9999"
-              {...register('phone')}
+            <Controller
+              name="phone"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  id="phone"
+                  type="tel"
+                  placeholder="(XX) 99999-9999"
+                  value={formatPhone(field.value)}
+                  onChange={(e) => field.onChange(normalizePhone(e.target.value))}
+                />
+              )}
             />
             {errors.phone && <p className='text-red-500 text-sm'>{errors.phone?.message}</p>}
           </div>
