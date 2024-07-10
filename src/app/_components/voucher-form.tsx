@@ -1,7 +1,9 @@
 'use client'
 
+import { api } from "@/trpc/react";
+
 import React from 'react'
-import { z } from "zod"
+import type { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
@@ -14,27 +16,14 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { formatPhone } from '@/lib/utils/utils'
+import { formatPhone, formatVoucher, voucherFormSchema } from '@/lib/utils/utils'
 
 export default function VoucherForm() {
-  const formSchema = z.object({
-    name: z.string().min(1, 'Nome é obrigatorio').max(100, 'Nome deve ser menor que 100 caracteres'),
-    phone: z.string().trim(),
-    peopleQty: z.coerce.number().gte(1, 'Quantidade inválida').lte(10, 'No maximo 10 pessoas').int(),
-  }).refine(
-    (data) => {
-      return data.phone.length >= 11 &&
-        data.phone.charAt(2) === '9';
-    },
-    {
-      message: 'Número incorreto, não se esqueça de colocar o DDD e o 9 no início',
-      path: ['phone'],
-    })
+  type FormSchema = z.infer<typeof voucherFormSchema>
+  const addVoucher = api.voucher.create.useMutation();
 
-  type FormSchema = z.infer<typeof formSchema>
-
-  const { register, handleSubmit, control, formState: { errors } } = useForm<FormSchema>({
-    resolver: zodResolver(formSchema),
+  const { register, handleSubmit, control, formState: { errors, isSubmitting } } = useForm<FormSchema>({
+    resolver: zodResolver(voucherFormSchema),
     defaultValues: {
       name: '',
       phone: '',
@@ -46,34 +35,39 @@ export default function VoucherForm() {
     return value.replace(/\D/g, '');
   };
 
-  const onSubmit = (data: FormSchema) => {
-    console.log(data);
+  async function onSubmit(data: FormSchema) {
+    const completeData = formatVoucher(data);
+
+    try {
+      const res = await addVoucher.mutateAsync(completeData);
+      return res;
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (
-    <Card className="mx-auto max-w-sm">
+    <Card className="mx-auto w-full max-w-md">
       <CardHeader>
-        <CardTitle className="text-xl">Voucher</CardTitle>
+        <CardTitle className="text-3xl">Adquira já seu voucher</CardTitle>
         <CardDescription>
-          Adquira já seu voucher
+          Depois é só mostrar o codigo de identificação na portaria!
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Nome</Label>
-              <Input
-                id="name"
-                placeholder="Nome"
-                {...register('name',
-                  { required: "Nome é obrigatório" },
-                )} />
-              {errors.name && <p className='text-red-500 text-sm'>{errors.name?.message}</p>}
-            </div>
+          <div className="grid gap-2">
+            <Label htmlFor="name">Nome</Label>
+            <Input
+              id="name"
+              placeholder="Nome"
+              {...register('name',
+                { required: "Nome é obrigatório" },
+              )} />
+            {errors.name && <p className='text-red-500 text-sm'>{errors.name?.message}</p>}
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="email">Telefone</Label>
+            <Label htmlFor="phone">Telefone</Label>
             <Controller
               name="phone"
               control={control}
@@ -91,7 +85,7 @@ export default function VoucherForm() {
             {errors.phone && <p className='text-red-500 text-sm'>{errors.phone?.message}</p>}
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="peopleQty">Quantidade de pessoas</Label>
+            <Label htmlFor="peopleQty">Quantidade de pessoas <span className='text-gray-700 font-thin text-sm'>(acima de 11 anos)</span></Label>
             <Input
               id="peopleQty"
               type="number"
@@ -104,8 +98,8 @@ export default function VoucherForm() {
           </div>
           <div className="grid gap-2">
           </div>
-          <Button type="submit" className="w-full">
-            Compre seu voucher agora!
+          <Button disabled={isSubmitting} type="submit" className="w-full">
+            {isSubmitting ? 'Carregando...' : 'Compre seu voucher agora!'}
           </Button>
         </form>
       </CardContent>

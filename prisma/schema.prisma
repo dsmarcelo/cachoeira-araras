@@ -76,6 +76,7 @@ model VerificationToken {
 model Voucher {
     id        Int     @id @default(autoincrement())
     name      String
+    phone     String
     code      String  @unique
     peopleQty Int
     valid     Boolean @default(true)
