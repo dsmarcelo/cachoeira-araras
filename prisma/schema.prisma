@@ -72,3 +72,14 @@ model VerificationToken {
 
     @@unique([identifier, token])
 }
+
+model Voucher {
+    id        Int     @id @default(autoincrement())
+    name      String
+    code      String  @unique
+    peopleQty Int
+    valid     Boolean @default(true)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
