@@ -26,11 +26,11 @@ export const voucherRouter = createTRPCRouter({
     }),
 
   findByCode: publicProcedure
-    .input(z.string())
+    .input(z.object({code: z.string().min(3).max(4)}))
     .query(async ({ ctx, input }) => {
       return await ctx.db.voucher.findFirst({
         where: {
-          code: input,
+          code: input.code,
         },
       });
     }),
@@ -79,7 +79,7 @@ export const voucherRouter = createTRPCRouter({
     });
   }),
 
-  update: publicProcedure
+  updateStatus: publicProcedure
     .input(voucherSchema)
     .mutation(async ({ ctx, input }) => {
       return await ctx.db.voucher.update({
