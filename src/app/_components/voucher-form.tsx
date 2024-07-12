@@ -99,8 +99,10 @@ export default function VoucherForm() {
           <div className="grid gap-2">
           </div>
           <Button disabled={isSubmitting} type="submit" className="w-full">
-            {isSubmitting ? 'Carregando...' : 'Compre seu voucher agora!'}
+            {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
           </Button>
+          {addVoucher.isSuccess && <p className='text-green-500 text-sm'>Voucher criado com sucesso!</p>}
+          {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher!</p>}
         </form>
       </CardContent>
     </Card>
