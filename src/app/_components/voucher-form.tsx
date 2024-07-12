@@ -1,7 +1,6 @@
 'use client'
 
 import { api } from "@/trpc/react";
-
 import React from 'react'
 import type { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -17,10 +16,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatPhone, formatVoucher, voucherFormSchema } from '@/lib/utils/utils'
+import { useRouter } from 'next/navigation';
 
 export default function VoucherForm() {
+  const router = useRouter();
+
   type FormSchema = z.infer<typeof voucherFormSchema>
   const addVoucher = api.voucher.create.useMutation();
+  const mercadopago = api.mercadopago.create.useMutation();
 
   const { register, handleSubmit, control, formState: { errors, isSubmitting } } = useForm<FormSchema>({
     resolver: zodResolver(voucherFormSchema),
@@ -34,6 +37,18 @@ export default function VoucherForm() {
   function normalizePhone(value: string) {
     return value.replace(/\D/g, '');
   };
+
+  async function buyVoucher() {
+    const res = await mercadopago.mutateAsync({ title: 'Voucher', quantity: 1, unit_price: 50 });
+
+    console.log('🚀 ~ buyVoucher ~ res:', res);
+    console.log('🚀 ~ buyVoucher ~ res:', res.sandbox_init_point);
+    const url = res.sandbox_init_point;
+    if (url) {
+      router.push(url);
+    }
+    return null;
+  }
 
   async function onSubmit(data: FormSchema) {
     const completeData = formatVoucher(data);
@@ -104,6 +119,9 @@ export default function VoucherForm() {
           {addVoucher.isSuccess && <p className='text-green-500 text-sm'>Voucher criado com sucesso!</p>}
           {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher!</p>}
         </form>
+        <Button onClick={() => buyVoucher()}>
+          Comprar
+        </Button>
       </CardContent>
     </Card>
   )
