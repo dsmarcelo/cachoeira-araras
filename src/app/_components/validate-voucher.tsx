@@ -21,7 +21,7 @@ export default function ValidateVoucher() {
     setValid(false);
     setMessage('');
     const { value } = e.target;
-    return setVoucherCode(value.replace(/[^a-z0-9]/gi, "").substring(0, 4));
+    return setVoucherCode(value.replace(/[^a-z0-9]/gi, "").toLowerCase().substring(0, 4));
   }
 
   const { refetch, data, isLoading, isSuccess } = api.voucher.findByCode.useQuery({ code: voucherCode }, {
