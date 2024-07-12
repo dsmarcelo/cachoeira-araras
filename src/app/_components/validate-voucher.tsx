@@ -65,7 +65,7 @@ export default function ValidateVoucher() {
   }
 
   return (
-    <div className='grid gap-4 mb-6 w-full '>
+    <div className='grid gap-4 mb-6 w-full'>
       <Card className={`${valid && 'border-green-500'} w-full mx-auto max-w-md`}>
         < CardHeader >
           <CardTitle>Validar Voucher</CardTitle>
@@ -97,7 +97,7 @@ export default function ValidateVoucher() {
         </CardContent>
       </Card>
       {isSuccess ?
-        <Card className='mx-auto max-w-lg bg-cyan-950 text-white w-96'>
+        <Card className='mx-auto w-full max-w-lg bg-cyan-950 text-white'>
           <CardHeader>
             <CardTitle>Voucher Encontrado</CardTitle>
           </CardHeader>
