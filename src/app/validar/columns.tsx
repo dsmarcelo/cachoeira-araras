@@ -16,7 +16,7 @@ export const columns: ColumnDef<Voucher>[] = [
       if (row.getValue() === null) {
         return <div>-</div>
       }
-      return <div>{row.getValue() ? "V" : "N"}</div>
+      return <div>{row.getValue() ? "Valido" : "Não valido"}</div>
     },
   },
   {

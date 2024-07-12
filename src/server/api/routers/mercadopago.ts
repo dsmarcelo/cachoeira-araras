@@ -8,7 +8,7 @@ export const mercadopagoRouter = createTRPCRouter({
   create: publicProcedure
     .input(z.object({
       title: z.string(),
-      quantity: z.number(),
+      peopleQty: z.number(),
       unit_price: z.number(),
     }))
     .mutation(async ({ input }) => {
@@ -19,7 +19,7 @@ export const mercadopagoRouter = createTRPCRouter({
               {
                 id: 'voucher',
                 title: input.title || 'title',
-                quantity: 4,
+                quantity: input.peopleQty || 1,
                 unit_price: 50,
               }
             ],

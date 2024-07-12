@@ -10,6 +10,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -39,7 +40,7 @@ export default function VoucherForm() {
   };
 
   async function buyVoucher() {
-    const res = await mercadopago.mutateAsync({ title: 'Voucher', quantity: 1, unit_price: 50 });
+    const res = await mercadopago.mutateAsync({ title: 'Voucher', peopleQty: 1, unit_price: 50 });
 
     console.log('🚀 ~ buyVoucher ~ res:', res);
     console.log('🚀 ~ buyVoucher ~ res:', res.sandbox_init_point);
@@ -119,10 +120,12 @@ export default function VoucherForm() {
           {addVoucher.isSuccess && <p className='text-green-500 text-sm'>Voucher criado com sucesso!</p>}
           {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher!</p>}
         </form>
-        <Button onClick={() => buyVoucher()}>
-          Comprar
-        </Button>
       </CardContent>
+      <CardFooter>
+        <Button className="w-full bg-green-400 hover:bg-green-300 text-black" onClick={() => buyVoucher()}>
+          Comprar pelo Mercado Pago
+        </Button>
+      </CardFooter>
     </Card>
   )
 }
