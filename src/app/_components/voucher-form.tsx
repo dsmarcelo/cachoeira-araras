@@ -10,14 +10,14 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { formatPhone, formatVoucher, voucherFormSchema } from '@/lib/utils/utils'
+import { formatPhone, formatVoucher } from '@/lib/utils/utils'
 import { useRouter } from 'next/navigation';
+import { voucherFormSchema } from "@/lib/voucher/types";
 
 export default function VoucherForm() {
   const router = useRouter();
@@ -26,21 +26,38 @@ export default function VoucherForm() {
   const addVoucher = api.voucher.create.useMutation();
   const mercadopago = api.mercadopago.create.useMutation();
 
-  const { register, handleSubmit, control, formState: { errors, isSubmitting } } = useForm<FormSchema>({
+  const { register, handleSubmit, control, formState: { errors, isSubmitting }, watch } = useForm<FormSchema>({
     resolver: zodResolver(voucherFormSchema),
     defaultValues: {
       name: '',
       phone: '',
-      peopleQty: 1,
+      adults: 1,
+      elderly: 0,
     },
   });
+
+  const formValues = watch();
+
+  function calculatePrice(adults: number, elderly: number) {
+    const total = adults * 40 + elderly * 20;
+    return total;
+  }
 
   function normalizePhone(value: string) {
     return value.replace(/\D/g, '');
   };
 
-  async function buyVoucher() {
-    const res = await mercadopago.mutateAsync({ title: 'Voucher', peopleQty: 1, unit_price: 50 });
+  async function buyVoucher(data: FormSchema) {
+    const res = await mercadopago.mutateAsync({
+      title: `Voucher para ${data.adults} pessoas com mais de 8 anos e ${data.elderly} idosos`,
+      adults: data.adults,
+      elderly: data.elderly,
+      unit_price: calculatePrice(data.adults, data.elderly),
+      name: data.name,
+      surname: data.name,
+      phone: data.phone,
+      returnUrl: 'https://localhost:3000/pagamento/aprovado',
+    });
 
     console.log('🚀 ~ buyVoucher ~ res:', res);
     console.log('🚀 ~ buyVoucher ~ res:', res.sandbox_init_point);
@@ -55,8 +72,9 @@ export default function VoucherForm() {
     const completeData = formatVoucher(data);
 
     try {
-      const res = await addVoucher.mutateAsync(completeData);
-      return res;
+      return buyVoucher(completeData);
+      // const res = await addVoucher.mutateAsync(completeData);
+      // return res;
     } catch (error) {
       console.error(error);
     }
@@ -101,19 +119,30 @@ export default function VoucherForm() {
             {errors.phone && <p className='text-red-500 text-sm'>{errors.phone?.message}</p>}
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="peopleQty">Quantidade de pessoas <span className='text-gray-700 font-thin text-sm'>(acima de 11 anos)</span></Label>
+            <Label htmlFor="adults">Quantidade de pessoas <span className='font-bold'>com mais de 8 anos</span></Label>
             <Input
-              id="peopleQty"
+              id="adults"
               type="number"
-              min="1"
+              min="0"
               max="10"
-              {...register('peopleQty',
-                { required: true, min: 1, max: 10 },
-              )} />
-            {errors.peopleQty && <p className='text-red-500 text-sm'>{errors.peopleQty?.message}</p>}
+              {...register('adults')}
+            />
+            {errors.adults && <p className='text-red-500 text-sm'>{errors.adults?.message}</p>}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="elderly">Quantidade de idosos</Label>
+            <Input
+              id="elderly"
+              type="number"
+              min="0"
+              max="10"
+              {...register('elderly')}
+            />
+            {errors.adults && <p className='text-red-500 text-sm'>{errors.elderly?.message}</p>}
           </div>
           <div className="grid gap-2">
           </div>
+          <h1>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
           <Button disabled={isSubmitting} type="submit" className="w-full">
             {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
           </Button>
@@ -121,11 +150,6 @@ export default function VoucherForm() {
           {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher!</p>}
         </form>
       </CardContent>
-      <CardFooter>
-        <Button className="w-full bg-green-400 hover:bg-green-300 text-black" onClick={() => buyVoucher()}>
-          Comprar pelo Mercado Pago
-        </Button>
-      </CardFooter>
-    </Card>
+    </Card >
   )
 }

@@ -1,34 +1,83 @@
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { z } from "zod";
-import { MercadoPagoConfig, Preference } from 'mercadopago';
-const token = process.env.MERCADOPAGO_TOKEN
-const client = new MercadoPagoConfig({ accessToken: token ?? ''});
+import { MercadoPagoConfig, Preference } from "mercadopago";
+const token = process.env.MERCADOPAGO_TOKEN;
+
+if (!token) {
+  throw new Error("MERCADOPAGO_TOKEN is not set");
+}
+
+const client = new MercadoPagoConfig({
+  accessToken: token,
+  options: { timeout: 5000, idempotencyKey: "abc" },
+});
+
+function formatPhone(phone: string) {
+  const formatedPhone: Record<string, string> = {};
+  formatedPhone.area_code = phone.substring(0, 2);
+  formatedPhone.number = phone.substring(2);
+  return formatedPhone;
+}
 
 export const mercadopagoRouter = createTRPCRouter({
   create: publicProcedure
-    .input(z.object({
-      title: z.string(),
-      peopleQty: z.number(),
-      unit_price: z.number(),
-    }))
+    .input(
+      z.object({
+        title: z.string(),
+        adults: z.number(),
+        elderly: z.number(),
+        unit_price: z.number(),
+        returnUrl: z.string(),
+        name: z.string(),
+        surname: z.string(),
+        phone: z.string().min(11),
+      }),
+    )
     .mutation(async ({ input }) => {
       try {
-        const preference = await new Preference(client).create({
+        const preference = new Preference(client);
+        const response = await preference.create({
           body: {
             items: [
               {
-                id: 'voucher',
-                title: input.title || 'title',
-                quantity: input.peopleQty || 1,
-                unit_price: 50,
-              }
+                id: "voucher",
+                title: input.title || "Voucher",
+                quantity: 1,
+                unit_price: input.unit_price,
+                currency_id: "BRL",
+              },
             ],
-          }
-        })
-        return preference;
+            payer: {
+              name: input.name,
+              surname: input.surname,
+              phone: {
+                area_code: formatPhone(input.phone).area_code,
+                number: formatPhone(input.phone).number,
+              },
+            },
+            back_urls: {
+              success: "https://cachoeira-araras.vercel.app/pagamento/aprovado",
+              failure: "https://cachoeira-araras.vercel.app/pagamento/recusado",
+              pending: "https://cachoeira-araras.vercel.app/pagamento/recusado",
+            },
+            auto_return: "approved",
+            payment_methods: {
+              excluded_payment_methods: [
+                {
+                  id: "bolbradesco",
+                },
+                {
+                  id: "pec",
+                },
+              ],
+            },
+            statement_descriptor: "Cachoeira das Araras",
+          },
+        });
+        return response;
       } catch (error) {
-        console.error('Error creating preference:', error);
-        throw new Error('Failed to create preference');
+        console.error("Error creating preference:", error);
+        throw new Error("Failed to create preference");
       }
     }),
 });
