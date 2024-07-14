@@ -1,13 +1,5 @@
 import { z } from "zod";
 
-export type Voucher = {
-  name: string;
-  phone: string;
-  code: string;
-  peopleQty: number;
-  valid: boolean;
-};
-
 export const voucherSchema = z.object({
   name: z
     .string()
@@ -28,6 +20,8 @@ export const voucherSchema = z.object({
   valid: z.boolean(),
   price: z.number(),
 });
+
+export type Voucher = z.infer<typeof voucherSchema>;
 
 export const voucherFormSchema = z
   .object({
