@@ -1,28 +1,5 @@
-import { z } from "zod";
-
-export const voucherFormSchema = z
-  .object({
-    name: z
-      .string()
-      .min(1, "Nome é obrigatorio")
-      .max(40, "Nome deve ser menor que 40 caracteres"),
-    phone: z.string().trim(),
-    peopleQty: z.coerce
-      .number()
-      .gte(1, "Quantidade inválida")
-      .lte(10, "No maximo 10 pessoas")
-      .int(),
-  })
-  .refine(
-    (data) => {
-      return data.phone.length >= 11 && data.phone.charAt(2) === "9";
-    },
-    {
-      message:
-        "Número incorreto, não se esqueça de colocar o DDD e o 9 no início",
-      path: ["phone"],
-    },
-  );
+import { type z } from "zod";
+import { type voucherFormSchema } from "../voucher/types";
 
 type FormSchema = z.infer<typeof voucherFormSchema>;
 
@@ -50,7 +27,8 @@ export function formatVoucher(data: FormSchema) {
     name: data.name,
     phone: data.phone,
     code,
-    peopleQty: data.peopleQty,
+    adults: data.adults,
+    elderly: data.elderly,
     valid: true,
   };
   return completeData;

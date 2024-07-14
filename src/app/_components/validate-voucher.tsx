@@ -105,7 +105,8 @@ export default function ValidateVoucher() {
             <h4>Voucher: {data?.code}</h4>
             <h4>Valido: {data?.valid ? 'Sim' : 'Não'}</h4>
             <h4>Nome: {data?.name}</h4>
-            <h4>Pessoas: {data?.peopleQty}</h4>
+            <h4>Pessoas com mais de 8 anos: {data?.adults}</h4>
+            <h4>Idosos: {data?.elderly}</h4>
             <h4>Telefone: {data?.phone ? formatPhone(data?.phone) : 'Não informado'}</h4>
           </CardContent>
         </Card>

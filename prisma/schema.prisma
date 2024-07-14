@@ -71,12 +71,14 @@ model VerificationToken {
 }
 
 model Voucher {
-    id        Int     @id @default(autoincrement())
-    name      String
-    phone     String
-    code      String  @unique
-    peopleQty Int
-    valid     Boolean @default(true)
+    id      Int     @id @default(autoincrement())
+    name    String
+    phone   String
+    code    String  @unique
+    adults  Int
+    elderly Int
+    valid   Boolean @default(true)
+    price   Float
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
