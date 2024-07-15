@@ -27,7 +27,6 @@ export const mercadopagoRouter = createTRPCRouter({
         adults: z.number(),
         elderly: z.number(),
         unit_price: z.number(),
-        returnUrl: z.string(),
         name: z.string(),
         surname: z.string(),
         phone: z.string().min(11),
@@ -56,9 +55,9 @@ export const mercadopagoRouter = createTRPCRouter({
               },
             },
             back_urls: {
-              success: "https://cachoeira-araras.vercel.app/pagamento/aprovado",
-              failure: "https://cachoeira-araras.vercel.app/pagamento/recusado",
-              pending: "https://cachoeira-araras.vercel.app/pagamento/recusado",
+              success: "http://localhost:3000/pagamento/aprovado",
+              failure: "http://localhost:3000/pagamento/recusado",
+              pending: "http://localhost:3000/pagamento/recusado",
             },
             auto_return: "approved",
             payment_methods: {
@@ -79,5 +78,20 @@ export const mercadopagoRouter = createTRPCRouter({
         console.error("Error creating preference:", error);
         throw new Error("Failed to create preference");
       }
+    }),
+  getPayment: publicProcedure
+    .input(
+      z.object({
+        payment_id: z.string(),
+        status: z.string(),
+        merchant_order_id: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return {
+        Payment: input.payment_id,
+        Status: input.status,
+        MerchantOrder: input.merchant_order_id,
+      };
     }),
 });

@@ -1,5 +1,4 @@
 'use client'
-
 import { api } from "@/trpc/react";
 import React from 'react'
 import type { z } from "zod"
@@ -56,12 +55,9 @@ export default function VoucherForm() {
       name: data.name,
       surname: data.name,
       phone: data.phone,
-      returnUrl: 'https://localhost:3000/pagamento/aprovado',
     });
 
-    console.log('🚀 ~ buyVoucher ~ res:', res);
-    console.log('🚀 ~ buyVoucher ~ res:', res.sandbox_init_point);
-    const url = res.sandbox_init_point;
+    const url = res.init_point;
     if (url) {
       router.push(url);
     }
