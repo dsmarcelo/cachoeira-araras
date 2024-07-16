@@ -1,7 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatPhone } from '@/lib/utils/utils'
 import { formatVoucherStatus } from '@/lib/voucher'
-import { type VoucherSchema } from '@/lib/voucher/types'
 import { type Voucher } from '@prisma/client'
 import React from 'react'
 
