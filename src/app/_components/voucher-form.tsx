@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { formatPhone, formatVoucher } from '@/lib/utils/utils'
+import { calculatePrice, formatVoucher, formatPhone } from '@/lib/utils/utils'
 import { useRouter } from 'next/navigation';
 import { voucherFormSchema } from "@/lib/voucher/types";
 
@@ -37,18 +37,14 @@ export default function VoucherForm() {
 
   const formValues = watch();
 
-  function calculatePrice(adults: number, elderly: number) {
-    const total = adults * 40 + elderly * 20;
-    return total;
-  }
-
   function normalizePhone(value: string) {
     return value.replace(/\D/g, '');
   };
 
   async function buyVoucher(data: FormSchema) {
     const res = await mercadopago.mutateAsync({
-      title: `Voucher para ${data.adults} pessoas com mais de 8 anos e ${data.elderly} idosos`,
+      title: 'Voucher para Cachoeira das Araras',
+      description: `Voucher para ${data.adults} pessoas com mais de 8 anos e ${data.elderly} com mais de 60 anos ou especiais`,
       adults: data.adults,
       elderly: data.elderly,
       unit_price: calculatePrice(data.adults, data.elderly),
@@ -57,20 +53,19 @@ export default function VoucherForm() {
       phone: data.phone,
     });
 
-    const url = res.init_point;
-    if (url) {
-      router.push(url);
-    }
-    return null;
+    if (!res) console.error('Failed to create preference');
+    return res;
   }
 
   async function onSubmit(data: FormSchema) {
-    const completeData = formatVoucher(data);
-
+    const res = await buyVoucher(data);
+    if (!res?.id || !res?.init_point) return;
+    const preference_id = res.id;
+    const completeData = formatVoucher({ ...data, preference_id });
     try {
-      return buyVoucher(completeData);
-      // const res = await addVoucher.mutateAsync(completeData);
-      // return res;
+      const voucher = await addVoucher.mutateAsync(completeData);
+      if (!voucher) return;
+      router.push(res.init_point);
     } catch (error) {
       console.error(error);
     }
@@ -120,18 +115,18 @@ export default function VoucherForm() {
               id="adults"
               type="number"
               min="0"
-              max="10"
+              max="20"
               {...register('adults')}
             />
             {errors.adults && <p className='text-red-500 text-sm'>{errors.adults?.message}</p>}
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="elderly">Quantidade de idosos</Label>
+            <Label htmlFor="elderly">Mais de 60 anos ou especiais</Label>
             <Input
               id="elderly"
               type="number"
               min="0"
-              max="10"
+              max="20"
               {...register('elderly')}
             />
             {errors.adults && <p className='text-red-500 text-sm'>{errors.elderly?.message}</p>}
@@ -142,8 +137,8 @@ export default function VoucherForm() {
           <Button disabled={isSubmitting} type="submit" className="w-full">
             {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
           </Button>
-          {addVoucher.isSuccess && <p className='text-green-500 text-sm'>Voucher criado com sucesso!</p>}
-          {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher!</p>}
+          {addVoucher.isSuccess && <p className='text-green-500 text-sm'>Voucher criado com sucesso, redirecionando para o pagamento!</p>}
+          {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher, tente novamente!</p>}
         </form>
       </CardContent>
     </Card >

@@ -70,15 +70,25 @@ model VerificationToken {
     @@unique([identifier, token])
 }
 
+enum Status {
+    pending
+    valid
+    redeemed
+    expired
+}
+
 model Voucher {
-    id      Int     @id @default(autoincrement())
-    name    String
-    phone   String
-    code    String  @unique
-    adults  Int
-    elderly Int
-    valid   Boolean @default(true)
-    price   Float
+    id            Int       @id @default(autoincrement())
+    name          String
+    phone         String
+    code          String    @unique @db.VarChar(4)
+    adults        Int
+    elderly       Int
+    price         Float
+    valid         Boolean   @default(false)
+    status        Status    @default(pending)
+    preference_id String    @unique
+    expires_at    DateTime?
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt

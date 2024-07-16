@@ -7,24 +7,24 @@ import { api, type RouterOutputs } from '@/trpc/react'
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { formatPhone } from '@/lib/utils/utils'
+import VoucherCard from './voucher-card'
 
 type TVoucher = RouterOutputs['voucher']['findByCode'];
 export default function ValidateVoucher() {
   const [voucherCode, setVoucherCode] = useState('');
-  const [voucher, setVoucher] = useState<TVoucher>(null);
+  const [voucher, setVoucher] = useState<TVoucher>();
   const [valid, setValid] = useState(false);
   const [message, setMessage] = useState('');
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
-    setVoucher(null);
+    setVoucher(undefined);
     setValid(false);
     setMessage('');
     const { value } = e.target;
     return setVoucherCode(value.replace(/[^a-z0-9]/gi, "").toLowerCase().substring(0, 4));
   }
 
-  const { refetch, data, isLoading, isSuccess } = api.voucher.findByCode.useQuery({ code: voucherCode }, {
+  const { refetch, isLoading } = api.voucher.findByCode.useQuery({ code: voucherCode }, {
     enabled: false,
     refetchOnMount: false,
     refetchOnReconnect: false,
@@ -55,7 +55,7 @@ export default function ValidateVoucher() {
   async function onSubmit() {
     if (!voucherCode) return null
     const res = await refetch();
-    if (res.isSuccess) {
+    if (res.data?.valid) {
       setValid(true);
       setMessage('Código de voucher válido, deseja usar o voucher?')
       return await fetchVoucher();
@@ -96,20 +96,8 @@ export default function ValidateVoucher() {
           </form>
         </CardContent>
       </Card>
-      {isSuccess ?
-        <Card className='mx-auto w-full max-w-lg bg-cyan-950 text-white'>
-          <CardHeader>
-            <CardTitle>Voucher Encontrado</CardTitle>
-          </CardHeader>
-          <CardContent className='flex flex-col gap-2'>
-            <h4>Voucher: {data?.code}</h4>
-            <h4>Valido: {data?.valid ? 'Sim' : 'Não'}</h4>
-            <h4>Nome: {data?.name}</h4>
-            <h4>Pessoas com mais de 8 anos: {data?.adults}</h4>
-            <h4>Idosos: {data?.elderly}</h4>
-            <h4>Telefone: {data?.phone ? formatPhone(data?.phone) : 'Não informado'}</h4>
-          </CardContent>
-        </Card>
+      {voucher ?
+        <VoucherCard data={voucher} />
         : null}
     </div>
   )
