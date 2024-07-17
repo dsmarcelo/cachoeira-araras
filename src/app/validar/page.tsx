@@ -3,11 +3,12 @@ import ValidateVoucher from '../_components/validate-voucher'
 import { VoucherTable } from './voucher-table'
 import { api } from '@/trpc/server'
 import { columns } from "./columns"
-import { type Voucher } from '@/lib/voucher/types'
+import { type VoucherSchema } from '@/lib/voucher/types'
 
-const fetchVouchers = async (): Promise<Voucher[]> => {
+const fetchVouchers = async (): Promise<VoucherSchema[]> => {
   try {
     const vouchers = await api.voucher.findAll();
+    console.log('🚀 ~ fetchVouchers ~ vouchers:', vouchers);
     return vouchers;
   } catch (error) {
     console.error('Error fetching vouchers:', error);

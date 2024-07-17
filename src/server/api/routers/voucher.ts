@@ -26,7 +26,7 @@ export const voucherRouter = createTRPCRouter({
     }),
 
   findByCode: publicProcedure
-    .input(z.object({code: z.string().min(3).max(4)}))
+    .input(z.object({ code: z.string().min(3).max(4) }))
     .query(async ({ ctx, input }) => {
       return await ctx.db.voucher.findFirst({
         where: {
@@ -66,18 +66,20 @@ export const voucherRouter = createTRPCRouter({
   findValid: publicProcedure.query(async ({ ctx }) => {
     return await ctx.db.voucher.findMany({
       where: {
-        valid: true,
+        status: "valid",
       },
     });
   }),
 
-  findInvalid: publicProcedure.query(async ({ ctx }) => {
-    return await ctx.db.voucher.findMany({
-      where: {
-        valid: false,
-      },
-    });
-  }),
+  findByStatus: publicProcedure
+    .input(voucherSchema)
+    .query(async ({ ctx, input }) => {
+      return await ctx.db.voucher.findMany({
+        where: {
+          status: input.status,
+        },
+      });
+    }),
 
   updateStatus: publicProcedure
     .input(voucherSchema)
@@ -87,6 +89,26 @@ export const voucherRouter = createTRPCRouter({
           code: input.code,
         },
         data: input,
+      });
+    }),
+
+  updateVoucher: publicProcedure
+    .input(
+      z.object({
+        preference_id: z.string(),
+        status: z.enum(["pending", "valid", "redeemed", "expired"]),
+        valid: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.db.voucher.update({
+        where: {
+          preference_id: input.preference_id,
+        },
+        data: {
+          status: input.status,
+          valid: input.valid,
+        },
       });
     }),
 

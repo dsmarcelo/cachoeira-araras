@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const VoucherStatus = z.enum(["pending", "valid", "redeemed", "expired"]);
+
 export const voucherSchema = z.object({
   name: z
     .string()
@@ -9,19 +11,22 @@ export const voucherSchema = z.object({
   adults: z.coerce
     .number()
     .gte(0, "Quantidade inválida")
-    .lte(10, "No maximo 10 pessoas")
+    .lte(10, "No maximo 20 pessoas")
     .int(),
   elderly: z.coerce
     .number()
     .gte(0, "Quantidade inválida")
-    .lte(10, "No maximo 10 pessoas")
+    .lte(10, "No maximo 20 pessoas")
     .int(),
   code: z.string(),
-  valid: z.boolean(),
   price: z.number(),
+  valid: z.boolean(),
+  status: VoucherStatus,
+  preference_id: z.string(),
+  expires_at: z.union([z.date(), z.null()]).optional(),
 });
 
-export type Voucher = z.infer<typeof voucherSchema>;
+export type VoucherSchema = z.infer<typeof voucherSchema>;
 
 export const voucherFormSchema = z
   .object({
@@ -57,3 +62,11 @@ export const voucherFormSchema = z
       path: ["phone"],
     },
   );
+
+export const initialVoucherSchema = z.object({
+  name: z.string(),
+  phone: z.string(),
+  adults: z.coerce.number().gte(0).lte(10),
+  elderly: z.coerce.number().gte(0).lte(10),
+  preference_id: z.string(),
+});
