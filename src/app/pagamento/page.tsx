@@ -4,10 +4,23 @@ import PaymentCard from '@/app/_components/payment-card';
 import { type PreferenceSchema } from '@/lib/utils/mercadopago/types';
 import VoucherCard from '@/app/_components/voucher-card';
 import { type Voucher } from '@prisma/client';
+import { type Payment } from 'mercadopago';
+import { PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
 
-const fetchPayment = async (preference_id: string): Promise<PreferenceSchema> => {
+const fetchPreference = async (preference_id: string): Promise<PreferenceSchema> => {
   try {
-    const res = await api.mercadopago.getPayment({ preference_id });
+    const res = await api.mercadopago.getPreference({ preference_id });
+    if (!res) throw new Error('Failed to fetch payment');
+    return res;
+  } catch (error) {
+    console.error('Error fetching payment:', error);
+    throw error;
+  }
+};
+
+const fetchPayment = async (payment_id: string): Promise<PaymentResponse> => {
+  try {
+    const res = await api.mercadopago.getPayment({ payment_id });
     if (!res) throw new Error('Failed to fetch payment');
     return res;
   } catch (error) {
@@ -44,10 +57,12 @@ export default async function PaymentApprovedPage({
     return <div>Missing required fields</div>
   }
 
-  const { preference_id, status, payment_id } = searchParams;
+  const { preference_id, payment_id } = searchParams;
 
-  const payment = await fetchPayment(preference_id as string)
-  if (status !== 'approved') {
+  const preference = await fetchPreference(preference_id as string)
+  const payment = await fetchPayment(payment_id as string)
+  console.log('🚀 ~ payment:', payment);
+  if (payment.status === 'denied') {
     return <div>Pagamento não aprovado</div>
   }
   const voucher = await updateStatus(preference_id as string)
@@ -55,7 +70,7 @@ export default async function PaymentApprovedPage({
     <div className="flex flex-col mt-12 items-center h-screen">
       <h1 className='text-center text-4xl font-bold text-green-500'>Pagamento aprovado</h1>
       <div className='mt-12' >
-        <PaymentCard data={payment} payment_id={payment_id as string} />
+        <PaymentCard data={preference} payment_id={payment_id as string} />
         <VoucherCard data={voucher} />
       </div>
     </div>

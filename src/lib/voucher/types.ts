@@ -11,12 +11,12 @@ export const voucherSchema = z.object({
   adults: z.coerce
     .number()
     .gte(0, "Quantidade inválida")
-    .lte(10, "No maximo 20 pessoas")
+    .lte(20, "No maximo 20 pessoas")
     .int(),
   elderly: z.coerce
     .number()
     .gte(0, "Quantidade inválida")
-    .lte(10, "No maximo 20 pessoas")
+    .lte(20, "No maximo 20 pessoas")
     .int(),
   code: z.string(),
   price: z.number(),
@@ -41,7 +41,7 @@ export const voucherFormSchema = z
         invalid_type_error: "Deve ser um número",
       })
       .gte(0, "Quantidade inválida")
-      .lte(10, "No maximo 10 pessoas")
+      .lte(20, "No maximo 20 pessoas")
       .int(),
     elderly: z.coerce
       .number({
@@ -49,7 +49,7 @@ export const voucherFormSchema = z
         invalid_type_error: "Deve ser um número",
       })
       .gte(0, "Quantidade inválida")
-      .lte(10, "No maximo 10 pessoas")
+      .lte(20, "No maximo 20 pessoas")
       .int(),
   })
   .refine(
