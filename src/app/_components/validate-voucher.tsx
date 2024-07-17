@@ -16,6 +16,8 @@ export default function ValidateVoucher() {
   const [valid, setValid] = useState(false);
   const [message, setMessage] = useState('');
 
+  const updateVoucher = api.voucher.updateVoucherStatus.useMutation()
+
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
     setVoucher(undefined);
     setValid(false);
@@ -52,11 +54,27 @@ export default function ValidateVoucher() {
     }
   }
 
+  async function useVoucher() {
+    if (!voucherCode) return null
+    const res = await updateVoucher.mutateAsync({
+      code: voucherCode,
+      data: {
+        status: "redeemed",
+        valid: false,
+      }
+    })
+    return res
+  }
+
   async function onSubmit() {
     if (!voucherCode) return null
     const res = await refetch();
-    if (res.data?.valid) {
-      setValid(true);
+    if (!res.data) {
+      return setMessage('Voucher não encontrado')
+    }
+    if (res.data.valid) {
+      setVoucher(res.data)
+      setValid(res.data.valid);
       setMessage('Código de voucher válido, deseja usar o voucher?')
       return await fetchVoucher();
     }
@@ -85,13 +103,13 @@ export default function ValidateVoucher() {
                 placeholder="Código do Voucher"
               />
             </div>
-            <Button type="submit">
+            <Button className='h-14' type="submit">
               {isLoading ? 'Validando...' : 'Validar'}
             </Button>
             {errors.code && <p className='text-red-500 text-sm'>{errors.code?.message}</p>}
             <h3 className='text-black font-semibold text-center'>{message}</h3>
             {valid ?
-              <Button type='button' className='bg-green-500 font-semibold text-center'>Usar Voucher</Button>
+              <Button type='button' onClick={useVoucher} className='bg-green-500 font-semibold text-center'>Usar Voucher</Button>
               : null}
           </form>
         </CardContent>

@@ -92,7 +92,6 @@ export const mercadopagoRouter = createTRPCRouter({
           headers: {
             Authorization: `Bearer ${token}`,
           },
-          next: { revalidate: 3600 },
         });
 
         if (!res.ok) {
@@ -115,7 +114,6 @@ export const mercadopagoRouter = createTRPCRouter({
           headers: {
             Authorization: `Bearer ${token}`,
           },
-          next: { revalidate: 3600 },
         });
 
         if (!res.ok) {

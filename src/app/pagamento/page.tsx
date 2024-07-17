@@ -5,7 +5,7 @@ import { type PreferenceSchema } from '@/lib/utils/mercadopago/types';
 import VoucherCard from '@/app/_components/voucher-card';
 import { type Voucher } from '@prisma/client';
 import { type Payment } from 'mercadopago';
-import { PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
+import { type PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
 
 const fetchPreference = async (preference_id: string): Promise<PreferenceSchema> => {
   try {
@@ -32,7 +32,7 @@ const fetchPayment = async (payment_id: string): Promise<PaymentResponse> => {
 const updateStatus = async (preference_id: string): Promise<Voucher> => {
   console.log('🚀 ~ updateStatus ~ preference_id:', preference_id);
   try {
-    const voucher = await api.voucher.updateVoucher({
+    const voucher = await api.voucher.updateByPreference_id({
       preference_id,
       status: "valid" as const,
       valid: true
@@ -61,7 +61,6 @@ export default async function PaymentApprovedPage({
 
   const preference = await fetchPreference(preference_id as string)
   const payment = await fetchPayment(payment_id as string)
-  console.log('🚀 ~ payment:', payment);
   if (payment.status === 'denied') {
     return <div>Pagamento não aprovado</div>
   }

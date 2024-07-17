@@ -87,6 +87,7 @@ export default function VoucherForm() {
             <Input
               id="name"
               placeholder="Nome"
+              maxLength={40}
               {...register('name',
                 { required: "Nome é obrigatório" },
               )} />
@@ -134,7 +135,7 @@ export default function VoucherForm() {
           </div>
           <div className="grid gap-2">
           </div>
-          <h1>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
+          <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
           <Button disabled={isSubmitting} type="submit" className="w-full">
             {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
           </Button>

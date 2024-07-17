@@ -21,8 +21,9 @@ export const voucherSchema = z.object({
   code: z.string(),
   price: z.number(),
   valid: z.boolean(),
-  status: VoucherStatus,
+  status: z.string(),
   preference_id: z.string(),
+  payment_id: z.string().optional(),
   expires_at: z.union([z.date(), z.null()]).optional(),
 });
 
@@ -69,4 +70,5 @@ export const initialVoucherSchema = z.object({
   adults: z.coerce.number().gte(0).lte(10),
   elderly: z.coerce.number().gte(0).lte(10),
   preference_id: z.string(),
+  payment_id: z.string().optional(),
 });

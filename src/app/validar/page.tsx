@@ -8,7 +8,6 @@ import { type VoucherSchema } from '@/lib/voucher/types'
 const fetchVouchers = async (): Promise<VoucherSchema[]> => {
   try {
     const vouchers = await api.voucher.findAll();
-    console.log('🚀 ~ fetchVouchers ~ vouchers:', vouchers);
     return vouchers;
   } catch (error) {
     console.error('Error fetching vouchers:', error);
