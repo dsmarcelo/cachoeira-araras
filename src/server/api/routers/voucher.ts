@@ -81,6 +81,16 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
+  findByPreferenceId: publicProcedure
+    .input(z.object({ preference_id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      return await ctx.db.voucher.findFirst({
+        where: {
+          preference_id: input.preference_id,
+        },
+      });
+    }),
+
   updateVoucherStatus: publicProcedure
     .input(
       z.object({

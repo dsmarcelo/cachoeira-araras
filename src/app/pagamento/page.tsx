@@ -34,7 +34,12 @@ const fetchPayment = async (payment_id: string): Promise<PaymentResponse> => {
 };
 
 const updateStatus = async (preference_id: string): Promise<Voucher> => {
+  const oldVoucher = await api.voucher.findByPreferenceId({ preference_id })
   console.log('🚀 ~ updateStatus ~ preference_id:', preference_id);
+  if (oldVoucher?.status === 'expired' || oldVoucher?.status === 'redeemed') {
+    return oldVoucher
+  }
+
   try {
     const voucher = await api.voucher.updateByPreference_id({
       preference_id,
@@ -84,7 +89,7 @@ export default async function PaymentApprovedPage({
       </div>
       <Button className='mt-12 flex gap-4 bg-green-600 py-4 h-[contain]'>
         <FaWhatsapp className="h-8 w-8" />
-        <Link href={formatWhatsAppMessage(voucher)} target='_blanck' className='whitespace-pre-wrap'>Envie o voucher para o WhatsApp da Cachoeira das Araras</Link>
+        <Link href={formatWhatsAppMessage(voucher)} target='_blank' className='whitespace-pre-wrap'>Envie o voucher para o WhatsApp da Cachoeira das Araras</Link>
       </Button>
     </div>
   )
