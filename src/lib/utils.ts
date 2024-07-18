@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { VoucherSchema } from "./voucher/types";
+import { type VoucherSchema } from "./voucher/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

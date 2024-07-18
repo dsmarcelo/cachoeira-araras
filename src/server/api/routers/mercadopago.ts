@@ -1,8 +1,8 @@
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { z } from "zod";
-import { MercadoPagoConfig, Payment, Preference } from "mercadopago";
+import { MercadoPagoConfig, Preference } from "mercadopago";
 import { type PreferenceSchema } from "@/lib/utils/mercadopago/types";
-import { PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
+import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
 const token = process.env.MERCADOPAGO_TOKEN;
 
 if (!token) {
