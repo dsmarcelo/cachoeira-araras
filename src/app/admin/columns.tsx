@@ -1,6 +1,6 @@
 "use client"
 
-import { formatPhone } from "@/lib/utils/utils"
+import { formatPhone } from "@/lib/utils"
 import { formatVoucherStatus } from "@/lib/voucher"
 import { type VoucherSchema } from "@/lib/voucher/types"
 import type { ColumnDef } from "@tanstack/react-table"

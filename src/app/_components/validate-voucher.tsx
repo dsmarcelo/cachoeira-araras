@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import VoucherCard from './voucher-card'
+import { useRouter } from 'next/navigation'
 
 type TVoucher = RouterOutputs['voucher']['findByCode'];
 export default function ValidateVoucher() {
@@ -16,7 +17,10 @@ export default function ValidateVoucher() {
   const [valid, setValid] = useState(false);
   const [message, setMessage] = useState('');
 
+  const router = useRouter();
+
   const updateVoucher = api.voucher.updateVoucherStatus.useMutation()
+  const deleteVoucherApi = api.voucher.delete.useMutation()
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
     setVoucher(undefined);
@@ -63,7 +67,13 @@ export default function ValidateVoucher() {
         valid: false,
       }
     })
+    setVoucher(undefined);
     return res
+  }
+
+  async function deleteVoucher() {
+    await deleteVoucherApi.mutateAsync({ code: voucherCode })
+    return router.refresh()
   }
 
   async function onSubmit() {
@@ -72,8 +82,8 @@ export default function ValidateVoucher() {
     if (!res.data) {
       return setMessage('Voucher não encontrado')
     }
+    setVoucher(res.data)
     if (res.data.valid) {
-      setVoucher(res.data)
       setValid(res.data.valid);
       setMessage('Código de voucher válido, deseja usar o voucher?')
       return await fetchVoucher();
@@ -115,7 +125,10 @@ export default function ValidateVoucher() {
         </CardContent>
       </Card>
       {voucher ?
-        <VoucherCard data={voucher} />
+        <div className='flex flex-col gap-4'>
+          <button className='text-red-500 text-xs w-24 mx-auto' onClick={deleteVoucher}>Deletar Voucher</button>
+          <VoucherCard data={voucher} />
+        </div>
         : null}
     </div>
   )

@@ -124,11 +124,13 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  delete: publicProcedure.input(z.string()).mutation(async ({ ctx, input }) => {
-    return await ctx.db.voucher.delete({
-      where: {
-        code: input,
-      },
-    });
-  }),
+  delete: publicProcedure
+    .input(z.object({ code: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.db.voucher.delete({
+        where: {
+          code: input.code,
+        },
+      });
+    }),
 });

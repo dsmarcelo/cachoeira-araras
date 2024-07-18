@@ -6,23 +6,20 @@ import {
 import { FaWhatsapp } from "react-icons/fa";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Button } from '@/components/ui/button'
+import Image from 'next/image';
 
 export default function Header() {
   return (
     <header className="top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
       <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
-        <h3>(logo) Cachoeria das Araras</h3>
+        <div className='w-full flex flex-col'>
+          <Image src="/logo_cda.png" alt="logo" className='invert' width={50} height={50} />
+        </div>
         <Link
           href="/"
           className="flex items-center gap-2 text-lg font-semibold md:text-base p-2 rounded-lg hover:bg-slate-100"
         >
           Inicio
-        </Link>
-        <Link
-          href="/validar"
-          className="text-foreground transition-colors p-2 rounded-lg hover:bg-slate-100"
-        >
-          Validar Codigo
         </Link>
       </nav>
       <Sheet>
@@ -37,22 +34,21 @@ export default function Header() {
           </Button>
         </SheetTrigger>
         <SheetContent side="left">
-          <div className='w-full flex flex-col text-lg font-semibold rounded-lg mb-8 p-4'>
-            (logo) Cachoeira das Araras
-          </div>
+          <Link href="/" className='flex flex-col mb-8'>
+            <Image src="/logo_cda.png" alt="logo" className='invert' width={50} height={50} />
+          </Link>
           <nav className="grid gap-6 text-lg font-medium">
             <Link href="/" className="hover:text-foreground">
               Inicio
             </Link>
-            <Link href="/validar" className="hover:text-foreground">
-              Validar Codigo
-            </Link>
           </nav>
         </SheetContent>
       </Sheet>
-      <h3 className='md:hidden mx-auto'>(logo) Cachoeria das Araras</h3>
+      <div className='w-full flex flex-col md:hidden'>
+        <Image src="/logo_cda.png" alt="logo" className='invert mx-auto' width={50} height={50} />
+      </div>
       <Link
-        href="https://wa.me/5562996434112?text=Ol%C3%A1,%20meu%20nome%20%C3%A9%20Jo%C3%A3o%20e%20comprei%20um%20voucher%20para%206%20pessoas,%20com%20o%20c%C3%B3digo:%206caj"
+        href="https://wa.me/556299251040?"
         target='_blank'
         className="text-foreground ml-auto transition-colors p-2 rounded-lg hover:bg-slate-100"
       >

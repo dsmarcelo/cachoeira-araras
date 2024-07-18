@@ -6,6 +6,12 @@ import VoucherCard from '@/app/_components/voucher-card';
 import { type Voucher } from '@prisma/client';
 import { type Payment } from 'mercadopago';
 import { type PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
+import { getServerSession } from 'next-auth';
+import { Button } from '@/components/ui/button';
+import { redirect } from 'next/navigation';
+import { formatWhatsAppMessage } from '@/lib/utils';
+import Link from 'next/link';
+import { FaWhatsapp } from "react-icons/fa";
 
 const fetchPreference = async (preference_id: string): Promise<PreferenceSchema> => {
   try {
@@ -54,7 +60,7 @@ export default async function PaymentApprovedPage({
   const allStrings = Object.values(searchParams).every(value => typeof value === 'string');
 
   if (!allStrings) {
-    return <div>Missing required fields</div>
+    return <div>Link inválido</div>
   }
 
   const { preference_id, payment_id } = searchParams;
@@ -64,14 +70,24 @@ export default async function PaymentApprovedPage({
   if (payment.status === 'denied') {
     return <div>Pagamento não aprovado</div>
   }
+  if (payment.status === 'pending') {
+    return <div>
+      Pagamento pendente, apos o pagamento, atualize a página
+      <Button onClick={() => redirect(preference.init_point)}>Clique aqui para finalizar o pagamento</Button>
+    </div>
+  }
   const voucher = await updateStatus(preference_id as string)
   return (
-    <div className="flex flex-col mt-12 items-center h-screen">
+    <div className="flex flex-col mt-12 px-4 items-center h-screen mb-96">
       <h1 className='text-center text-4xl font-bold text-green-500'>Pagamento aprovado</h1>
-      <div className='mt-12' >
+      <div className='mt-12 flex flex-col gap-8'>
         <PaymentCard data={preference} payment_id={payment_id as string} />
         <VoucherCard data={voucher} />
       </div>
+      <Button className='mt-12 flex gap-4 bg-green-600 py-4 h-[contain]'>
+        <FaWhatsapp className="h-8 w-8" />
+        <Link href={formatWhatsAppMessage(voucher)} target='_blanck' className='whitespace-pre-wrap'>Envie o voucher para o WhatsApp da Cachoeira das Araras</Link>
+      </Button>
     </div>
   )
 }

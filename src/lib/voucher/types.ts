@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-const VoucherStatus = z.enum(["pending", "valid", "redeemed", "expired"]);
-
 export const voucherSchema = z.object({
   name: z
     .string()
@@ -23,7 +21,7 @@ export const voucherSchema = z.object({
   valid: z.boolean(),
   status: z.string(),
   preference_id: z.string(),
-  payment_id: z.string().optional(),
+  payment_id: z.string().optional().nullable(),
   expires_at: z.union([z.date(), z.null()]).optional(),
 });
 
@@ -71,4 +69,5 @@ export const initialVoucherSchema = z.object({
   elderly: z.coerce.number().gte(0).lte(10),
   preference_id: z.string(),
   payment_id: z.string().optional(),
+  code: z.string(),
 });

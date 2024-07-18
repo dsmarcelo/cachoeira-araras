@@ -1,6 +1,6 @@
 'use client'
 import { api } from "@/trpc/react";
-import React from 'react'
+import React, { useState } from 'react'
 import type { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
@@ -14,12 +14,18 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { calculatePrice, formatVoucher, formatPhone } from '@/lib/utils/utils'
+import { calculatePrice, formatVoucher, randomCode } from '@/lib/utils/utils'
 import { useRouter } from 'next/navigation';
 import { voucherFormSchema } from "@/lib/voucher/types";
+import { formatPhone } from "@/lib/utils";
+import { ToastAction } from "@/components/ui/toast"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function VoucherForm() {
   const router = useRouter();
+  const { toast } = useToast()
+  const [code, setCode] = useState('');
+  const [init_point, setInitPoint] = useState('');
 
   type FormSchema = z.infer<typeof voucherFormSchema>
   const addVoucher = api.voucher.create.useMutation();
@@ -41,9 +47,9 @@ export default function VoucherForm() {
     return value.replace(/\D/g, '');
   };
 
-  async function buyVoucher(data: FormSchema) {
+  async function buyVoucher({ data, code }: { data: FormSchema, code: string }) {
     const res = await mercadopago.mutateAsync({
-      title: 'Voucher para Cachoeira das Araras',
+      title: `Voucher ${code}`,
       description: `Voucher para ${data.adults} pessoas com mais de 8 anos e ${data.elderly} com mais de 60 anos ou especiais`,
       adults: data.adults,
       elderly: data.elderly,
@@ -58,15 +64,28 @@ export default function VoucherForm() {
     return res;
   }
 
+  function redirectToPayment() {
+    router.push(init_point);
+  }
+
   async function onSubmit(data: FormSchema) {
-    const res = await buyVoucher(data);
+    if (data.adults + data.elderly === 0) {
+      console.log('Erro')
+      return toast({
+        title: 'Erro',
+        description: 'Verifique a quantidade de pessoas',
+      })
+    }
+    const rcode = randomCode();
+    setCode(rcode);
+    const res = await buyVoucher({ data, code: rcode });
     if (!res?.id || !res?.init_point) return;
+    setInitPoint(res.init_point);
     const preference_id = res.id;
-    const completeData = formatVoucher({ ...data, preference_id });
+    const completeData = formatVoucher({ ...data, preference_id, code: rcode });
     try {
       const voucher = await addVoucher.mutateAsync(completeData);
       if (!voucher) return;
-      router.push(res.init_point);
     } catch (error) {
       console.error(error);
     }
@@ -139,9 +158,17 @@ export default function VoucherForm() {
           <Button disabled={isSubmitting} type="submit" className="w-full">
             {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
           </Button>
-          {addVoucher.isSuccess && <p className='text-green-500 text-sm'>Voucher criado com sucesso, redirecionando para o pagamento!</p>}
-          {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher, tente novamente!</p>}
         </form>
+        <div className='mt-4 flex flex-col gap-4'>
+          {code &&
+            <div>
+              <p className='text-green-700 text-lg font-medium'>Voucher criado com sucesso, guarde o seu codigo e faça o pagamento para utiliza-lo:</p>
+              <h2 className='text-2xl font-bold text-center'>{code}</h2>
+            </div>
+          }
+          {init_point && <Button className='bg-green-500 h-14 text-lg w-full' onClick={redirectToPayment}>Fazer pagamento</Button>}
+          {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher, tente novamente!</p>}
+        </div>
       </CardContent>
     </Card >
   )
