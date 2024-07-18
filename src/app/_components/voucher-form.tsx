@@ -18,7 +18,6 @@ import { calculatePrice, formatVoucher, randomCode } from '@/lib/utils/utils'
 import { useRouter } from 'next/navigation';
 import { voucherFormSchema } from "@/lib/voucher/types";
 import { formatPhone } from "@/lib/utils";
-import { ToastAction } from "@/components/ui/toast"
 import { useToast } from "@/components/ui/use-toast"
 
 export default function VoucherForm() {
@@ -53,8 +52,7 @@ export default function VoucherForm() {
       description: `Voucher para ${data.adults} pessoas com mais de 8 anos e ${data.elderly} com mais de 60 anos ou especiais`,
       adults: data.adults,
       elderly: data.elderly,
-      // unit_price: calculatePrice(data.adults, data.elderly),
-      unit_price: 1,
+      unit_price: calculatePrice(data.adults, data.elderly),
       name: data.name,
       surname: data.name,
       phone: data.phone,
