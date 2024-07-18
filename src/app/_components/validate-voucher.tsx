@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import VoucherCard from './voucher-card'
+import { useRouter } from 'next/navigation'
 
 type TVoucher = RouterOutputs['voucher']['findByCode'];
 export default function ValidateVoucher() {
@@ -15,6 +16,11 @@ export default function ValidateVoucher() {
   const [voucher, setVoucher] = useState<TVoucher>();
   const [valid, setValid] = useState(false);
   const [message, setMessage] = useState('');
+
+  const router = useRouter();
+
+  const updateVoucher = api.voucher.updateVoucherStatus.useMutation()
+  const deleteVoucherApi = api.voucher.delete.useMutation()
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
     setVoucher(undefined);
@@ -52,11 +58,33 @@ export default function ValidateVoucher() {
     }
   }
 
+  async function useVoucher() {
+    if (!voucherCode) return null
+    const res = await updateVoucher.mutateAsync({
+      code: voucherCode,
+      data: {
+        status: "redeemed",
+        valid: false,
+      }
+    })
+    setVoucher(undefined);
+    return res
+  }
+
+  async function deleteVoucher() {
+    await deleteVoucherApi.mutateAsync({ code: voucherCode })
+    return router.refresh()
+  }
+
   async function onSubmit() {
     if (!voucherCode) return null
     const res = await refetch();
-    if (res.data?.valid) {
-      setValid(true);
+    if (!res.data) {
+      return setMessage('Voucher não encontrado')
+    }
+    setVoucher(res.data)
+    if (res.data.valid) {
+      setValid(res.data.valid);
       setMessage('Código de voucher válido, deseja usar o voucher?')
       return await fetchVoucher();
     }
@@ -85,19 +113,22 @@ export default function ValidateVoucher() {
                 placeholder="Código do Voucher"
               />
             </div>
-            <Button type="submit">
+            <Button className='h-14' type="submit">
               {isLoading ? 'Validando...' : 'Validar'}
             </Button>
             {errors.code && <p className='text-red-500 text-sm'>{errors.code?.message}</p>}
             <h3 className='text-black font-semibold text-center'>{message}</h3>
             {valid ?
-              <Button type='button' className='bg-green-500 font-semibold text-center'>Usar Voucher</Button>
+              <Button type='button' onClick={useVoucher} className='bg-green-500 font-semibold text-center'>Usar Voucher</Button>
               : null}
           </form>
         </CardContent>
       </Card>
       {voucher ?
-        <VoucherCard data={voucher} />
+        <div className='flex flex-col gap-4'>
+          <button className='text-red-500 text-xs w-24 mx-auto' onClick={deleteVoucher}>Deletar Voucher</button>
+          <VoucherCard data={voucher} />
+        </div>
         : null}
     </div>
   )

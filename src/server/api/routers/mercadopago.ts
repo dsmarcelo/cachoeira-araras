@@ -2,6 +2,7 @@ import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { z } from "zod";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { type PreferenceSchema } from "@/lib/utils/mercadopago/types";
+import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
 const token = process.env.MERCADOPAGO_TOKEN;
 
 if (!token) {
@@ -58,9 +59,9 @@ export const mercadopagoRouter = createTRPCRouter({
               },
             },
             back_urls: {
-              success: "http://localhost:3000/pagamento/aprovado",
-              failure: "http://localhost:3000/pagamento/recusado",
-              pending: "http://localhost:3000/pagamento/recusado",
+              success: "http://localhost:3000/pagamento/",
+              failure: "http://localhost:3000/pagamento/",
+              pending: "http://localhost:3000/pagamento/",
             },
             auto_return: "approved",
             payment_methods: {
@@ -82,7 +83,7 @@ export const mercadopagoRouter = createTRPCRouter({
         throw new Error("Failed to create preference");
       }
     }),
-  getPayment: publicProcedure
+  getPreference: publicProcedure
     .input(z.object({ preference_id: z.string() }))
     .query<PreferenceSchema>(async ({ input }) => {
       const url = `https://api.mercadopago.com/checkout/preferences/${input.preference_id}`;
@@ -91,14 +92,34 @@ export const mercadopagoRouter = createTRPCRouter({
           headers: {
             Authorization: `Bearer ${token}`,
           },
-          cache: "force-cache",
-          next: { revalidate: 3600 },
         });
 
         if (!res.ok) {
           throw new Error("Failed to fetch payment");
         }
         const data: PreferenceSchema = (await res.json()) as PreferenceSchema;
+        return data;
+      } catch (error) {
+        console.error("Error fetching payment:", error);
+        throw new Error("Failed to fetch payment");
+      }
+    }),
+  getPayment: publicProcedure
+    .input(z.object({ payment_id: z.string() }))
+    .query<PaymentResponse>(async ({ input }) => {
+      const url = `https://api.mercadopago.com/v1/payments/${input.payment_id}`;
+      // const pm = await Payment.prototype.get({ id: input.payment_id });
+      try {
+        const res = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch payment");
+        }
+        const data: PaymentResponse = (await res.json()) as PaymentResponse;
         return data;
       } catch (error) {
         console.error("Error fetching payment:", error);

@@ -2,11 +2,11 @@ export function formatVoucherStatus(status: string) {
   if (!status) return "Voucher inválido";
   switch (status) {
     case "pending":
-      return "Aguardando confirmação";
+      return "Aguardando pagamento";
     case "valid":
       return "Voucher válido";
     case "redeemed":
-      return "Voucher resgatado";
+      return "Voucher já resgatado";
     case "expired":
       return "Voucher expirado";
     default:

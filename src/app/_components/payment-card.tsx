@@ -4,7 +4,6 @@ import { type PreferenceSchema } from '@/lib/utils/mercadopago/types';
 import React from 'react'
 
 export default function PaymentCard({ data, payment_id }: { data: PreferenceSchema, payment_id: string }) {
-  console.log('🚀 ~ PaymentCard ~ payment_id:', payment_id);
   const items = data.items
   return (
     <Card className='border-green-500'>

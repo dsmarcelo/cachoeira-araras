@@ -6,6 +6,8 @@ import { type Metadata } from "next";
 import { TRPCReactProvider } from "@/trpc/react";
 import Header from "./_components/header";
 
+import { Toaster } from "@/components/ui/toaster"
+
 export const metadata: Metadata = {
   title: "Cachoeira das Araras",
   description: "Bem vindo a Cachoeira das Araras!",
@@ -20,6 +22,7 @@ export default function RootLayout({
       <body>
         <Header />
         <TRPCReactProvider>{children}</TRPCReactProvider>
+        <Toaster />
       </body>
     </html>
   );

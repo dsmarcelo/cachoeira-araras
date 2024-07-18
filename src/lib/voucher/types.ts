@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-const VoucherStatus = z.enum(["pending", "valid", "redeemed", "expired"]);
-
 export const voucherSchema = z.object({
   name: z
     .string()
@@ -11,18 +9,19 @@ export const voucherSchema = z.object({
   adults: z.coerce
     .number()
     .gte(0, "Quantidade inválida")
-    .lte(10, "No maximo 20 pessoas")
+    .lte(20, "No maximo 20 pessoas")
     .int(),
   elderly: z.coerce
     .number()
     .gte(0, "Quantidade inválida")
-    .lte(10, "No maximo 20 pessoas")
+    .lte(20, "No maximo 20 pessoas")
     .int(),
   code: z.string(),
   price: z.number(),
   valid: z.boolean(),
-  status: VoucherStatus,
+  status: z.string(),
   preference_id: z.string(),
+  payment_id: z.string().optional().nullable(),
   expires_at: z.union([z.date(), z.null()]).optional(),
 });
 
@@ -41,7 +40,7 @@ export const voucherFormSchema = z
         invalid_type_error: "Deve ser um número",
       })
       .gte(0, "Quantidade inválida")
-      .lte(10, "No maximo 10 pessoas")
+      .lte(20, "No maximo 20 pessoas")
       .int(),
     elderly: z.coerce
       .number({
@@ -49,7 +48,7 @@ export const voucherFormSchema = z
         invalid_type_error: "Deve ser um número",
       })
       .gte(0, "Quantidade inválida")
-      .lte(10, "No maximo 10 pessoas")
+      .lte(20, "No maximo 20 pessoas")
       .int(),
   })
   .refine(
@@ -69,4 +68,6 @@ export const initialVoucherSchema = z.object({
   adults: z.coerce.number().gte(0).lte(10),
   elderly: z.coerce.number().gte(0).lte(10),
   preference_id: z.string(),
+  payment_id: z.string().optional(),
+  code: z.string(),
 });

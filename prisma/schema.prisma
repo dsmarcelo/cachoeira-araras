@@ -86,8 +86,9 @@ model Voucher {
     elderly       Int
     price         Float
     valid         Boolean   @default(false)
-    status        Status    @default(pending)
+    status        String    @default("pending")
     preference_id String    @unique
+    payment_id    String?   @unique
     expires_at    DateTime?
 
     createdAt DateTime @default(now())
