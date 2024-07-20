@@ -85,6 +85,7 @@ export const mercadopagoRouter = createTRPCRouter({
             statement_descriptor: "Cachoeira das Araras",
           },
         });
+        console.log("🚀 ~ .mutation ~ response:", response);
         return response;
       } catch (error) {
         console.error("Error creating preference:", error);
@@ -112,11 +113,21 @@ export const mercadopagoRouter = createTRPCRouter({
         throw new Error("Failed to fetch Preference");
       }
     }),
+  getPrefence: publicProcedure
+    .input(z.object({ preference_id: z.string() }))
+    .query<PreferenceResponse>(async ({ input }) => {
+      const url = `https://api.mercadopago.com/checkout/preferences/${input.preference_id}`;
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return res.json();
+    }),
   getPreferenceByEReference: publicProcedure
     .input(z.object({ external_reference: z.string().max(4) }))
     .query<PreferenceResponse>(async ({ input }) => {
-      const url = `https://api.mercadopago.com/checkout/preferences/search?external_reference=${input.external_reference}'`;
-      console.log("🚀 ~ .query<PreferenceResponse> ~ url:", url);
+      const url = `https://api.mercadopago.com/checkout/preferences/search?external_reference=${input.external_reference}`;
       try {
         const res = await fetch(url, {
           headers: {
@@ -138,7 +149,6 @@ export const mercadopagoRouter = createTRPCRouter({
     .input(z.object({ payment_id: z.string() }))
     .query<PaymentResponse>(async ({ input }) => {
       const url = `https://api.mercadopago.com/v1/payments/${input.payment_id}`;
-      // const pm = await Payment.prototype.get({ id: input.payment_id });
       try {
         const res = await fetch(url, {
           headers: {

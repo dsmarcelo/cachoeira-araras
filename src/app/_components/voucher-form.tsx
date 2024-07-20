@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation';
 import { voucherFormSchema } from "@/lib/voucher/types";
 import { formatPaymentUrl, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast"
-import { addCookieVoucher, getCookieVoucher } from "../lib";
+import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher } from "../lib";
 
 export default function VoucherForm() {
   const router = useRouter();
@@ -29,33 +29,25 @@ export default function VoucherForm() {
 
   const utils = api.useUtils();
 
-
   useEffect(() => {
     async function getPreference() {
-      const checkVoucher = await getCookieVoucher();
-      if (checkVoucher) {
-        setCode(checkVoucher);
-        const voucherRes = await utils.voucher.findByCode.fetch({ code: checkVoucher });
-        if (!voucherRes) return;
+      const cookieVoucher = await getCookieVoucher();
+      if (cookieVoucher) {
+        const voucher = await utils.voucher.findByCode.fetch({ code: cookieVoucher });
+        if (!voucher) return deleteCookieVoucher();
+        setCode(cookieVoucher);
 
-        if (voucherRes.status !== 'pending' && voucherRes.payment_id) {
-          const url = formatPaymentUrl(voucherRes.preference_id, voucherRes.payment_id);
-          console.log('🚀 ~ getPreference ~ url:', url);
+        if (voucher.status !== 'pending' && voucher.payment_id) {
+          const url = formatPaymentUrl(voucher.preference_id, voucher.payment_id);
           router.push(url);
         }
-        console.log('🚀 ~ getPreference ~ voucherRes:', voucherRes);
-        if (voucherRes.preference_id) {
-          const preference = await utils.mercadopago.getPreferenceByEReference.fetch({ external_reference: voucherRes.code });
 
-          if (preference.init_point) {
-            setInitPoint(preference.init_point);
-          }
+        const preference = await utils.mercadopago.getPrefence.fetch({ preference_id: voucher.preference_id });
+
+        if (preference.init_point) {
+          setInitPoint(preference.init_point);
         }
       }
-      // if (preference_id_State) {
-      //   setInitPoint(preference.data?.init_point);
-      //   return console.log('🚀 ~ getPreference ~ preference_id_State:', preference.data?.init_point);
-      // }
       return null
     }
     void getPreference();

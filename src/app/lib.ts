@@ -36,3 +36,7 @@ export async function getCookieVoucher(): Promise<string | null> {
   }
   return null;
 }
+
+export async function deleteCookieVoucher() {
+  cookies().delete("voucher");
+}
