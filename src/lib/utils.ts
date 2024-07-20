@@ -36,6 +36,13 @@ export function formatWhatsAppMessage(voucher: VoucherSchema): string {
   return `https://wa.me/${phoneNumber}?text=${urlEncodedMessage}`;
 }
 
+export function formatPaymentUrl(
+  preference_id: string,
+  payment_id: string,
+): string {
+  return `http://localhost:3000/pagamento?collection_id=${payment_id}&collection_status=approved&payment_id=${payment_id}&status=approved&preference_id=${preference_id}&site_id=MLB&processing_mode=aggregator&merchant_account_id=null`;
+}
+
 // const now = new Date();
 // const formattedDate = formatDate(now);
 //   const dateTime = date.toLocaleString("pt-BR", {

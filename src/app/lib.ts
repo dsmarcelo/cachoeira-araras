@@ -22,3 +22,17 @@ export async function login(password: string) {
   }
   return false;
 }
+
+export async function addCookieVoucher(code: string) {
+  cookies().set("voucher", code, {
+    expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+  });
+}
+
+export async function getCookieVoucher(): Promise<string | null> {
+  const code = cookies().get("voucher")?.value;
+  if (code) {
+    return code;
+  }
+  return null;
+}

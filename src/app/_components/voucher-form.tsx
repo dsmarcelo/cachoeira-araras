@@ -1,6 +1,6 @@
 'use client'
 import { api } from "@/trpc/react";
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
@@ -17,14 +17,49 @@ import { Label } from "@/components/ui/label"
 import { calculatePrice, formatVoucher, randomCode } from '@/lib/utils/utils'
 import { useRouter } from 'next/navigation';
 import { voucherFormSchema } from "@/lib/voucher/types";
-import { formatPhone } from "@/lib/utils";
+import { formatPaymentUrl, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast"
+import { addCookieVoucher, getCookieVoucher } from "../lib";
 
 export default function VoucherForm() {
   const router = useRouter();
   const { toast } = useToast()
   const [code, setCode] = useState('');
   const [init_point, setInitPoint] = useState('');
+
+  const utils = api.useUtils();
+
+
+  useEffect(() => {
+    async function getPreference() {
+      const checkVoucher = await getCookieVoucher();
+      if (checkVoucher) {
+        setCode(checkVoucher);
+        const voucherRes = await utils.voucher.findByCode.fetch({ code: checkVoucher });
+        if (!voucherRes) return;
+
+        if (voucherRes.status !== 'pending' && voucherRes.payment_id) {
+          const url = formatPaymentUrl(voucherRes.preference_id, voucherRes.payment_id);
+          console.log('🚀 ~ getPreference ~ url:', url);
+          router.push(url);
+        }
+        console.log('🚀 ~ getPreference ~ voucherRes:', voucherRes);
+        if (voucherRes.preference_id) {
+          const preference = await utils.mercadopago.getPreferenceByEReference.fetch({ external_reference: voucherRes.code });
+
+          if (preference.init_point) {
+            setInitPoint(preference.init_point);
+          }
+        }
+      }
+      // if (preference_id_State) {
+      //   setInitPoint(preference.data?.init_point);
+      //   return console.log('🚀 ~ getPreference ~ preference_id_State:', preference.data?.init_point);
+      // }
+      return null
+    }
+    void getPreference();
+  }, [])
 
   type FormSchema = z.infer<typeof voucherFormSchema>
   const addVoucher = api.voucher.create.useMutation();
@@ -48,7 +83,9 @@ export default function VoucherForm() {
 
   async function buyVoucher({ data, code }: { data: FormSchema, code: string }) {
     const res = await mercadopago.mutateAsync({
+      code,
       title: `Voucher ${code}`,
+      id: code,
       description: `Voucher para ${data.adults} pessoas com mais de 8 anos e ${data.elderly} com mais de 60 anos ou especiais`,
       adults: data.adults,
       elderly: data.elderly,
@@ -78,6 +115,7 @@ export default function VoucherForm() {
     setCode(rcode);
     const res = await buyVoucher({ data, code: rcode });
     if (!res?.id || !res?.init_point) return;
+    await addCookieVoucher(rcode);
     setInitPoint(res.init_point);
     const preference_id = res.id;
     const completeData = formatVoucher({ ...data, preference_id, code: rcode });

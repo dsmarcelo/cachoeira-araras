@@ -91,6 +91,17 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
+  update: publicProcedure
+    .input(z.object({ code: z.string(), data: voucherSchema.partial() }))
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.db.voucher.update({
+        where: {
+          code: input.code,
+        },
+        data: input.data,
+      });
+    }),
+
   updateVoucherStatus: publicProcedure
     .input(
       z.object({
@@ -102,7 +113,6 @@ export const voucherRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      console.log("🚀 ~ code:", input.code);
       return await ctx.db.voucher.update({
         where: {
           code: input.code,
@@ -120,6 +130,7 @@ export const voucherRouter = createTRPCRouter({
         preference_id: z.string(),
         status: z.enum(["pending", "valid", "redeemed", "expired"]),
         valid: z.boolean(),
+        payment_id: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
