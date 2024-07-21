@@ -17,6 +17,18 @@ export function formateDate(input: string) {
   return `${day}/${month}/${year} às ${hours}:${minutes}h`;
 }
 
+export function formateDateDayMonthYear(input: string | Date) {
+  let date = new Date();
+  typeof input === "string"
+    ? (date = new Date(input.toString()))
+    : (date = new Date(input));
+  const day = String(date.getDate()).padStart(2, "0"); // Adiciona zero à esquerda se necessário
+  const month = String(date.getMonth() + 1).padStart(2, "0"); // Meses são baseados em zero, então adicionamos 1
+  const year = date.getFullYear();
+
+  return `${day}/${month}/${year}`;
+}
+
 export function formatPhone(input: string): string {
   let cleanNumber = input.replace(/\D/g, "").substring(0, 11);
 
@@ -29,7 +41,7 @@ export function formatPhone(input: string): string {
 
 export function formatWhatsAppMessage(voucher: VoucherSchema): string {
   const phoneNumber = "556299251040";
-  const message = `Ola, meu nome é ${voucher.name} e comprei um voucher para ${voucher.adults} pessoas com mais de 8 anos e ${voucher.elderly} pessoas com mais de 60 anos ou especiais.
+  const message = `Ola, meu nome é ${voucher.name} e comprei um voucher para ${voucher.adults} pessoa(s) com mais de 8 anos e ${voucher.elderly} pessoa(s) com mais de 60 anos ou especiais.
 
  Código: ${voucher.code}`;
   const urlEncodedMessage = encodeURIComponent(message);
@@ -42,13 +54,3 @@ export function formatPaymentUrl(
 ): string {
   return `http://localhost:3000/pagamento?collection_id=${payment_id}&collection_status=approved&payment_id=${payment_id}&status=approved&preference_id=${preference_id}&site_id=MLB&processing_mode=aggregator&merchant_account_id=null`;
 }
-
-// const now = new Date();
-// const formattedDate = formatDate(now);
-//   const dateTime = date.toLocaleString("pt-BR", {
-//     hour: "2-digit",
-//     minute: "2-digit",
-//   });
-//   const formatedString = dateString.replaceAll("/", "-");
-//   return formattedDate;
-// }
