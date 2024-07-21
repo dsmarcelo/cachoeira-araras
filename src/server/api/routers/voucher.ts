@@ -1,6 +1,7 @@
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
-import { voucherSchema } from "@/lib/voucher/types";
+import { completeVoucherSchema, voucherSchema } from "@/lib/voucher/types";
 import { z } from "zod";
+import { type Voucher } from "@prisma/client";
 
 export const voucherRouter = createTRPCRouter({
   create: publicProcedure
@@ -92,11 +93,27 @@ export const voucherRouter = createTRPCRouter({
     }),
 
   update: publicProcedure
-    .input(z.object({ code: z.string(), data: voucherSchema.partial() }))
+    .input(
+      z.object({
+        where: voucherSchema.partial(),
+        data: voucherSchema.partial(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
+      if (!input.where || Object.keys(input.where).length === 0) {
+        throw new Error("The 'where' object cannot be empty");
+      }
+      const where = input.where;
       return await ctx.db.voucher.update({
         where: {
-          code: input.code,
+          code: where.code,
+          name: where.name,
+          phone: where.phone,
+          adults: where.adults,
+          elderly: where.elderly,
+          valid: where.valid,
+          status: where.status,
+          preference_id: where.preference_id,
         },
         data: input.data,
       });

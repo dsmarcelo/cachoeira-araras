@@ -2,7 +2,6 @@ import React from 'react'
 import { api } from "@/trpc/server";
 import PaymentCard from '@/app/_components/payment-card';
 import VoucherCard from '@/app/_components/voucher-card';
-import { type Voucher } from '@prisma/client';
 import { type PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
 import { Button } from '@/components/ui/button';
 import { redirect } from 'next/navigation';
@@ -10,6 +9,8 @@ import { formatWhatsAppMessage } from '@/lib/utils';
 import Link from 'next/link';
 import { FaWhatsapp } from "react-icons/fa";
 import { type PreferenceResponse } from 'mercadopago/dist/clients/preference/commonTypes';
+import { confirmVoucherPayment } from '@/lib/voucher';
+import DeleteVoucherCookieBtn from '@/app/_components/delete-voucher-cookie-btn';
 
 const fetchPreference = async (preference_id: string): Promise<PreferenceResponse> => {
   try {
@@ -29,28 +30,6 @@ const fetchPayment = async (payment_id: string): Promise<PaymentResponse> => {
     return res;
   } catch (error) {
     console.error('Error fetching payment:', error);
-    throw error;
-  }
-};
-
-const updateStatus = async (preference_id: string, payment_id: string): Promise<Voucher> => {
-  const oldVoucher = await api.voucher.findByPreferenceId({ preference_id })
-  if (oldVoucher?.status === 'expired' || oldVoucher?.status === 'redeemed' || oldVoucher?.status === 'valid') {
-    return oldVoucher
-  }
-
-  try {
-    const voucher = await api.voucher.updateByPreference_id({
-      preference_id,
-      status: "valid" as const,
-      valid: true,
-      payment_id,
-    })
-
-    if (!voucher) throw new Error('Failed to update voucher');
-    return voucher;
-  } catch (error) {
-    console.error('Error updating voucher:', error);
     throw error;
   }
 };
@@ -81,7 +60,8 @@ export default async function PaymentApprovedPage({
       <Button onClick={() => redirect(paymentURL)}>Clique aqui para finalizar o pagamento</Button>
     </div>
   }
-  const voucher = await updateStatus(preference_id as string, payment_id as string)
+  const voucher = await confirmVoucherPayment(preference_id as string, payment_id as string)
+  if (!voucher) return <div>Voucher não encontrado</div>
   return (
     <div className="flex flex-col mt-12 px-4 items-center h-screen mb-96">
       <h1 className='text-center text-4xl font-bold text-green-500'>Pagamento aprovado</h1>
@@ -93,6 +73,7 @@ export default async function PaymentApprovedPage({
         <FaWhatsapp className="h-8 w-8" />
         <Link href={formatWhatsAppMessage(voucher)} target='_blank' className='whitespace-pre-wrap'>Envie o voucher para o WhatsApp da Cachoeira das Araras</Link>
       </Button>
+      <DeleteVoucherCookieBtn />
     </div>
   )
 }
