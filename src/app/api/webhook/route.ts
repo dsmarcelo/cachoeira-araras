@@ -45,7 +45,7 @@ async function validadeVoucherPayment(payment_id: string) {
 
   if (code) {
     const voucher = await api.voucher.update({
-      code,
+      where: { code },
       data: { status: "valid", valid: true, payment_id: payment_id },
     });
     return voucher;
