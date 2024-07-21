@@ -9,7 +9,7 @@ import { formatWhatsAppMessage } from '@/lib/utils';
 import Link from 'next/link';
 import { FaWhatsapp } from "react-icons/fa";
 import { type PreferenceResponse } from 'mercadopago/dist/clients/preference/commonTypes';
-import { confirmVoucherPayment } from '@/lib/voucher';
+import { confirmVoucherPayment } from '@/lib/voucher/server-utils';
 import DeleteVoucherCookieBtn from '@/app/_components/delete-voucher-cookie-btn';
 
 const fetchPreference = async (preference_id: string): Promise<PreferenceResponse> => {
