@@ -6,8 +6,6 @@ import { columns } from "./columns"
 import { type VoucherSchema } from '@/lib/voucher/types'
 import PasswordLoginForm from '../_components/passwordLoginForm'
 import { isLoggedIn, logout } from '../lib'
-import { Button } from '@/components/ui/button'
-import { redirect } from 'next/navigation'
 
 const fetchVouchers = async (): Promise<VoucherSchema[]> => {
   try {

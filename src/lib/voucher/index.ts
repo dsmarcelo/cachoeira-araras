@@ -1,4 +1,4 @@
-export function formatVoucherStatus(status: string) {
+export async function formatVoucherStatus(status: string) {
   if (!status) return "Voucher inválido";
   switch (status) {
     case "pending":

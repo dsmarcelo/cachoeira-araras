@@ -65,9 +65,26 @@ export const voucherFormSchema = z
 export const initialVoucherSchema = z.object({
   name: z.string(),
   phone: z.string(),
-  adults: z.coerce.number().gte(0).lte(10),
-  elderly: z.coerce.number().gte(0).lte(10),
+  adults: z.coerce.number().gte(0).lte(20),
+  elderly: z.coerce.number().gte(0).lte(20),
   preference_id: z.string(),
   payment_id: z.string().optional(),
   code: z.string(),
+});
+
+export const completeVoucherSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  phone: z.string(),
+  code: z.string(),
+  adults: z.coerce.number().gte(0).lte(20),
+  elderly: z.coerce.number().gte(0).lte(20),
+  price: z.number(),
+  valid: z.boolean(),
+  status: z.string(),
+  preference_id: z.string(),
+  payment_id: z.string().optional(),
+  expires_at: z.union([z.date(), z.null()]).optional(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
 });

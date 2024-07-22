@@ -1,6 +1,7 @@
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
-import { voucherSchema } from "@/lib/voucher/types";
+import { completeVoucherSchema, voucherSchema } from "@/lib/voucher/types";
 import { z } from "zod";
+import { type Voucher } from "@prisma/client";
 
 export const voucherRouter = createTRPCRouter({
   create: publicProcedure
@@ -81,6 +82,43 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
+  findByPreferenceId: publicProcedure
+    .input(z.object({ preference_id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      return await ctx.db.voucher.findFirst({
+        where: {
+          preference_id: input.preference_id,
+        },
+      });
+    }),
+
+  update: publicProcedure
+    .input(
+      z.object({
+        where: voucherSchema.partial(),
+        data: voucherSchema.partial(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!input.where || Object.keys(input.where).length === 0) {
+        throw new Error("The 'where' object cannot be empty");
+      }
+      const where = input.where;
+      return await ctx.db.voucher.update({
+        where: {
+          code: where.code,
+          name: where.name,
+          phone: where.phone,
+          adults: where.adults,
+          elderly: where.elderly,
+          valid: where.valid,
+          status: where.status,
+          preference_id: where.preference_id,
+        },
+        data: input.data,
+      });
+    }),
+
   updateVoucherStatus: publicProcedure
     .input(
       z.object({
@@ -92,7 +130,6 @@ export const voucherRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      console.log("🚀 ~ code:", input.code);
       return await ctx.db.voucher.update({
         where: {
           code: input.code,
@@ -110,6 +147,7 @@ export const voucherRouter = createTRPCRouter({
         preference_id: z.string(),
         status: z.enum(["pending", "valid", "redeemed", "expired"]),
         valid: z.boolean(),
+        payment_id: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

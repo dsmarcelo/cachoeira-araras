@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-// import { formateDate } from '@/lib/utils'
+import { formateDateDayMonthYear } from '@/lib/utils'
 import { formatPhone } from '@/lib/utils'
 import { formatVoucherStatus } from '@/lib/voucher'
 import { type Voucher } from '@prisma/client'
@@ -21,8 +21,7 @@ export default function VoucherCard({ data }: { data: Voucher }) {
         <h4>Mais de 60 anos ou especiais: {data.elderly}</h4>
         <h4>Telefone: {formatPhone(data.phone) || 'Não informado'}</h4>
         <h4>Voucher: {data.valid ? 'Válido' : 'Inválido'}</h4>
-        {/* <h4>Codigo de pagamento: {data.expires_at && formateDate(data.expires_at)}</h4> */}
-        {/* <h4>Codigo de pagamento: {data.expires_at}</h4> */}
+        <h4>Expira em: {data.expires_at ? formateDateDayMonthYear(data.expires_at) : 'Não informado'}</h4>
       </CardContent>
     </Card>
   )
