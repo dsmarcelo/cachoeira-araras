@@ -20,6 +20,7 @@ import { voucherFormSchema } from "@/lib/voucher/types";
 import { formatPaymentUrl, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast"
 import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher } from "../lib";
+import PriceTable from "./price-table";
 
 export default function VoucherForm() {
   const router = useRouter();
@@ -120,84 +121,87 @@ export default function VoucherForm() {
   };
 
   return (
-    <Card className="mx-auto w-full max-w-md">
-      <CardHeader>
-        <CardTitle className="text-3xl">Adquira já seu voucher</CardTitle>
-        <CardDescription>
-          Depois é só mostrar o codigo de identificação na portaria!
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="name">Nome</Label>
-            <Input
-              id="name"
-              placeholder="Nome"
-              maxLength={40}
-              {...register('name',
-                { required: "Nome é obrigatório" },
-              )} />
-            {errors.name && <p className='text-red-500 text-sm'>{errors.name?.message}</p>}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="phone">Telefone</Label>
-            <Controller
-              name="phone"
-              control={control}
-              render={({ field }) => (
-                <Input
-                  {...field}
-                  id="phone"
-                  type="tel"
-                  placeholder="(XX) 99999-9999"
-                  value={formatPhone(field.value)}
-                  onChange={(e) => field.onChange(normalizePhone(e.target.value))}
-                />
-              )}
-            />
-            {errors.phone && <p className='text-red-500 text-sm'>{errors.phone?.message}</p>}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="adults">Quantidade de pessoas <span className='font-bold'>com mais de 8 anos</span></Label>
-            <Input
-              id="adults"
-              type="number"
-              min="0"
-              max="20"
-              {...register('adults')}
-            />
-            {errors.adults && <p className='text-red-500 text-sm'>{errors.adults?.message}</p>}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="elderly">Mais de 60 anos ou especiais</Label>
-            <Input
-              id="elderly"
-              type="number"
-              min="0"
-              max="20"
-              {...register('elderly')}
-            />
-            {errors.adults && <p className='text-red-500 text-sm'>{errors.elderly?.message}</p>}
-          </div>
-          <div className="grid gap-2">
-          </div>
-          <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
-          <Button disabled={isSubmitting} type="submit" className="w-full">
-            {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
-          </Button>
-        </form>
-        <div className='mt-4 flex flex-col gap-4'>
-          {code &&
-            <div>
-              <p className='text-green-700 text-lg font-medium'>Voucher criado com sucesso, guarde o seu codigo e faça o pagamento para utiliza-lo:</p>
-              <h2 className='text-2xl font-bold text-center'>{code}</h2>
+    <div className="mx-auto w-full max-w-md bg-dark-blue rounded-lg">
+      <PriceTable />
+      <Card className="">
+        <CardHeader>
+          <CardTitle className="text-3xl">Adquira já seu voucher</CardTitle>
+          <CardDescription>
+            Depois é só mostrar o codigo de identificação na portaria!
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Nome</Label>
+              <Input
+                id="name"
+                placeholder="Nome"
+                maxLength={40}
+                {...register('name',
+                  { required: "Nome é obrigatório" },
+                )} />
+              {errors.name && <p className='text-red-500 text-sm'>{errors.name?.message}</p>}
             </div>
-          }
-          {init_point && <Button className='bg-green-500 h-14 text-lg w-full' onClick={redirectToPayment}>Fazer pagamento</Button>}
-          {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher, tente novamente!</p>}
-        </div>
-      </CardContent>
-    </Card >
+            <div className="grid gap-2">
+              <Label htmlFor="phone">Telefone</Label>
+              <Controller
+                name="phone"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id="phone"
+                    type="tel"
+                    placeholder="(XX) 99999-9999"
+                    value={formatPhone(field.value)}
+                    onChange={(e) => field.onChange(normalizePhone(e.target.value))}
+                  />
+                )}
+              />
+              {errors.phone && <p className='text-red-500 text-sm'>{errors.phone?.message}</p>}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="adults">Quantidade de pessoas <span className='font-bold'>com mais de 8 anos</span></Label>
+              <Input
+                id="adults"
+                type="number"
+                min="0"
+                max="20"
+                {...register('adults')}
+              />
+              {errors.adults && <p className='text-red-500 text-sm'>{errors.adults?.message}</p>}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="elderly">Mais de 60 anos ou especiais</Label>
+              <Input
+                id="elderly"
+                type="number"
+                min="0"
+                max="20"
+                {...register('elderly')}
+              />
+              {errors.adults && <p className='text-red-500 text-sm'>{errors.elderly?.message}</p>}
+            </div>
+            <div className="grid gap-2">
+            </div>
+            <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
+            <Button disabled={isSubmitting} type="submit" className="w-full">
+              {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
+            </Button>
+          </form>
+          <div className='mt-4 flex flex-col gap-4'>
+            {code &&
+              <div>
+                <p className='text-green-700 text-lg font-medium'>Voucher criado com sucesso, guarde o seu codigo e faça o pagamento para utiliza-lo:</p>
+                <h2 className='text-2xl font-bold text-center'>{code}</h2>
+              </div>
+            }
+            {init_point && <Button className='bg-green-500 h-14 text-lg w-full' onClick={redirectToPayment}>Fazer pagamento</Button>}
+            {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher, tente novamente!</p>}
+          </div>
+        </CardContent>
+      </Card >
+    </div>
   )
 }
