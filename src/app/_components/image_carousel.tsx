@@ -9,10 +9,8 @@ import {
   CarouselItem,
 } from "@/components/ui/carousel"
 import Image from "next/image"
-import useEmblaCarousel from "embla-carousel-react"
 
 export function ImageCarousel() {
-  const [emblaRef] = useEmblaCarousel({ loop: true }, [Fade()])
   const autoplay = React.useRef(
     Autoplay({ delay: 10000 }),
   )
@@ -23,16 +21,16 @@ export function ImageCarousel() {
   return (
     <Carousel
       plugins={[autoplay.current, fade.current]}
-      ref={emblaRef}
-      className="w-full aspect-video max-w-5xl my-0 p-0 mx-auto md:rounded-2xl md:mt-8 overflow-hidden"
-      onMouseEnter={autoplay.current.stop}
-      onMouseLeave={autoplay.current.reset}
+      opts={{
+        loop: true,
+      }}
+      className="w-full aspect-[2/1] max-w-5xl mx-auto lg:rounded-2xl lg:mt-8 overflow-hidden"
     >
       <CarouselContent>
         {images.map((image, index) => (
           <CarouselItem key={index}>
-            <div className="w-full aspect-video">
-              <Image src={image} alt="Imagem" fill className="object-cover" />
+            <div className="w-full my-auto aspect-video object-center">
+              <Image src={image} alt="Imagem" fill className="object-cover " />
             </div>
           </CarouselItem>
         ))}

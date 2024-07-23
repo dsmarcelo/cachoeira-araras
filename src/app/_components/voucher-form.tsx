@@ -28,7 +28,6 @@ export default function VoucherForm() {
   const [code, setCode] = useState('');
   const [init_point, setInitPoint] = useState('');
   const [payment_sucess_url, setPaymentSuccessUrl] = useState('');
-  const [hideform, setHideform] = useState(false);
 
   const utils = api.useUtils();
 

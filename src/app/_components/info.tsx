@@ -5,7 +5,7 @@ import { RiRestaurant2Line } from "react-icons/ri";
 
 export default function InfoCard() {
   return (
-    <div className="flex flex-col pt-3.5 pb-9 text-xl text-primary-200 rounded-xl max-w-2xl">
+    <div className="flex flex-col mx-auto text-xl text-primary-200 max-w-2xl">
       <div className="font-semibold">
         Conforto, privacidade e contato direto com a natureza em uma localização
         privilegiada de Pirenópolis-GO.

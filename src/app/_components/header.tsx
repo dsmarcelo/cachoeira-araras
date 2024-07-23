@@ -10,8 +10,8 @@ import Image from 'next/image';
 
 export default function Header() {
   return (
-    <header className="top-0 flex h-16 items-center gap-4 border-b-primary-500 bg-dark-blue text-primary-400 px-4 md:px-6">
-      <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
+    <header className="top-0 flex h-16 lg:h-24 items-center gap-4 border-b-primary-500 bg-dark-blue text-primary-400 px-4 md:px-6">
+      {/* <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
         <div className='w-full flex flex-col'>
           <Image src="/logo_nome.png" alt="logo" className='' width={80} height={80} />
         </div>
@@ -21,12 +21,12 @@ export default function Header() {
         >
           Inicio
         </Link>
-      </nav>
+      </nav> */}
       <Sheet>
         <SheetTrigger asChild>
           <Button
             size="icon"
-            className="shrink-0 md:hidden bg-transparent text-current"
+            className="shrink-0 bg-transparent text-current"
           >
             <Menu className="h-5 w-5" />
             <span className="sr-only">Abrir menu</span>
@@ -43,7 +43,7 @@ export default function Header() {
           </nav>
         </SheetContent>
       </Sheet>
-      <div className='w-full flex flex-col md:hidden'>
+      <div className='w-full flex flex-col'>
         <Image src="/logo_nome.png" alt="logo" className='mx-auto' width={80} height={80} />
       </div>
       <Link

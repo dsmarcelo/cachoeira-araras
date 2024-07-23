@@ -3,6 +3,7 @@ import React from 'react'
 import { deleteCookieVoucher } from '../lib'
 import { FaArrowLeft } from 'react-icons/fa'
 import { toast } from '@/components/ui/use-toast'
+import Link from 'next/link'
 
 export default function VoucherCreatedCard(
   { code, init_point, redirectToPayment, setCode, payment_success_url }:
@@ -13,7 +14,7 @@ export default function VoucherCreatedCard(
     await deleteCookieVoucher()
     toast({
       title: 'Voucher deletado',
-      description: 'Voucher deletado, por favor, gere novamente',
+      description: 'Voucher deletado, por favor, tente novamente',
     })
   }
 
@@ -33,7 +34,9 @@ export default function VoucherCreatedCard(
       <div className='flex flex-col gap-6'>
         <p className='text-green-100 font-medium'>Voucher criado com sucesso, guarde o seu codigo e faça o pagamento para utiliza-lo:</p>
         <h2 className='text-7xl font-bold text-center text-primary-50'>{code}</h2>
-        {init_point && <Button className='bg-positive-green h-14 text-xl w-full' onClick={redirectToPayment}>Finalizar pagamento</Button>}
+        {init_point && <Link href={init_point} className='bg-positive-green rounded-xl text-center h-14 text-xl w-full flex justify-center items-center font-medium text-primary-50' onClick={redirectToPayment}>
+          <p className='translate-y-[-2px]'>Finalizar pagamento</p>
+        </Link>}
       </div>
     </div>
   )
