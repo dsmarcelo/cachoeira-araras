@@ -18,7 +18,7 @@ export default function PasswordLoginForm() {
   }
 
   return (
-    <form action={setUserCookie} className='flex flex-col gap-4'>
+    <form action={setUserCookie} className='flex flex-col px-6 mt-6 gap-4 max-w-2xl'>
       <Input
         id="password"
         placeholder="Senha"

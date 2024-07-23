@@ -13,6 +13,7 @@ import { TRPCReactProvider } from "@/trpc/react";
 import Header from "./_components/header";
 
 import { Toaster } from "@/components/ui/toaster"
+import Footer from "./_components/footer";
 
 export const metadata: Metadata = {
   title: "Cachoeira das Araras",
@@ -25,10 +26,11 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR" className={`${inter.variable}`}>
-      <body>
+      <body className="min-h-screen flex flex-col bg-bg-blue">
         <Header />
         <TRPCReactProvider>{children}</TRPCReactProvider>
         <Toaster />
+        <Footer />
       </body>
     </html>
   );

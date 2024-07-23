@@ -130,7 +130,7 @@ export default function VoucherForm() {
       <div className="border-none bg-dark-blue text-primary-50 p-4 pb-0">
         <div className="">
           <div className="mb-8">
-            <h2 className="text-3xl font-bold">Adquira já seu voucher</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold">Adquira já seu voucher</h2>
             <h5 className="text-primary-300">
               Depois é só mostrar o codigo de identificação na portaria!
             </h5>
