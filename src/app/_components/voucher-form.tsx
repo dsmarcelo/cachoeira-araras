@@ -20,13 +20,15 @@ import { voucherFormSchema } from "@/lib/voucher/types";
 import { formatPaymentUrl, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast"
 import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher } from "../lib";
-import PriceTable from "./price-table";
+import VoucherCreatedCard from "./voucher-created-card";
 
 export default function VoucherForm() {
   const router = useRouter();
   const { toast } = useToast()
   const [code, setCode] = useState('');
   const [init_point, setInitPoint] = useState('');
+  const [payment_sucess_url, setPaymentSuccessUrl] = useState('');
+  const [hideform, setHideform] = useState(false);
 
   const utils = api.useUtils();
 
@@ -40,7 +42,7 @@ export default function VoucherForm() {
 
         if (voucher.status !== 'pending' && voucher.payment_id) {
           const url = formatPaymentUrl(voucher.preference_id, voucher.payment_id);
-          router.push(url);
+          setPaymentSuccessUrl(url);
         }
 
         const preference = await utils.mercadopago.getPrefence.fetch({ preference_id: voucher.preference_id });
@@ -120,23 +122,27 @@ export default function VoucherForm() {
     }
   };
 
+  if (code) {
+    return <VoucherCreatedCard code={code} init_point={init_point} redirectToPayment={redirectToPayment} setCode={setCode} payment_success_url={payment_sucess_url} />
+  }
+
   return (
-    <div className="mx-auto w-full max-w-md bg-dark-blue rounded-lg">
-      <PriceTable />
-      <Card className="">
-        <CardHeader>
-          <CardTitle className="text-3xl">Adquira já seu voucher</CardTitle>
-          <CardDescription>
-            Depois é só mostrar o codigo de identificação na portaria!
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
+    <div className="mx-auto w-full bg-dark-blue">
+      <div className="border-none bg-dark-blue text-primary-50 p-4 pb-0">
+        <div className="">
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold">Adquira já seu voucher</h2>
+            <h5 className="text-primary-300">
+              Depois é só mostrar o codigo de identificação na portaria!
+            </h5>
+          </div>
+          <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 [&_input]:bg-primary-50 [&_input]:h-12">
             <div className="grid gap-2">
               <Label htmlFor="name">Nome</Label>
               <Input
+                className="text-bg-blue"
                 id="name"
-                placeholder="Nome"
+                placeholder="Seu nome completo"
                 maxLength={40}
                 {...register('name',
                   { required: "Nome é obrigatório" },
@@ -151,6 +157,7 @@ export default function VoucherForm() {
                 render={({ field }) => (
                   <Input
                     {...field}
+                    className="text-bg-blue"
                     id="phone"
                     type="tel"
                     placeholder="(XX) 99999-9999"
@@ -168,6 +175,7 @@ export default function VoucherForm() {
                 type="number"
                 min="0"
                 max="20"
+                className="text-bg-blue"
                 {...register('adults')}
               />
               {errors.adults && <p className='text-red-500 text-sm'>{errors.adults?.message}</p>}
@@ -179,6 +187,7 @@ export default function VoucherForm() {
                 type="number"
                 min="0"
                 max="20"
+                className="text-bg-blue"
                 {...register('elderly')}
               />
               {errors.adults && <p className='text-red-500 text-sm'>{errors.elderly?.message}</p>}
@@ -186,22 +195,15 @@ export default function VoucherForm() {
             <div className="grid gap-2">
             </div>
             <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
-            <Button disabled={isSubmitting} type="submit" className="w-full">
+            <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-light-blue">
               {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
             </Button>
           </form>
           <div className='mt-4 flex flex-col gap-4'>
-            {code &&
-              <div>
-                <p className='text-green-700 text-lg font-medium'>Voucher criado com sucesso, guarde o seu codigo e faça o pagamento para utiliza-lo:</p>
-                <h2 className='text-2xl font-bold text-center'>{code}</h2>
-              </div>
-            }
-            {init_point && <Button className='bg-green-500 h-14 text-lg w-full' onClick={redirectToPayment}>Fazer pagamento</Button>}
             {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher, tente novamente!</p>}
           </div>
-        </CardContent>
-      </Card >
+        </div>
+      </div >
     </div>
   )
 }

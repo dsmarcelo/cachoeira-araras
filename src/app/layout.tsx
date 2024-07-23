@@ -1,7 +1,13 @@
 import "@/styles/globals.css";
 
-import { GeistSans } from "geist/font/sans";
+import { Inter } from "next/font/google";
 import { type Metadata } from "next";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 import { TRPCReactProvider } from "@/trpc/react";
 import Header from "./_components/header";
@@ -18,7 +24,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR" className={`${GeistSans.variable}`}>
+    <html lang="pt-BR" className={`${inter.variable}`}>
       <body>
         <Header />
         <TRPCReactProvider>{children}</TRPCReactProvider>

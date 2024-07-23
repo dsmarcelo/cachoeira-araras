@@ -26,7 +26,7 @@ export default function Header() {
         <SheetTrigger asChild>
           <Button
             size="icon"
-            className="shrink-0 md:hidden"
+            className="shrink-0 md:hidden bg-transparent text-current"
           >
             <Menu className="h-5 w-5" />
             <span className="sr-only">Abrir menu</span>

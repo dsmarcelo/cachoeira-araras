@@ -83,6 +83,7 @@ export const mercadopagoRouter = createTRPCRouter({
               ],
             },
             statement_descriptor: "Cachoeira das Araras",
+            notification_url: "www.cachoeiradasararas.com.br/api/webhook",
           },
         });
         console.log("🚀 ~ .mutation ~ response:", response);
