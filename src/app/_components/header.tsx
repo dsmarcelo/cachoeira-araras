@@ -10,7 +10,7 @@ import Image from 'next/image';
 
 export default function Header() {
   return (
-    <header className="top-0 flex h-16 lg:h-24 items-center gap-4 border-b-primary-500 bg-dark-blue text-primary-400 px-4 md:px-6">
+    <header className="top-0 flex h-16 md:h-24 items-center gap-4 border-b-primary-500 bg-dark-blue text-primary-400 px-4 md:px-6">
       {/* <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
         <div className='w-full flex flex-col'>
           <Image src="/logo_nome.png" alt="logo" className='' width={80} height={80} />
@@ -26,7 +26,7 @@ export default function Header() {
         <SheetTrigger asChild>
           <Button
             size="icon"
-            className="shrink-0 bg-transparent text-current"
+            className="shrink-0 bg-transparent text-current hover:bg-primary-700"
           >
             <Menu className="h-5 w-5" />
             <span className="sr-only">Abrir menu</span>
@@ -40,16 +40,19 @@ export default function Header() {
             <Link href="/" className="hover:text-foreground">
               Inicio
             </Link>
+            <Link href="/comprar" className="hover:text-foreground">
+              Comprar voucher
+            </Link>
           </nav>
         </SheetContent>
       </Sheet>
-      <div className='w-full flex flex-col'>
-        <Image src="/logo_nome.png" alt="logo" className='mx-auto' width={80} height={80} />
+      <div className='mx-auto w-full h-10 md:h-[80%] relative'>
+        <Image src="/logo_nome.png" alt="logo" className='object-contain' fill />
       </div>
       <Link
         href="https://wa.me/556299251040?"
         target='_blank'
-        className="text-foreground ml-auto transition-colors p-2 rounded-lg hover:bg-slate-100"
+        className="w-12text-foreground transition-colors p-2 rounded-lg hover:bg-primary-700"
       >
         <FaWhatsapp className="h-6 w-6" />
       </Link>

@@ -5,20 +5,22 @@ import { FaInstagram, FaLocationArrow, FaWhatsapp } from 'react-icons/fa'
 
 export default function Footer() {
   return (
-    <footer className='flex flex-col gap-4 py-8 items-center bg-slate-800 text-primary-100 mt-8'>
+    <footer className='flex flex-col gap-4 py-8 items-center bg-slate-800 text-primary-100'>
       <h4>Cachoeira das Araras</h4>
       <div className='flex gap-8'>
-        <Image src={"/logo_cda.png"} alt='logo cachoeira' width={100} height={100} />
-        <div className='flex flex-col gap-2'>
-          <Link href={"https://www.instagram.com/cachoeiradasararasoficial/"} target='_blank' className='flex gap-2 items-center'>
+        <div className='w-24 relative'>
+          <Image src={"/logo_cda.png"} alt='logo cachoeira' className='object-contain' fill />
+        </div>
+        <div className='flex flex-col gap-1'>
+          <Link href={"https://www.instagram.com/cachoeiradasararasoficial/"} target='_blank' className='flex gap-2 items-center hover:bg-slate-700 rounded-md p-1'>
             <FaInstagram className='mt-1' />
             <p>Instagram</p>
           </Link>
-          <Link href={"https://wa.me/556299251040"} target='_blank' className='flex gap-2 items-center'>
+          <Link href={"https://wa.me/556299251040"} target='_blank' className='flex gap-2 items-center hover:bg-slate-700 rounded-md p-1'>
             <FaWhatsapp className='mt-1' />
             <p>Whatsapp</p>
           </Link>
-          <Link href={"https://maps.app.goo.gl/BUrzJgESTCBrFfhG8"} target='_blank' className='flex gap-2 items-center'>
+          <Link href={"https://maps.app.goo.gl/BUrzJgESTCBrFfhG8"} target='_blank' className='flex gap-2 items-center hover:bg-slate-700 rounded-md p-1'>
             <FaLocationArrow className='mt-1' />
             <p>Localização</p>
           </Link>
