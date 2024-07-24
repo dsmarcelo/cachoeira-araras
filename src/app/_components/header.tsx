@@ -43,12 +43,15 @@ export default function Header() {
             <Link href="/comprar" className="hover:text-foreground">
               Comprar voucher
             </Link>
+            <Link href="/galeria" className="hover:text-foreground">
+              Fotos
+            </Link>
           </nav>
         </SheetContent>
       </Sheet>
-      <div className='mx-auto w-full h-10 md:h-[80%] relative'>
-        <Image src="/logo_nome.png" alt="logo" className='object-contain' fill />
-      </div>
+      <Link href="/" className='mx-auto w-48 h-10 md:h-16 relative'>
+        <Image src="/logo_nome.png" alt="logo" className='object-contain' sizes='' fill />
+      </Link>
       <Link
         href="https://wa.me/556299251040?"
         target='_blank'

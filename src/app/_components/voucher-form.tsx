@@ -5,13 +5,6 @@ import type { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { calculatePrice, formatVoucher, randomCode } from '@/lib/utils/utils'
@@ -194,7 +187,7 @@ export default function VoucherForm() {
             <div className="grid gap-2">
             </div>
             <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
-            <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-light-blue">
+            <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-light-blue-500">
               {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
             </Button>
           </form>

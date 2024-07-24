@@ -12,11 +12,19 @@ import Image from "next/image"
 
 export function ImageCarousel() {
   const autoplay = React.useRef(
-    Autoplay({ delay: 10000 }),
+    Autoplay({ delay: 5000 }),
   )
   const fade = React.useRef(Fade())
 
-  const images = ["/images/cachoeira1.jpeg", "/images/cachoeira2.jpeg"]
+  const getImages = () => {
+    const quantity = 4;
+    const images = [];
+
+    for (let i = 0; i < quantity; i++) {
+      images.push(`/images/carousel/${i + 1}.jpg`);
+    };
+    return images;
+  }
 
   return (
     <Carousel
@@ -27,10 +35,17 @@ export function ImageCarousel() {
       className="w-full aspect-[2/1] max-w-5xl mx-auto lg:rounded-2xl lg:mt-8 overflow-hidden"
     >
       <CarouselContent>
-        {images.map((image, index) => (
+        {getImages().map((image, index) => (
           <CarouselItem key={index}>
-            <div className="w-full my-auto aspect-video object-center">
-              <Image src={image} alt="Imagem" fill className="object-cover " />
+            <div className="w-full my-auto aspect-video object-center relative">
+              <Image
+                src={image}
+                alt="Imagem"
+                fill className="object-cover"
+                quality={100}
+                priority
+                sizes="(max-width: 768px) 100vw, 75vw"
+              />
             </div>
           </CarouselItem>
         ))}
