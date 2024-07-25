@@ -1,8 +1,10 @@
 import VoucherBuy from "../_components/voucher-buy";
 import InfoCard from "../_components/info";
 import { ImageCarousel } from "../_components/image_carousel";
+import { redirect } from "next/navigation";
 
 export default async function Home() {
+  redirect("/");
   return (
     <main className="flex min-h-screen flex-col items-center bg-bg-blue text-primary-200">
       <ImageCarousel />
