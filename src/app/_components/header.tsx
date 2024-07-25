@@ -3,7 +3,7 @@ import React from 'react'
 import {
   Menu,
 } from "lucide-react"
-import { FaWhatsapp } from "react-icons/fa";
+import { FaFacebook, FaInstagram, FaWhatsapp } from "react-icons/fa";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Button } from '@/components/ui/button'
 import Image from 'next/image';
@@ -62,16 +62,32 @@ export default function Header() {
             </nav>
           </SheetContent>
         </Sheet>
-        <div className='md:hidden mx-auto w-full h-10 md:h-16 relative'>
+        <div className='md:hidden mx-auto w-48 h-10 md:h-16 absolute'>
           <Image src="/logo_nome.png" alt="logo" className='object-contain' sizes='' fill />
         </div>
-        <Link
-          href="https://wa.me/556299251040?"
-          target='_blank'
-          className="w-12text-foreground transition-colors p-2 rounded-lg hover:bg-primary-700 z-10 ml-auto"
-        >
-          <FaWhatsapp className="h-6 w-6" />
-        </Link>
+        <nav className='ml-auto flex gap-1 items-center'>
+          <Link
+            href={"https://www.facebook.com/C.Araras/?locale=pt_BR"}
+            target='_blank'
+            className='w-12 h-12 flex items-center justify-center text-foreground transition-colors p-2 rounded-lg hover:bg-primary-700'
+          >
+            <FaFacebook className='w-5 h-5' />
+          </Link>
+          <Link
+            href={"https://www.instagram.com/cachoeiradasararasoficial/"}
+            target='_blank'
+            className='w-12 h-12 flex items-center justify-center text-foreground transition-colors p-2 rounded-lg hover:bg-primary-700'
+          >
+            <FaInstagram className='w-5 h-5' />
+          </Link>
+          <Link
+            href="https://wa.me/556299251040?"
+            target='_blank'
+            className="w-12 h-12 flex items-center justify-center text-foreground transition-colors p-2 rounded-lg hover:bg-primary-700"
+          >
+            <FaWhatsapp className="w-5 h-5" />
+          </Link>
+        </nav>
       </div>
     </header>
   )
