@@ -71,5 +71,21 @@ const preferenceSchema = z.object({
   }),
 });
 
+export const webhookSchema = z.object({
+  action: z.string(),
+  api_version: z.string(),
+  data: z.object({
+    id: z.string(),
+  }),
+  date_created: z.string().refine((date) => !isNaN(Date.parse(date)), {
+    message: "Invalid date format",
+  }),
+  id: z.string(),
+  live_mode: z.boolean(),
+  type: z.string(),
+  user_id: z.number(),
+});
+
 export type Payment = z.infer<typeof PaymentSchema>;
 export type PreferenceSchema = z.infer<typeof preferenceSchema>;
+export type WebhookType = z.infer<typeof webhookSchema>;

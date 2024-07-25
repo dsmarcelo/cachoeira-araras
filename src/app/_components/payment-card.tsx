@@ -1,10 +1,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formateDate } from '@/lib/utils';
-import { type PreferenceSchema } from '@/lib/utils/mercadopago/types';
+import { type PreferenceResponse } from 'mercadopago/dist/clients/preference/commonTypes';
 import React from 'react'
 
-export default function PaymentCard({ data, payment_id }: { data: PreferenceSchema, payment_id: string }) {
+export default function PaymentCard({ data, payment_id }: { data: PreferenceResponse, payment_id: string }) {
   const items = data.items
+  if (!items) return null
   return (
     <Card className='border-green-500'>
       <CardHeader>
@@ -26,7 +27,7 @@ export default function PaymentCard({ data, payment_id }: { data: PreferenceSche
         ))}
       </CardContent>
       <CardContent>
-        <p>{`Pedido feito em ${formateDate(data.date_created)}`}</p>
+        <p>{`Pedido feito em ${formateDate(data.date_created ?? "-")}`}</p>
       </CardContent>
     </Card>
   )
