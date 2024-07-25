@@ -1,6 +1,7 @@
 "use server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { api } from "@/trpc/server";
 
 export async function isLoggedIn(): Promise<boolean> {
   const session = cookies().get("session")?.value;
@@ -39,4 +40,43 @@ export async function getCookieVoucher(): Promise<string | null> {
 
 export async function deleteCookieVoucher() {
   cookies().delete("voucher");
+}
+
+export async function deleteVoucher(code: string) {
+  const res = api.voucher.delete({ code });
+  // if (!res) return console.error("Voucher não encontrado");
+  return res;
+}
+
+export async function redeemVoucher(voucherCode: string) {
+  if (!voucherCode) return console.error("Erro ao usar voucher");
+  const res = await api.voucher.updateVoucherStatus({
+    code: voucherCode,
+    data: {
+      status: "redeemed",
+      valid: false,
+    },
+  });
+  return res;
+}
+
+export async function activateVoucher(code: string) {
+  const oldVoucher = await api.voucher.findByCode({ code });
+  if (!oldVoucher) return console.error("Voucher não encontrado");
+
+  try {
+    const voucher = await api.voucher.update({
+      where: { code },
+      data: {
+        status: "valid",
+        valid: true,
+        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+      },
+    });
+    if (!voucher) console.error("Failed to update voucher");
+    return voucher;
+  } catch (error) {
+    console.error("Error updating voucher:", error);
+    throw error;
+  }
 }

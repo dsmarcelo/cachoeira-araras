@@ -26,7 +26,7 @@ const fetchPreference = async (preference_id: string): Promise<PreferenceRespons
 const fetchPayment = async (payment_id: string): Promise<PaymentResponse> => {
   try {
     const res = await api.mercadopago.getPayment({ payment_id });
-    if (!res) throw new Error('Failed to fetch payment');
+    if (!res) return redirect('/comprar')
     return res;
   } catch (error) {
     console.error('Error fetching payment:', error);
@@ -48,6 +48,7 @@ export default async function PaymentApprovedPage({
   const { preference_id, payment_id } = searchParams;
 
   const preference = await fetchPreference(preference_id as string)
+  if (!preference) return redirect('/comprar')
   const paymentURL = preference.init_point
 
   const payment = await fetchPayment(payment_id as string)
