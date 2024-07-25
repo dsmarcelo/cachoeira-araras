@@ -9,17 +9,23 @@ export default function VoucherCreatedCard(
   { code, init_point, redirectToPayment, setCode, payment_success_url }:
     { code: string, init_point: string, redirectToPayment: () => void, setCode: React.Dispatch<React.SetStateAction<string>>, payment_success_url: string }) {
 
-  async function handleClick() {
+  async function handleClick(showToast = true) {
     setCode('')
     await deleteCookieVoucher()
-    toast({
-      title: 'Voucher deletado',
-      description: 'Voucher deletado, por favor, tente novamente',
-    })
+    if (showToast) {
+      toast({
+        title: 'Voucher deletado',
+        description: 'Voucher deletado, por favor, tente novamente',
+      })
+    }
   }
 
   if (payment_success_url) {
     return (<div className='p-4'>
+      <Button onClick={() => handleClick(false)} className='mb-4 h-8 bg-dark-blue text-primary-50'>
+        <FaArrowLeft className='mr-2 h-3 w-3' />
+        <p>Voltar</p>
+      </Button>
       <p className='text-green-100 font-medium text-xl mb-4'>Ja recebemos seu pagamento, clique no botão abaixo para visualizar o voucher:</p>
       <Button className='bg-positive-green h-14 text-xl w-full' onClick={() => window.open(payment_success_url)}>Visualizar voucher</Button>
     </div>)
@@ -27,7 +33,7 @@ export default function VoucherCreatedCard(
 
   return (
     <div className='p-4'>
-      <Button onClick={handleClick} className='mb-4 h-8 bg-dark-blue text-primary-50'>
+      <Button onClick={() => handleClick(true)} className='mb-4 h-8 bg-dark-blue text-primary-50'>
         <FaArrowLeft className='mr-2 h-3 w-3' />
         <p>Voltar</p>
       </Button>
