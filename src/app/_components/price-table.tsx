@@ -19,7 +19,7 @@ export default function PriceTable() {
         </div>
         <div className='w-full flex justify-between'>
           <div className='flex gap-2'>
-            <p>Crianças até de 8 anos</p>
+            <p>Crianças até 8 anos</p>
           </div>
           Grátis
         </div>
