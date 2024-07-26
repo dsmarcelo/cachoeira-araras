@@ -54,5 +54,5 @@ export function formatPaymentUrl(
   preference_id: string,
   payment_id: string,
 ): string {
-  return `${url}/pagamento?collection_id=${payment_id}&collection_status=approved&payment_id=${payment_id}&status=approved&preference_id=${preference_id}&site_id=MLB&processing_mode=aggregator&merchant_account_id=null`;
+  return `/pagamento?collection_id=${payment_id}&collection_status=approved&payment_id=${payment_id}&status=approved&preference_id=${preference_id}&site_id=MLB&processing_mode=aggregator&merchant_account_id=null`;
 }

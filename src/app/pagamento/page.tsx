@@ -63,7 +63,7 @@ export default async function PaymentApprovedPage({
     </div>
   }
   const voucher = await confirmVoucherPayment(preference_id as string, payment_id as string)
-  if (!voucher) return <div>Voucher não encontrado</div>
+  if (!voucher) return redirect('/comprar')
 
   return (
     <div className="flex flex-col w-full pt-8 px-4 items-center pb-48  bg-bg-blue overflow-hidden">

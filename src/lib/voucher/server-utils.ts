@@ -11,8 +11,7 @@ export async function confirmVoucherPayment(
   });
   if (!oldVoucher) return console.error("Voucher não encontrado");
   if (oldVoucher?.status !== "pending") {
-    console.log("🚀 ~ pending:", "pending");
-    return oldVoucher;
+    return console.log("🚀 ~ pending:", "not pending");
   }
 
   try {
@@ -22,7 +21,7 @@ export async function confirmVoucherPayment(
         status: "valid",
         valid: true,
         payment_id,
-        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
       },
     });
     if (!voucher) console.error("Failed to update voucher");
