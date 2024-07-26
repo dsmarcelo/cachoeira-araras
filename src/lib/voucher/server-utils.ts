@@ -6,17 +6,19 @@ export async function confirmVoucherPayment(
   preference_id: string,
   payment_id: string,
 ): Promise<Voucher | void> {
+  console.log("🚀 ~ preference_id:", preference_id);
   const oldVoucher = await api.voucher.findByPreferenceId({
     preference_id,
   });
-  if (!oldVoucher) throw new Error("Voucher não encontrado");
-  if (oldVoucher?.status !== "pending") {
-    throw new Error("Status inválido");
+  console.log("🚀 ~ oldVoucher:", oldVoucher);
+  if (!oldVoucher) return console.error("Voucher não encontrado");
+  if (oldVoucher.status !== "pending") {
+    return console.error("Status inválido");
   }
 
   try {
-    const voucher = await api.voucher.update({
-      where: { preference_id },
+    const voucher = await api.voucher.updateByPreference_id({
+      preference_id,
       data: {
         status: "valid",
         valid: true,
@@ -24,7 +26,7 @@ export async function confirmVoucherPayment(
         expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
       },
     });
-    if (!voucher) throw new Error("Failed to update voucher");
+    if (!voucher) console.error("Failed to update voucher");
     return voucher;
   } catch (error) {
     console.error("Error updating voucher:", error);
