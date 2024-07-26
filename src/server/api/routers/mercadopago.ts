@@ -122,7 +122,7 @@ export const mercadopagoRouter = createTRPCRouter({
     }),
   getPreferenceByEReference: publicProcedure
     .input(z.object({ external_reference: z.string().max(4) }))
-    .query<PreferenceResponse>(async ({ input }) => {
+    .query<PreferenceResponse | undefined>(async ({ input }) => {
       const url = `https://api.mercadopago.com/checkout/preferences/search?external_reference=${input.external_reference}`;
       try {
         const res = await fetch(url, {
@@ -132,7 +132,7 @@ export const mercadopagoRouter = createTRPCRouter({
         });
 
         if (!res.ok) {
-          throw new Error("Failed to fetch Preference");
+          return undefined;
         }
         const data = (await res.json()) as PreferenceResponse;
         return data;

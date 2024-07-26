@@ -36,7 +36,7 @@ export default function VoucherCard({ data }: { data: Voucher }) {
   }
 
   return (
-    <div className='w-[400px] relative max-w-3xl aspect-[2/1] text-bg-blue mx-auto bg-[url(/voucher_card.png)] bg-cover scale-75 -translate-y-8 sm:scale-125 sm:translate-y-[20px] md:scale-150 md:translate-y-1/4'>
+    <div className='w-[400px] relative max-w-3xl aspect-[2/1] text-bg-blue mx-auto bg-[url(/voucher_card.png)] bg-cover scale-75 min-[375px]:scale-90 min-[428px]:scale-100 -translate-y-8 sm:scale-125 sm:translate-y-[20px] md:scale-150 md:translate-y-1/4'>
       <div className='relative top-12 left-4 flex flex-col gap-1 font-semibold'>
         <p>{truncateName(data.name)}</p>
         <p>{formatPhone(data.phone)}</p>
