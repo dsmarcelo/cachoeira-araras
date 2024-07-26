@@ -50,7 +50,7 @@ async function validadeVoucherPayment(payment_id: string) {
       data: {
         status: "valid",
         valid: true,
-        payment_id,
+        payment_id: payment_id,
         expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
       },
     });
@@ -77,7 +77,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await validadeVoucherPayment(payment_id);
+    const res = await validadeVoucherPayment(payment_id);
+    if (!res)
+      return new Response(JSON.stringify({ success: false }), {
+        status: 404,
+      });
+
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
     });
