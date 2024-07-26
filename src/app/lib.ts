@@ -26,7 +26,7 @@ export async function login(password: string) {
 
 export async function addCookieVoucher(code: string) {
   cookies().set("voucher", code, {
-    expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+    expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 40),
   });
 }
 
@@ -70,7 +70,7 @@ export async function activateVoucher(code: string) {
       data: {
         status: "valid",
         valid: true,
-        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
       },
     });
     if (!voucher) console.error("Failed to update voucher");
