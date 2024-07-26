@@ -47,7 +47,11 @@ async function validadeVoucherPayment(payment_id: string) {
   if (code) {
     const voucher = await api.voucher.update({
       where: { code },
-      data: { status: "valid", valid: true, payment_id: payment_id },
+      data: {
+        status: "valid",
+        valid: true,
+        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
+      },
     });
     return voucher;
   }
