@@ -71,7 +71,7 @@ export const mercadopagoRouter = createTRPCRouter({
             auto_return: "approved",
             expiration_date_from: new Date(Date.now()).toISOString(),
             expiration_date_to: new Date(
-              Date.now() + 1000 * 60 * 60 * 24 * 7,
+              Date.now() + 1000 * 60 * 60 * 24 * 10,
             ).toISOString(),
             payment_methods: {
               excluded_payment_methods: [
@@ -87,7 +87,6 @@ export const mercadopagoRouter = createTRPCRouter({
             notification_url: `${url}/api/webhook`,
           },
         });
-        console.log("🚀 ~ .mutation ~ response:", response);
         return response;
       } catch (error) {
         console.error("Error creating preference:", error);
