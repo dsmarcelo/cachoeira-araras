@@ -42,14 +42,14 @@ export default async function PaymentApprovedPage({
   const allStrings = Object.values(searchParams).every(value => typeof value === 'string');
 
   if (!allStrings) {
-    return <div>Link inválido</div>
+    return <div className='text-center h-screen text-3xl'>Link inválido</div>
   }
 
   const { preference_id, payment_id } = searchParams;
-  if (!preference_id || !payment_id) return redirect('/comprar')
+  if (!preference_id || !payment_id) return <div className='text-center h-screen text-3xl'>Link inválido</div>
 
   const preference = await fetchPreference(preference_id as string)
-  if (!preference) return redirect('/comprar')
+  if (!preference) return <div className='text-center h-screen text-3xl'>Erro ao buscar preferência</div>
   const paymentURL = preference.init_point
 
   const payment = await fetchPayment(payment_id as string)
