@@ -9,9 +9,9 @@ export async function confirmVoucherPayment(
   const oldVoucher = await api.voucher.findByPreferenceId({
     preference_id,
   });
-  if (!oldVoucher) return console.error("Voucher não encontrado");
+  if (!oldVoucher) throw new Error("Voucher não encontrado");
   if (oldVoucher?.status !== "pending") {
-    return console.log("🚀 ~ pending:", "not pending");
+    throw new Error("Status inválido");
   }
 
   try {
@@ -24,7 +24,7 @@ export async function confirmVoucherPayment(
         expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
       },
     });
-    if (!voucher) console.error("Failed to update voucher");
+    if (!voucher) throw new Error("Failed to update voucher");
     return voucher;
   } catch (error) {
     console.error("Error updating voucher:", error);
