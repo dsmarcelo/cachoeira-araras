@@ -6,9 +6,7 @@ export async function confirmVoucherPayment(
   preference_id: string,
   payment_id: string,
 ): Promise<Voucher | void> {
-  console.log("🚀 ~ preference_id:", preference_id);
   const oldVoucher = await api.voucher.findByPreferenceId({ preference_id });
-  console.log("🚀 ~ oldVoucher:", oldVoucher);
   if (!oldVoucher) return console.error("Voucher não encontrado");
   if (oldVoucher.status !== "pending") {
     return oldVoucher;

@@ -18,7 +18,8 @@ export default function PasswordLoginForm() {
   }
 
   return (
-    <form action={setUserCookie} className='flex flex-col px-6 mt-6 gap-4 max-w-2xl'>
+    <form action={setUserCookie} className='flex flex-col mx-auto w-full px-6 mt-6 mb-auto gap-4 max-w-lg'>
+      <h3>Digire a senha para entrar</h3>
       <Input
         id="password"
         placeholder="Senha"

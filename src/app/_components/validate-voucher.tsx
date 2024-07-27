@@ -127,7 +127,7 @@ export default function ValidateVoucher() {
       </Card>
       {voucher ?
         <div className='flex flex-col gap-4 w-full'>
-          <button className='text-red-500 text-xs w-fit mx-auto' onClick={deleteVoucher}>Deletar Voucher</button>
+          <button className='text-red-500 text-xs w-fit mx-auto mb-6 md:mb-0' onClick={deleteVoucher}>Deletar Voucher</button>
           <VoucherCard data={voucher} />
         </div>
         : null}
