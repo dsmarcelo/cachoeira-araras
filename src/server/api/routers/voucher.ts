@@ -114,6 +114,7 @@ export const voucherRouter = createTRPCRouter({
           valid: where.valid,
           status: where.status,
           preference_id: where.preference_id,
+          expires_at: where.expires_at,
         },
         data: input.data,
       });
@@ -145,9 +146,7 @@ export const voucherRouter = createTRPCRouter({
     .input(
       z.object({
         preference_id: z.string(),
-        status: z.enum(["pending", "valid", "redeemed", "expired"]),
-        valid: z.boolean(),
-        payment_id: z.string().optional(),
+        data: voucherSchema.partial(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -155,10 +154,7 @@ export const voucherRouter = createTRPCRouter({
         where: {
           preference_id: input.preference_id,
         },
-        data: {
-          status: input.status,
-          valid: input.valid,
-        },
+        data: input.data,
       });
     }),
 

@@ -71,7 +71,7 @@ export const mercadopagoRouter = createTRPCRouter({
             auto_return: "approved",
             expiration_date_from: new Date(Date.now()).toISOString(),
             expiration_date_to: new Date(
-              Date.now() + 1000 * 60 * 60 * 24 * 7,
+              Date.now() + 1000 * 60 * 60 * 24 * 10,
             ).toISOString(),
             payment_methods: {
               excluded_payment_methods: [
@@ -87,7 +87,6 @@ export const mercadopagoRouter = createTRPCRouter({
             notification_url: `${url}/api/webhook`,
           },
         });
-        console.log("🚀 ~ .mutation ~ response:", response);
         return response;
       } catch (error) {
         console.error("Error creating preference:", error);
@@ -123,7 +122,7 @@ export const mercadopagoRouter = createTRPCRouter({
     }),
   getPreferenceByEReference: publicProcedure
     .input(z.object({ external_reference: z.string().max(4) }))
-    .query<PreferenceResponse>(async ({ input }) => {
+    .query<PreferenceResponse | undefined>(async ({ input }) => {
       const url = `https://api.mercadopago.com/checkout/preferences/search?external_reference=${input.external_reference}`;
       try {
         const res = await fetch(url, {
@@ -133,7 +132,7 @@ export const mercadopagoRouter = createTRPCRouter({
         });
 
         if (!res.ok) {
-          throw new Error("Failed to fetch Preference");
+          return undefined;
         }
         const data = (await res.json()) as PreferenceResponse;
         return data;

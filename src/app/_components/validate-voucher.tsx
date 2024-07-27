@@ -9,6 +9,7 @@ import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import VoucherCard from './voucher-card'
 import { useRouter } from 'next/navigation'
+import { formatVoucherStatus } from '@/lib/voucher'
 
 type TVoucher = RouterOutputs['voucher']['findByCode'];
 export default function ValidateVoucher() {
@@ -89,12 +90,11 @@ export default function ValidateVoucher() {
       return await fetchVoucher();
     }
     setValid(false);
-    return setMessage('Código de voucher inválido')
   }
 
   return (
-    <div className='grid gap-4 mb-6 w-full'>
-      <Card className={`${valid && 'border-green-500'} w-full mx-auto max-w-md`}>
+    <div className='grid gap-4 mb-6 w-full '>
+      <Card className={`${valid && 'border-green-500'} w-full max-w-[90vw] mx-auto`}>
         < CardHeader >
           <CardTitle>Validar Voucher</CardTitle>
         </ CardHeader>
@@ -116,7 +116,8 @@ export default function ValidateVoucher() {
             <Button className='h-14' type="submit">
               {isLoading ? 'Validando...' : 'Validar'}
             </Button>
-            {errors.code && <p className='text-red-500 text-sm'>{errors.code?.message}</p>}
+            {errors.code && <p className='text-red-500 text-sm w-full'>{errors.code?.message}</p>}
+            <div className='mx-auto'>{voucher && formatVoucherStatus(voucher.status)}</div>
             <h3 className='text-black font-semibold text-center'>{message}</h3>
             {valid ?
               <Button type='button' onClick={useVoucher} className='bg-green-500 font-semibold text-center'>Usar Voucher</Button>
@@ -125,8 +126,8 @@ export default function ValidateVoucher() {
         </CardContent>
       </Card>
       {voucher ?
-        <div className='flex flex-col gap-4'>
-          <button className='text-red-500 text-xs w-24 mx-auto' onClick={deleteVoucher}>Deletar Voucher</button>
+        <div className='flex flex-col gap-4 w-full'>
+          <button className='text-red-500 text-xs w-fit mx-auto mb-6 md:mb-0' onClick={deleteVoucher}>Deletar Voucher</button>
           <VoucherCard data={voucher} />
         </div>
         : null}

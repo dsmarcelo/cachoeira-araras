@@ -15,7 +15,7 @@ import DeleteVoucherCookieBtn from '@/app/_components/delete-voucher-cookie-btn'
 const fetchPreference = async (preference_id: string): Promise<PreferenceResponse> => {
   try {
     const res = await api.mercadopago.getPreference({ preference_id });
-    if (!res) throw new Error('Failed to fetch payment');
+    if (!res) return redirect('/comprar')
     return res;
   } catch (error) {
     console.error('Error fetching payment:', error);
@@ -42,13 +42,14 @@ export default async function PaymentApprovedPage({
   const allStrings = Object.values(searchParams).every(value => typeof value === 'string');
 
   if (!allStrings) {
-    return <div>Link inválido</div>
+    return <div className='text-center h-screen text-3xl'>Link inválido</div>
   }
 
   const { preference_id, payment_id } = searchParams;
+  if (!preference_id || !payment_id) return <div className='text-center h-screen text-3xl'>Link inválido</div>
 
   const preference = await fetchPreference(preference_id as string)
-  if (!preference) return redirect('/comprar')
+  if (!preference) return <div className='text-center h-screen text-3xl'>Erro ao buscar preferência</div>
   const paymentURL = preference.init_point
 
   const payment = await fetchPayment(payment_id as string)
@@ -62,19 +63,24 @@ export default async function PaymentApprovedPage({
     </div>
   }
   const voucher = await confirmVoucherPayment(preference_id as string, payment_id as string)
-  if (!voucher) return <div>Voucher não encontrado</div>
+  if (!voucher) return <div className='text-center h-screen text-3xl'>Não foi possível confirmar o pagamento</div>
+
   return (
-    <div className="flex flex-col mt-12 px-4 items-center h-screen mb-96">
-      <h1 className='text-center text-4xl font-bold text-green-500'>Pagamento aprovado</h1>
-      <div className='mt-12 flex flex-col gap-8'>
-        <PaymentCard data={preference} payment_id={payment_id as string} />
+    <div className="flex flex-col w-full pt-8 px-4 items-center pb-48  bg-bg-blue overflow-hidden">
+      <h1 className='text-center text-4xl font-bold text-green-500 mb-8'>Pagamento aprovado</h1>
+      <div className='max-w-lg flex flex-col gap-8'>
+        <div className='w-screen p-2 mx-auto'>
+          <PaymentCard data={preference} payment_id={payment_id as string} />
+        </div>
         <VoucherCard data={voucher} />
       </div>
-      <Button className='mt-12 flex gap-4 bg-green-600 py-4 h-[contain]'>
+      <Button className='flex gap-4 bg-green-600 py-4 px-6 rounded-full h-[contain] sm:mt-20 md:mt-36 hover:bg-green-700'>
         <FaWhatsapp className="h-8 w-8" />
         <Link href={formatWhatsAppMessage(voucher)} target='_blank' className='whitespace-pre-wrap'>Envie o voucher para o WhatsApp da Cachoeira das Araras</Link>
       </Button>
-      <DeleteVoucherCookieBtn />
+      <div className='mt-12'>
+        <DeleteVoucherCookieBtn />
+      </div>
     </div>
   )
 }

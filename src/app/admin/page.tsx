@@ -36,7 +36,7 @@ export default async function ValitadePage() {
       <div className='mt-12'>
         <ValidateVoucher />
       </div>
-      <div className='mt-36 w-full mx-auto'>
+      <div className='mt-36 w-full mx-auto mb-36'>
         <VoucherTable columns={columns} data={vouchers} />
       </div>
     </main >

@@ -108,7 +108,7 @@ export default function VoucherForm() {
     const completeData = formatVoucher({ ...data, preference_id, code: rcode });
     try {
       const voucher = await addVoucher.mutateAsync(completeData);
-      if (!voucher) return;
+      if (!voucher) return <div className='text-center h-screen text-3xl'>Erro ao criar o voucher, por favor atualize a página</div>
     } catch (error) {
       console.error(error);
     }

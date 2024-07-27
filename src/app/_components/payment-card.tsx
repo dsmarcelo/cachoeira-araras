@@ -7,22 +7,19 @@ export default function PaymentCard({ data, payment_id }: { data: PreferenceResp
   const items = data.items
   if (!items) return null
   return (
-    <Card className='border-green-500'>
+    <Card className='border-primary-500 w-full max-w-lg bg-dark-blue text-primary-50'>
       <CardHeader>
         <CardTitle>Obrigado pela compra!</CardTitle>
-        <CardDescription>
+        <CardDescription className='text-primary-300'>
           Mostre o codigo de validação identificação na portaria!
         </CardDescription>
       </CardHeader>
       <CardContent>
         <p>ID do pagamento: {payment_id}</p>
-      </CardContent>
-      <CardContent>
         {items.map((item, index) => (
           <div key={index}>
             <h2>{item.title}</h2>
-            <p>{item.description}</p>
-            <p>Valor: {item.unit_price}</p>
+            <p>Valor: R${item.unit_price},00</p>
           </div>
         ))}
       </CardContent>
