@@ -12,7 +12,8 @@ export default async function Home() {
         <ImageCarousel />
         <main className="flex flex-col items-center px-4 gap-6 py-4 md:py-8 md:px-8">
           <div className="w-full max-w-5xl flex flex-col justify-center gap-6 lg:flex-row">
-            <VoucherBuy />
+            {/* <VoucherBuy /> */}
+            <h2>Estamos em manutenção, desulpe o transtorno</h2>
             <InfoCard />
           </div>
           <Link href="/galeria" className="h-24 w-full max-w-[500px] flex justify-center items-center rounded-xl font-medium bg-light-blue-500 text-bg-blue hover:bg-light-blue-400">

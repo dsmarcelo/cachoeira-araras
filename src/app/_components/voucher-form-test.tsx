@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher } from "../lib";
 import VoucherCreatedCard from "./voucher-created-card";
 
-export default function VoucherForm() {
+export default function TestVoucherForm() {
   const router = useRouter();
   const { toast } = useToast()
   const [code, setCode] = useState('');
@@ -71,12 +71,12 @@ export default function VoucherForm() {
   async function buyVoucher({ data, code }: { data: FormSchema, code: string }) {
     const res = await mercadopago.mutateAsync({
       code,
-      title: `Voucher ${code}`,
+      title: ` TESTE-Voucher ${code}`,
       id: code,
       description: `Voucher para ${data.adults} pessoas com mais de 8 anos e ${data.elderly} com mais de 60 anos ou especiais`,
       adults: data.adults,
       elderly: data.elderly,
-      unit_price: calculatePrice(data.adults, data.elderly),
+      unit_price: 0.01,
       name: data.name,
       surname: data.name,
       phone: data.phone,
