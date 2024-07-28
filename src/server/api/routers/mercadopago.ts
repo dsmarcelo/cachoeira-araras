@@ -5,6 +5,7 @@ import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTyp
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
 const token = process.env.MERCADOPAGO_TOKEN;
 const url = process.env.URL;
+const webhookUrl = process.env.WEBHOOK_URL;
 
 if (!token) {
   throw new Error("MERCADOPAGO_TOKEN is not set");
@@ -84,7 +85,7 @@ export const mercadopagoRouter = createTRPCRouter({
               ],
             },
             statement_descriptor: "Cachoeira das Araras",
-            notification_url: `${url}/api/webhook`,
+            notification_url: `${webhookUrl}/api/webhook`,
           },
         });
         return response;
