@@ -59,6 +59,8 @@ async function validadeVoucherPayment(payment_id: string) {
   return null;
 }
 
+// Vercel URL instead of Original Domain in MP Webhooks
+
 export async function POST(request: NextRequest) {
   try {
     const signature = request.headers.get("x-signature")!;
