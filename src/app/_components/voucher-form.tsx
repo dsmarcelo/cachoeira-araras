@@ -98,21 +98,20 @@ export default function VoucherForm() {
         description: 'Verifique a quantidade de pessoas',
       })
     }
-    return <p>Estamos em manutenção, aguarde um momento</p>;
-    // const rcode = randomCode();
-    // setCode(rcode);
-    // const res = await buyVoucher({ data, code: rcode });
-    // if (!res?.id || !res?.init_point) return;
-    // await addCookieVoucher(rcode);
-    // setInitPoint(res.init_point);
-    // const preference_id = res.id;
-    // const completeData = formatVoucher({ ...data, preference_id, code: rcode });
-    // try {
-    //   const voucher = await addVoucher.mutateAsync(completeData);
-    //   if (!voucher) return <div className='text-center h-screen text-3xl'>Erro ao criar o voucher, por favor atualize a página</div>
-    // } catch (error) {
-    //   console.error(error);
-    // }
+    const rcode = randomCode();
+    setCode(rcode);
+    const res = await buyVoucher({ data, code: rcode });
+    if (!res?.id || !res?.init_point) return;
+    await addCookieVoucher(rcode);
+    setInitPoint(res.init_point);
+    const preference_id = res.id;
+    const completeData = formatVoucher({ ...data, preference_id, code: rcode });
+    try {
+      const voucher = await addVoucher.mutateAsync(completeData);
+      if (!voucher) return <div className='text-center h-screen text-3xl'>Erro ao criar o voucher, por favor atualize a página</div>
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   if (code) {
@@ -121,8 +120,7 @@ export default function VoucherForm() {
 
   return (
     <div className="mx-auto w-full bg-dark-blue">
-      <p className="text-center text-3xl mx-4">Estamos em manutenção, aguarde um momento</p>
-      {/* <div className="border-none bg-dark-blue text-primary-50 p-4 pb-0">
+      <div className="border-none bg-dark-blue text-primary-50 p-4 pb-0">
         <div className="">
           <div className="mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold">Adquira já seu voucher</h2>
@@ -197,7 +195,7 @@ export default function VoucherForm() {
             {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher, tente novamente!</p>}
           </div>
         </div>
-      </div > */}
+      </div >
     </div>
   )
 }
