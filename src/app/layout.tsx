@@ -27,7 +27,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR" className={`${inter.variable}`}>
-      <body className="min-h-screen flex flex-col">
+      <body className="min-h-[100dvh] grid grid-rows-[auto_1fr_auto]">
         <Header />
         <TRPCReactProvider>{children}</TRPCReactProvider>
         <Toaster />
