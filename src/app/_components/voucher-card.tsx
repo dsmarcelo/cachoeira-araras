@@ -7,12 +7,8 @@ import Image from 'next/image'
 import React from 'react'
 
 export default function VoucherCard({ data }: { data: Voucher }) {
-  interface Data {
-    adults: number;
-    elderly: number;
-  }
 
-  function formatQuantity(data: Data): string {
+  function formatQuantity(data: { adults: number; elderly: number; }): string {
     const adultsText = data.adults === 1 ? '1 inteira' : `${data.adults} inteiras`;
     const elderlyText = data.elderly === 1 ? '1 meia' : `${data.elderly} meias`;
 

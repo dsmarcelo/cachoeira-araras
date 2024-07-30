@@ -26,25 +26,19 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Row } from "@tanstack/react-table"
-import { VoucherSchema } from "@/lib/voucher/types"
+import { type CompleteVoucherSchema } from "@/lib/voucher/types"
 import { formatVoucherStatus, truncateName } from "@/lib/voucher"
 import { Copy } from "lucide-react"
 import { api } from "@/trpc/react"
 import { formatPaymentStatus, formatPaymentStatusDetail, formatPaymentType } from "@/lib/mercadopago"
 
-// export function openDrawer() {
-//   setOpen(true)
-// }
-
 interface props {
-  data: VoucherSchema
+  data: CompleteVoucherSchema,
   onClose: () => void
   open: boolean
 }
 
 export function VoucherInfoCard({ data, onClose, open }: props) {
-  // const [open, setOpen] = React.useState(false)
-  // const isDesktop = useMediaQuery("(min-width: 768px)")
 
   function paymentInfo() {
     const { payment_id } = data
@@ -78,30 +72,23 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
     )
   }
 
-  // if (isDesktop) {
-  //   return (
-  //     <Dialog open={open} onOpenChange={setOpen}>
-  //       <DialogTrigger asChild>
-  //         <Button variant="outline">Edit Profile</Button>
-  //       </DialogTrigger>
-  //       <DialogContent className="sm:max-w-[425px]">
-  //         <DialogHeader>
-  //           <DialogTitle>Edit profile</DialogTitle>
-  //           <DialogDescription>
-  //             Make changes to your profile here. Click save when you're done.
-  //           </DialogDescription>
-  //         </DialogHeader>
-  //         <ProfileForm />
-  //       </DialogContent>
-  //     </Dialog>
-  //   )
-  // }
+  function formatQuantity(data: { adults: number; elderly: number; }): string {
+    const adultsText = data.adults === 1 ? '1 inteira' : `${data.adults} inteiras`;
+    const elderlyText = data.elderly === 1 ? '1 meia' : `${data.elderly} meias`;
+
+    if (data.adults > 0 && data.elderly > 0) {
+      return `${adultsText} e ${elderlyText}`;
+    } else if (data.adults > 0) {
+      return adultsText;
+    } else if (data.elderly > 0) {
+      return elderlyText;
+    } else {
+      return 'Nenhuma entrada';
+    }
+  }
 
   return (
     <Drawer open={open} onClose={onClose} preventScrollRestoration={true} shouldScaleBackground={true} >
-      {/* <DrawerTrigger asChild>
-        <Button variant="outline">Edit Profile</Button>
-      </DrawerTrigger> */}
       <DrawerContent>
         <DrawerHeader className="text-left max-h-[80dvh] overflow-y-scroll">
           <DrawerTitle onClick={() => navigator.clipboard.writeText(data.code ?? '')}>{`Voucher ${data.code}`}</DrawerTitle>
@@ -110,11 +97,12 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
           </DrawerDescription>
           <div className="flex flex-col gap-1">
             <h4 className="hover:bg-slate-100 rounded-md" onClick={() => navigator.clipboard.writeText(data.name)}>{truncateName(data.name)}</h4>
-            <h4 className="hover:bg-slate-100 rounded-md" onClick={() => navigator.clipboard.writeText(data.phone)}>{formatPhone(data.phone)}
-            </h4>
+            <h4 className="hover:bg-slate-100 rounded-md" onClick={() => navigator.clipboard.writeText(data.phone)}>{formatPhone(data.phone)}</h4>
+            <p>{formatQuantity({ adults: data.adults, elderly: data.elderly })}</p>
             <h4>{formatVoucherStatus(data.status)}</h4>
+            {<p>Gerado em: {formateDate(data.createdAt.toString())}</p>}
             {data.expires_at &&
-              <div>
+              <div className="flex flex-wrap gap-x-1">
                 <span>{data.expires_at > new Date(Date.now()) ? "Expira em" : "Expirou em"}: </span>
                 <h4>{formateDateDayMonthYear(data.expires_at)}</h4>
               </div>}
