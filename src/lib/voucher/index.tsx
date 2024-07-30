@@ -13,3 +13,11 @@ export function formatVoucherStatus(status: string) {
       return <p className="text-red-500 w-fit bg-red-200/30 rounded-lg px-1 pb-1">Voucher inválido</p>;
   }
 }
+
+export function truncateName(name: string): string {
+  const maxLength = 35;
+  if (name.length > maxLength) {
+    return name.slice(0, maxLength - 3) + "...";
+  }
+  return name;
+}

@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { ListFilter } from "lucide-react"
 import { VoucherInfoCard } from "./voucher-info-card"
+import { Voucher } from "@prisma/client"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -45,7 +46,6 @@ export function VoucherTable<TData, TValue>({
   const [selectedRow, setSelectedRow] = React.useState<Row<TData>>()
 
   const handleClick = (row: Row<TData>) => {
-    console.log('🚀 ~ handleClick ~ row:', row.original);
     setSelectedRow(row)
   }
 
@@ -124,7 +124,6 @@ export function VoucherTable<TData, TValue>({
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() && "selected"}
-                // onClick={() => console.log(`click ${row.getValue("code")}`)}
                 onClick={() => handleClick(row)}
               >
                 {row.getVisibleCells().map((cell) => (
@@ -145,7 +144,7 @@ export function VoucherTable<TData, TValue>({
       </Table>
       {selectedRow && (
         <VoucherInfoCard
-          data={selectedRow.original}
+          data={selectedRow.original as Voucher}
           open={!!selectedRow}
           onClose={() => setSelectedRow(undefined)}
         />
