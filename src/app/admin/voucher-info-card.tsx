@@ -1,7 +1,7 @@
 'use client'
 import * as React from "react"
 
-import { cn, formateDate, formatPhone, formatToBRL } from "@/lib/utils"
+import { cn, formateDate, formateDateDayMonthYear, formatPhone, formatToBRL } from "@/lib/utils"
 // import { useMediaQuery } from "@/hooks/use-media-query"
 import { Button } from "@/components/ui/button"
 import {
@@ -113,6 +113,11 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
             <h4 className="hover:bg-slate-100 rounded-md" onClick={() => navigator.clipboard.writeText(data.phone)}>{formatPhone(data.phone)}
             </h4>
             <h4>{formatVoucherStatus(data.status)}</h4>
+            {data.expires_at &&
+              <div>
+                <span>{data.expires_at > new Date(Date.now()) ? "Expira em" : "Expirou em"}: </span>
+                <h4>{formateDateDayMonthYear(data.expires_at)}</h4>
+              </div>}
           </div>
           <div className="flex flex-wrap gap-x-1" onClick={() => navigator.clipboard.writeText(data.preference_id)}>
             <p className="text-xs text-slate-500">{`Preferencia do pagamento:`}</p>
