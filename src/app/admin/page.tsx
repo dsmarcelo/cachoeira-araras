@@ -25,7 +25,7 @@ export default async function ValitadePage() {
   const vouchers = await fetchVouchers()
 
   return (
-    <main className='flex min-h-screen flex-col items-center px-4'>
+    <main className='flex min-h-screen w-full flex-col items-center px-4'>
       <form action={async () => {
         'use server'
         await logout()
@@ -36,7 +36,7 @@ export default async function ValitadePage() {
       <div className='mt-12'>
         <ValidateVoucher />
       </div>
-      <div className='mt-36 w-full mx-auto mb-36'>
+      <div className='w-full mx-auto my-36'>
         <VoucherTable columns={columns} data={vouchers} />
       </div>
     </main >

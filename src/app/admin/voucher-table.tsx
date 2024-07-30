@@ -29,7 +29,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { ListFilter } from "lucide-react"
 import { VoucherInfoCard } from "./voucher-info-card"
-import { Voucher } from "@prisma/client"
+import { DataTablePagination } from "./table-pagination"
+import { type CompleteVoucherSchema } from "@/lib/voucher/types"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -49,6 +50,13 @@ export function VoucherTable<TData, TValue>({
     setSelectedRow(row)
   }
 
+  const initialSortBy = [
+    {
+      id: 'name',
+      desc: true, // Set to true to sort in descending order
+    },
+  ];
+
   const table = useReactTable({
     data,
     columns,
@@ -60,11 +68,15 @@ export function VoucherTable<TData, TValue>({
       sorting,
       columnVisibility,
     },
+    sortDescFirst: true,
+    // initialState: {
+    //   sorting: initialSortBy,
+    // },
   })
 
   return (
-    <div className="w-full mx-auto max-w-5xl rounded-md border">
-      <div className="flex justify-end">
+    <div className=" w-full mx-auto py-4 sm:p-4 rounded-md border bg-slate-50 space-y-4">
+      <div className="flex justify-end px-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -99,52 +111,55 @@ export function VoucherTable<TData, TValue>({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => {
-                return (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                  </TableHead>
-                )
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && "selected"}
-                onClick={() => handleClick(row)}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
+      <div className="rounded-md border bg-white w-full">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                    </TableHead>
+                  )
+                })}
               </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                Sem resultados.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  onClick={() => handleClick(row)}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  Sem resultados.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <DataTablePagination table={table} />
       {selectedRow && (
         <VoucherInfoCard
-          data={selectedRow.original as Voucher}
+          data={selectedRow.original as CompleteVoucherSchema}
           open={!!selectedRow}
           onClose={() => setSelectedRow(undefined)}
         />

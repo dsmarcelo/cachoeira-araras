@@ -88,3 +88,5 @@ export const completeVoucherSchema = z.object({
   createdAt: z.date(),
   updatedAt: z.date(),
 });
+
+export type CompleteVoucherSchema = z.infer<typeof completeVoucherSchema>;

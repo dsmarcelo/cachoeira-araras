@@ -1,6 +1,6 @@
 'use client'
 import { formateDateDayMonthYear, formatPhone } from "@/lib/utils"
-import { formatVoucherStatus } from "@/lib/voucher"
+import { formatVoucherStatus, formatVoucherStatusIcons } from "@/lib/voucher"
 import { type VoucherSchema } from "@/lib/voucher/types"
 import type { ColumnDef } from "@tanstack/react-table"
 import {
@@ -40,6 +40,12 @@ export const columns: ColumnDef<VoucherSchema>[] = [
   {
     accessorKey: "code",
     header: "Codigo",
+    cell: (row) => {
+      if (row.getValue()) {
+        return <div className="w-fit mx-auto">{row.getValue() as string}</div>
+      }
+      return <div>-</div>
+    },
   },
   {
     accessorKey: "status",
@@ -48,15 +54,16 @@ export const columns: ColumnDef<VoucherSchema>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="text-xs sm:text-base px-1"
         >
           Status
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          <ArrowUpDown className="ml-1 size-3" />
         </Button>
       )
     },
     cell: (row) => {
       if (row.getValue()) {
-        return formatVoucherStatus(row.getValue() as string)
+        return <div className="w-fit mx-auto">{formatVoucherStatusIcons(row.getValue() as string)}</div>
       }
       return <div>-</div>
 
@@ -66,16 +73,16 @@ export const columns: ColumnDef<VoucherSchema>[] = [
     accessorKey: "name",
     header: "Nome",
   },
-  {
-    accessorKey: "phone",
-    header: "Telefone",
-    cell: (row) => {
-      if (row.getValue() === null) {
-        return <div>-</div>
-      }
-      return <div>{formatPhone(row.getValue() as string)}</div>
-    },
-  },
+  // {
+  //   accessorKey: "phone",
+  //   header: "Telefone",
+  //   cell: (row) => {
+  //     if (row.getValue() === null) {
+  //       return <div>-</div>
+  //     }
+  //     return <div>{formatPhone(row.getValue() as string)}</div>
+  //   },
+  // },
   {
     accessorKey: "expires_at",
     header: ({ column }) => {
@@ -83,9 +90,10 @@ export const columns: ColumnDef<VoucherSchema>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="text-xs sm:text-base px-1"
         >
           Expira em
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          <ArrowUpDown className="ml-1 size-3" />
         </Button>
       )
     },
