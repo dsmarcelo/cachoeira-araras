@@ -37,6 +37,7 @@ function isValidSignature(
 async function validadeVoucherPayment(payment_id: string) {
   const payment = await api.mercadopago.getPayment({ payment_id });
   if (!payment) return null;
+  if (payment.status !== "approved") return null;
 
   const code = payment.external_reference;
   if (typeof code !== "string") return null;

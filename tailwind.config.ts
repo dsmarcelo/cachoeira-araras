@@ -36,6 +36,8 @@ const config = {
         "alert-light": "rgba(255, 193, 7, .2)",
         "dark-blue": "#00516D",
         "bg-blue": "#00182D",
+        dark: "#00182D",
+        light: "#ecf7fa",
         secondary: "#00435D",
         "primary-50": "#ecf7fa",
         "primary-100": "#c3e5ee",

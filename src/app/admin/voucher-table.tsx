@@ -8,7 +8,8 @@ import {
   useReactTable,
   type SortingState,
   getSortedRowModel,
-  type VisibilityState
+  type VisibilityState,
+  type Row
 } from "@tanstack/react-table"
 
 import {
@@ -27,6 +28,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { ListFilter } from "lucide-react"
+import { VoucherInfoCard } from "./voucher-info-card"
+import { Voucher } from "@prisma/client"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -40,6 +43,11 @@ export function VoucherTable<TData, TValue>({
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
+  const [selectedRow, setSelectedRow] = React.useState<Row<TData>>()
+
+  const handleClick = (row: Row<TData>) => {
+    setSelectedRow(row)
+  }
 
   const table = useReactTable({
     data,
@@ -116,6 +124,7 @@ export function VoucherTable<TData, TValue>({
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() && "selected"}
+                onClick={() => handleClick(row)}
               >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
@@ -133,6 +142,13 @@ export function VoucherTable<TData, TValue>({
           )}
         </TableBody>
       </Table>
+      {selectedRow && (
+        <VoucherInfoCard
+          data={selectedRow.original as Voucher}
+          open={!!selectedRow}
+          onClose={() => setSelectedRow(undefined)}
+        />
+      )}
     </div>
   )
 }
