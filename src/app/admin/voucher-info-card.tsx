@@ -1,7 +1,7 @@
 'use client'
 import * as React from "react"
 
-import { cn, formateDate, formatPhone } from "@/lib/utils"
+import { cn, formateDate, formatPhone, formatToBRL } from "@/lib/utils"
 // import { useMediaQuery } from "@/hooks/use-media-query"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,6 +19,7 @@ import {
   DrawerDescription,
   DrawerFooter,
   DrawerHeader,
+  DrawerOverlay,
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer"
@@ -26,9 +27,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Row } from "@tanstack/react-table"
 import { VoucherSchema } from "@/lib/voucher/types"
-import { formatVoucherStatus } from "@/lib/voucher"
+import { formatVoucherStatus, truncateName } from "@/lib/voucher"
 import { Copy } from "lucide-react"
 import { api } from "@/trpc/react"
+import { formatPaymentStatus, formatPaymentStatusDetail, formatPaymentType } from "@/lib/mercadopago"
 
 // export function openDrawer() {
 //   setOpen(true)
@@ -44,71 +46,6 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
   // const [open, setOpen] = React.useState(false)
   // const isDesktop = useMediaQuery("(min-width: 768px)")
 
-  function truncateName(name: string,): string {
-    const maxLength = 35
-    if (name.length > maxLength) {
-      return name.slice(0, maxLength - 3) + '...';
-    }
-    return name;
-  }
-
-  function formatPaymentStatus(status: string): string {
-    switch (status) {
-      case 'approved':
-        return 'Pagamento Aprovado';
-      case 'pending':
-      case 'in_process':
-        return 'Pagamento Em andamento';
-      case 'authorized':
-        return 'Pagamento Autorizado';
-      case 'rejected':
-        return 'Pagamento Rejeitado';
-      case 'cancelled':
-        return 'Pagamento Cancelado';
-      case 'refunded':
-        return 'Pagamento Reembolsado';
-      default:
-        return 'Desconhecido';
-    }
-  }
-
-  function formatPaymentStatusDetail(status: string): string {
-    switch (status) {
-      case 'accredited':
-        return 'Pagamento creditado na conta';
-      case 'pending_contingency':
-        return 'Pagamento em processamento';
-      case 'pending_review_manual':
-        return 'Pagamento em analise manual';
-      case 'cc_rejected_bad_filled_date':
-        return 'Data de expiração incorreta';
-      case 'cc_rejected_bad_filled_other':
-        return 'Dados do cartão incorretos';
-      case 'cc_rejected_bad_filled_security_code':
-        return 'CVV incorreto';
-      case 'cc_rejected_blacklist':
-        return 'Cartão bloqueado';
-      case 'cc_rejected_call_for_authorize':
-        return 'Pagamento requer autorização';
-      case 'cc_rejected_card_disabled':
-        return 'Cartão desativado';
-      case 'cc_rejected_duplicated_payment':
-        return 'Pagamento duplicado';
-      case 'cc_rejected_high_risk':
-        return 'Pagamento rejeitado por prevenção de fraude';
-      case 'cc_rejected_insufficient_amount':
-        return 'Valor insuficiente';
-      case 'cc_rejected_invalid_installments':
-        return 'Número de parcelas inválido';
-      case 'cc_rejected_max_attempts':
-        return 'Excedido o número máximo de tentativas';
-      case 'cc_rejected_other_reason':
-        return 'Erro genérico';
-      default:
-        return 'Desconhecido';
-    }
-  }
-
   function paymentInfo() {
     const { payment_id } = data
     if (!payment_id) return null
@@ -121,20 +58,21 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
       <div className="flex flex-col gap-1">
         <hr className="border-t border-gray-300 my-4" />
         <h2 className="font-semibold text-center">Detalhes do pagamento</h2>
-        <div className="">
+        <div className="text-sm">
           {payment.status && <p>{formatPaymentStatus(payment.status)}</p>}
           {payment.status_detail && <p>{formatPaymentStatusDetail(payment.status_detail)}</p>}
           {payment.date_created && <div>
             <p>{`Criado em: ${formateDate(payment.date_created)}`}</p>
           </div>}
           {payment.date_approved && <p>{`Aprovado em: ${formateDate(payment.date_approved)}`}</p>}
-          <p>{`Tipo de pagamento: ${payment.payment_method_id}`}</p>
+          {payment.payment_method_id && <p>{`Tipo de pagamento: ${formatPaymentType(payment.payment_method_id)}`}</p>}
           <p>{payment.payer?.first_name}</p>
           <p onClick={() => navigator.clipboard.writeText(payment.payer?.email ?? '')}>{payment.payer?.email}</p>
           <div className="flex gap-1" onClick={() => navigator.clipboard.writeText(payment.payer?.identification?.number ?? '')}>
             <p>{payment.payer?.identification?.type}:</p>
             <p>{payment.payer?.identification?.number}</p>
           </div>
+          {payment.transaction_amount && <div><span>Valor da compra: </span>{formatToBRL(payment.transaction_amount)}</div>}
         </div>
       </div>
     )
@@ -160,7 +98,7 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
   // }
 
   return (
-    <Drawer open={open} onClose={onClose} preventScrollRestoration={true} shouldScaleBackground={true}>
+    <Drawer open={open} onClose={onClose} preventScrollRestoration={true} shouldScaleBackground={true} >
       {/* <DrawerTrigger asChild>
         <Button variant="outline">Edit Profile</Button>
       </DrawerTrigger> */}
@@ -193,7 +131,8 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
           </DrawerClose>
         </DrawerFooter>
       </DrawerContent>
-    </Drawer>
+      <DrawerOverlay onClick={onClose} />
+    </Drawer >
   )
 }
 
