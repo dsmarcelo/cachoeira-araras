@@ -26,29 +26,21 @@ export function formatVoucherStatusIcons(status: string) {
   switch (status) {
     case "pending":
       return (
-        <FaClock className="text-yellow-700" size={iconSize} />
+        <FaClock className="text-yellow-300" size={iconSize} />
       );
     case "valid":
       return (
-        <FaCheckCircle className="text-green-500" size={iconSize} />
+        <FaCheckCircle className="text-green-400" size={iconSize} />
       );
     case "redeemed":
       return (
-        <FaTimesCircle className="text-red-500" size={iconSize} />
+        <FaTimesCircle className="text-red-400" size={iconSize} />
       );
     case "expired":
       return (
-        <FaExclamationCircle className="text-slate-500" size={iconSize} />
+        <FaExclamationCircle className="text-slate-300" size={iconSize} />
       );
     default:
       return null; // No icon for unknown status
   }
-}
-
-export function truncateName(name: string): string {
-  const maxLength = 35;
-  if (name.length > maxLength) {
-    return name.slice(0, maxLength - 3) + "...";
-  }
-  return name;
 }

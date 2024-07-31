@@ -38,13 +38,55 @@ async function handleActivateVoucher(code: string) {
 
 export const columns: ColumnDef<VoucherSchema>[] = [
   {
+    accessorKey: "id",
+    header: "ID",
+  },
+  {
     accessorKey: "code",
     header: "Codigo",
+    maxSize: 50,
     cell: (row) => {
       if (row.getValue()) {
         return <div className="w-fit mx-auto">{row.getValue() as string}</div>
       }
       return <div>-</div>
+    },
+  },
+  {
+    accessorKey: "name",
+    header: "Nome",
+    minSize: 300,
+  },
+  {
+    accessorKey: "phone",
+    header: "Telefone",
+    minSize: 200,
+    cell: (row) => {
+      if (row.getValue() === null) {
+        return <div>-</div>
+      }
+      return <div>{formatPhone(row.getValue() as string)}</div>
+    },
+  },
+  {
+    accessorKey: "expires_at",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="text-xs sm:text-base px-1"
+        >
+          Expira em
+          <ArrowUpDown className="ml-1 size-3" />
+        </Button>
+      )
+    },
+    cell: (row) => {
+      if (row.getValue() === null) {
+        return <div>-</div>
+      }
+      return <div>{formateDateDayMonthYear(row.getValue() as string)}</div>
     },
   },
   {
@@ -70,42 +112,7 @@ export const columns: ColumnDef<VoucherSchema>[] = [
     },
   },
   {
-    accessorKey: "name",
-    header: "Nome",
-  },
-  // {
-  //   accessorKey: "phone",
-  //   header: "Telefone",
-  //   cell: (row) => {
-  //     if (row.getValue() === null) {
-  //       return <div>-</div>
-  //     }
-  //     return <div>{formatPhone(row.getValue() as string)}</div>
-  //   },
-  // },
-  {
-    accessorKey: "expires_at",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="text-xs sm:text-base px-1"
-        >
-          Expira em
-          <ArrowUpDown className="ml-1 size-3" />
-        </Button>
-      )
-    },
-    cell: (row) => {
-      if (row.getValue() === null) {
-        return <div>-</div>
-      }
-      return <div>{formateDateDayMonthYear(row.getValue() as string)}</div>
-    },
-  },
-  {
-    id: "Ações",
+    id: "actions",
     cell: ({ row }) => {
       const voucher = row.original
       return (

@@ -1,6 +1,7 @@
 'use client' // Error components must be Client Components
 
 import { useEffect } from 'react'
+import ErrorCard from '../erro/error'
 
 export default function Error({
   error,
@@ -16,7 +17,7 @@ export default function Error({
 
   return (
     <div>
-      <h2>Algo deu errado!</h2>
+      <ErrorCard title='Erro' message={error.message} light={true} />
       <button
         onClick={
           // Attempt to recover by trying to re-render the segment

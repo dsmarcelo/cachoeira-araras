@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { type VoucherSchema } from "./voucher/types";
+import React from "react";
 
 const url = process.env.URL;
 
@@ -62,4 +63,33 @@ export function formatToBRL(value: number): string {
     style: "currency",
     currency: "BRL",
   }).format(value);
+}
+
+export function truncateName(name: string): string {
+  const maxLength = 35;
+  if (name.length > maxLength) {
+    return name.slice(0, maxLength - 3) + "...";
+  }
+  return name;
+}
+
+export function useWindowWidth(): number {
+  const [windowWidth, setWindowWidth] = React.useState<number>(
+    window.innerWidth,
+  );
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    // Cleanup the event listener on component unmount
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  return windowWidth;
 }

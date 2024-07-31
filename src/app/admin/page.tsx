@@ -1,11 +1,10 @@
 import React from 'react'
 import ValidateVoucher from '../_components/validate-voucher'
-import { VoucherTable } from './voucher-table'
 import { api } from '@/trpc/server'
-import { columns } from "./columns"
 import { type VoucherSchema } from '@/lib/voucher/types'
 import PasswordLoginForm from '../_components/passwordLoginForm'
 import { isLoggedIn, logout } from '../lib'
+import DataTable from './data-table'
 
 const fetchVouchers = async (): Promise<VoucherSchema[]> => {
   try {
@@ -18,6 +17,7 @@ const fetchVouchers = async (): Promise<VoucherSchema[]> => {
 };
 
 export default async function ValitadePage() {
+
   const isAdmin = await isLoggedIn();
   if (!isAdmin) {
     return <PasswordLoginForm />
@@ -37,7 +37,7 @@ export default async function ValitadePage() {
         <ValidateVoucher />
       </div>
       <div className='w-full mx-auto my-36'>
-        <VoucherTable columns={columns} data={vouchers} />
+        <DataTable />
       </div>
     </main >
   )

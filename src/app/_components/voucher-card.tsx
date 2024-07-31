@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formateDateDayMonthYear } from '@/lib/utils'
+import { formateDateDayMonthYear, truncateName } from '@/lib/utils'
 import { formatPhone } from '@/lib/utils'
 import { formatVoucherStatus } from '@/lib/voucher'
 import { type Voucher } from '@prisma/client'
@@ -21,14 +21,6 @@ export default function VoucherCard({ data }: { data: Voucher }) {
     } else {
       return 'Nenhuma entrada';
     }
-  }
-
-  function truncateName(name: string,): string {
-    const maxLength = 35
-    if (name.length > maxLength) {
-      return name.slice(0, maxLength - 3) + '...';
-    }
-    return name;
   }
 
   return (

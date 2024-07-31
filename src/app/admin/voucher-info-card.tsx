@@ -1,7 +1,7 @@
 'use client'
 import * as React from "react"
 
-import { cn, formateDate, formateDateDayMonthYear, formatPhone, formatToBRL } from "@/lib/utils"
+import { cn, formateDate, formateDateDayMonthYear, formatPhone, formatToBRL, truncateName } from "@/lib/utils"
 // import { useMediaQuery } from "@/hooks/use-media-query"
 import { Button } from "@/components/ui/button"
 import {
@@ -27,10 +27,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Row } from "@tanstack/react-table"
 import { type CompleteVoucherSchema } from "@/lib/voucher/types"
-import { formatVoucherStatus, truncateName } from "@/lib/voucher"
+import { formatVoucherStatus } from "@/lib/voucher"
 import { Copy } from "lucide-react"
 import { api } from "@/trpc/react"
 import { formatPaymentStatus, formatPaymentStatusDetail, formatPaymentType } from "@/lib/mercadopago"
+import { toast } from "@/components/ui/use-toast"
+import { activateVoucher, redeemVoucher } from "../lib"
+import Link from "next/link"
 
 interface props {
   data: CompleteVoucherSchema,
@@ -87,6 +90,21 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
     }
   }
 
+  async function handleUseVoucher(code: string) {
+    await redeemVoucher(code)
+    toast({
+      title: "Voucher resgatado com sucesso",
+    });
+    window.location.reload()
+  }
+  async function handleActivateVoucher(code: string) {
+    await activateVoucher(code)
+    toast({
+      title: "Voucher ativado com sucesso",
+    });
+    window.location.reload()
+  }
+
   return (
     <Drawer open={open} onClose={onClose} preventScrollRestoration={true} shouldScaleBackground={true} >
       <DrawerContent>
@@ -97,7 +115,13 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
           </DrawerDescription>
           <div className="flex flex-col gap-1">
             <h4 className="hover:bg-slate-100 rounded-md" onClick={() => navigator.clipboard.writeText(data.name)}>{truncateName(data.name)}</h4>
-            <h4 className="hover:bg-slate-100 rounded-md" onClick={() => navigator.clipboard.writeText(data.phone)}>{formatPhone(data.phone)}</h4>
+            <Link
+              href={`https://wa.me/${data.phone}`}
+              target="_blank"
+              className="hover:bg-slate-100 rounded-md"
+              onClick={() => navigator.clipboard.writeText(data.phone)}>
+              {formatPhone(data.phone)}
+            </Link>
             <p>{formatQuantity({ adults: data.adults, elderly: data.elderly })}</p>
             <h4>{formatVoucherStatus(data.status)}</h4>
             {<p>Gerado em: {formateDate(data.createdAt.toString())}</p>}
@@ -118,10 +142,12 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
             <span className="text-slate-500"><Copy className="inline-block w-3 h-3 ml-1" /></span>
           </p>
         </DrawerHeader>
-        <DrawerFooter className="pt-2">
+        <DrawerFooter className="grid grid-cols-3 gap-2 pt-2">
           <DrawerClose asChild>
             <Button variant="outline" onClick={onClose}>Fechar</Button>
           </DrawerClose>
+          <Button variant="outline" onClick={() => handleUseVoucher(data.code)}>Usar voucher</Button>
+          <Button variant="outline" onClick={() => handleActivateVoucher(data.code)}>Ativar voucher</Button>
         </DrawerFooter>
       </DrawerContent>
       <DrawerOverlay onClick={onClose} />
