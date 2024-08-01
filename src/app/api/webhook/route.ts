@@ -37,15 +37,20 @@ function isValidSignature(
 async function validadeVoucherPayment(payment_id: string) {
   const payment = await api.mercadopago.getPayment({ payment_id });
   if (!payment) return null;
-  if (payment.status !== "approved") return null;
 
   const code = payment.external_reference;
-  if (typeof code !== "string") return null;
+  if (!code || typeof code !== "string")
+    return new Response(
+      JSON.stringify({ success: false, error: "Voucher not found" }),
+      {
+        status: 404,
+      },
+    );
 
   const voucher = await api.voucher.findByCode({ code });
   if (voucher?.status === "redeemed") return null;
 
-  if (code) {
+  if (payment.status === "approved") {
     const voucher = await api.voucher.update({
       where: { code },
       data: {
@@ -55,8 +60,23 @@ async function validadeVoucherPayment(payment_id: string) {
         expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
       },
     });
-    return voucher;
+    return new Response(JSON.stringify({ voucher }), {
+      status: 200,
+    });
+  } else {
+    if (code) {
+      const voucher = await api.voucher.update({
+        where: { code },
+        data: {
+          payment_id: payment_id,
+        },
+      });
+      return new Response(JSON.stringify({ voucher }), {
+        status: 200,
+      });
+    }
   }
+
   return null;
 }
 
