@@ -48,7 +48,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { ListFilter } from "lucide-react"
-import { VoucherInfoCard } from "./voucher-info-card"
+import { VoucherInfoCard } from "../voucher-info-card"
 import { DataTablePagination } from "./table-pagination"
 import { type CompleteVoucherSchema } from "@/lib/voucher/types"
 import { api } from "@/trpc/react"
