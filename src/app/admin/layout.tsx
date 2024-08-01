@@ -12,7 +12,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     </div>
   }
   return (
-    <div lang="pt-br">
+    <div className="min-h-[100dvh] grid grid-rows-[auto_1fr_auto]">
       <AdminHeader />
       <main>{children}</main>
       <AdminFooter />
