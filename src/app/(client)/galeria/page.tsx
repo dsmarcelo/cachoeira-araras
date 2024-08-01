@@ -1,5 +1,5 @@
 import React from 'react'
-import ImageGallery from '../_components/galery';
+import ImageGallery from '../../_components/galery';
 
 export default function page() {
   const getImages = () => {
