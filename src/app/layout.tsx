@@ -14,7 +14,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Cachoeira das Araras",
   description: "Bem vindo a Cachoeira das Araras!",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
