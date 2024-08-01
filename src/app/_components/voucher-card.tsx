@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formateDateDayMonthYear } from '@/lib/utils'
+import { formateDateDayMonthYear, truncateName } from '@/lib/utils'
 import { formatPhone } from '@/lib/utils'
 import { formatVoucherStatus } from '@/lib/voucher'
 import { type Voucher } from '@prisma/client'
@@ -7,12 +7,8 @@ import Image from 'next/image'
 import React from 'react'
 
 export default function VoucherCard({ data }: { data: Voucher }) {
-  interface Data {
-    adults: number;
-    elderly: number;
-  }
 
-  function formatQuantity(data: Data): string {
+  function formatQuantity(data: { adults: number; elderly: number; }): string {
     const adultsText = data.adults === 1 ? '1 inteira' : `${data.adults} inteiras`;
     const elderlyText = data.elderly === 1 ? '1 meia' : `${data.elderly} meias`;
 
@@ -25,14 +21,6 @@ export default function VoucherCard({ data }: { data: Voucher }) {
     } else {
       return 'Nenhuma entrada';
     }
-  }
-
-  function truncateName(name: string,): string {
-    const maxLength = 35
-    if (name.length > maxLength) {
-      return name.slice(0, maxLength - 3) + '...';
-    }
-    return name;
   }
 
   return (

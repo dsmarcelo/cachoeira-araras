@@ -1,3 +1,5 @@
+import { FaExclamationCircle, FaCheckCircle, FaClock, FaTimesCircle } from 'react-icons/fa';
+
 export function formatVoucherStatus(status: string) {
   if (!status) return <p className="text-red-500">Voucher inválido</p>;
   switch (status) {
@@ -14,10 +16,31 @@ export function formatVoucherStatus(status: string) {
   }
 }
 
-export function truncateName(name: string): string {
-  const maxLength = 35;
-  if (name.length > maxLength) {
-    return name.slice(0, maxLength - 3) + "...";
+export function formatVoucherStatusIcons(status: string) {
+  if (!status) {
+    return null; // No icon for invalid status
   }
-  return name;
+
+  const iconSize = 16; // Set the desired icon size (adjust as needed)
+
+  switch (status) {
+    case "pending":
+      return (
+        <FaClock className="text-yellow-300" size={iconSize} />
+      );
+    case "valid":
+      return (
+        <FaCheckCircle className="text-green-400" size={iconSize} />
+      );
+    case "redeemed":
+      return (
+        <FaTimesCircle className="text-red-400" size={iconSize} />
+      );
+    case "expired":
+      return (
+        <FaExclamationCircle className="text-slate-300" size={iconSize} />
+      );
+    default:
+      return null; // No icon for unknown status
+  }
 }

@@ -1,6 +1,6 @@
 'use client'
 import { formateDateDayMonthYear, formatPhone } from "@/lib/utils"
-import { formatVoucherStatus } from "@/lib/voucher"
+import { formatVoucherStatus, formatVoucherStatusIcons } from "@/lib/voucher"
 import { type VoucherSchema } from "@/lib/voucher/types"
 import type { ColumnDef } from "@tanstack/react-table"
 import {
@@ -38,37 +38,29 @@ async function handleActivateVoucher(code: string) {
 
 export const columns: ColumnDef<VoucherSchema>[] = [
   {
-    accessorKey: "code",
-    header: "Codigo",
+    accessorKey: "id",
+    header: "ID",
   },
   {
-    accessorKey: "status",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Status
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+    accessorKey: "code",
+    header: "Codigo",
+    maxSize: 50,
     cell: (row) => {
       if (row.getValue()) {
-        return formatVoucherStatus(row.getValue() as string)
+        return <div className="w-fit mx-auto">{row.getValue() as string}</div>
       }
       return <div>-</div>
-
     },
   },
   {
     accessorKey: "name",
     header: "Nome",
+    minSize: 300,
   },
   {
     accessorKey: "phone",
     header: "Telefone",
+    minSize: 200,
     cell: (row) => {
       if (row.getValue() === null) {
         return <div>-</div>
@@ -83,9 +75,10 @@ export const columns: ColumnDef<VoucherSchema>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="text-xs sm:text-base px-1"
         >
           Expira em
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          <ArrowUpDown className="ml-1 size-3" />
         </Button>
       )
     },
@@ -97,7 +90,29 @@ export const columns: ColumnDef<VoucherSchema>[] = [
     },
   },
   {
-    id: "Ações",
+    accessorKey: "status",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="text-xs sm:text-base px-1"
+        >
+          Status
+          <ArrowUpDown className="ml-1 size-3" />
+        </Button>
+      )
+    },
+    cell: (row) => {
+      if (row.getValue()) {
+        return <div className="w-fit mx-auto">{formatVoucherStatusIcons(row.getValue() as string)}</div>
+      }
+      return <div>-</div>
+
+    },
+  },
+  {
+    id: "actions",
     cell: ({ row }) => {
       const voucher = row.original
       return (
