@@ -1,4 +1,4 @@
-import TestVoucherBuy from "../_components/voucher-buy-test";
+import TestVoucherBuy from "../../_components/voucher-buy-test";
 
 export default async function Test() {
   return (
