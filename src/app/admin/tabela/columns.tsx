@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { MoreHorizontal, ArrowUpDown } from "lucide-react"
-import { activateVoucher, deleteVoucher, redeemVoucher } from "../lib"
+import { activateVoucher, deleteVoucher, redeemVoucher } from "../../lib"
 import { toast } from "@/components/ui/use-toast"
 
 async function handleDelete(code: string) {

@@ -17,7 +17,7 @@ export default function DataTable() {
   }
 
   return (
-    <div>
+    <div className='w-full'>
       <VoucherTable columns={columns} data={vouchers as VoucherSchema[]} />
     </div>
   )

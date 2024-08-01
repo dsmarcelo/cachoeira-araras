@@ -1,5 +1,6 @@
 import "@/styles/globals.css";
-
+import { TRPCReactProvider } from "@/trpc/react";
+import { Toaster } from "@/components/ui/toaster"
 import { Inter } from "next/font/google";
 import { type Metadata } from "next";
 import { GoogleTagManager } from '@next/third-parties/google'
@@ -9,12 +10,6 @@ const inter = Inter({
   variable: "--font-inter",
   display: "swap",
 });
-
-import { TRPCReactProvider } from "@/trpc/react";
-import Header from "./_components/header";
-
-import { Toaster } from "@/components/ui/toaster"
-import Footer from "./_components/footer";
 
 export const metadata: Metadata = {
   title: "Cachoeira das Araras",
@@ -28,10 +23,8 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={`${inter.variable}`}>
       <body className="min-h-[100dvh] grid grid-rows-[auto_1fr_auto]">
-        <Header />
         <TRPCReactProvider>{children}</TRPCReactProvider>
         <Toaster />
-        <Footer />
       </body>
       <GoogleTagManager gtmId="GTM-TT3T4V5Q" />
     </html>

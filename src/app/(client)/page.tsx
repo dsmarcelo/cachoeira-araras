@@ -1,7 +1,7 @@
 import { HydrateClient } from "@/trpc/server";
-import VoucherBuy from "./_components/voucher-buy";
-import InfoCard from "./_components/info";
-import { ImageCarousel } from "./_components/image_carousel";
+import VoucherBuy from "../_components/voucher-buy";
+import InfoCard from "../_components/info";
+import { ImageCarousel } from "../_components/image_carousel";
 import Link from "next/link";
 import { RiGalleryView2 } from "react-icons/ri";
 
