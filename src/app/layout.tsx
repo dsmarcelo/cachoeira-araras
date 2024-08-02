@@ -2,6 +2,7 @@ import "@/styles/globals.css";
 
 import { Inter } from "next/font/google";
 import { type Metadata } from "next";
+import { GoogleAnalytics } from '@next/third-parties/google'
 
 const inter = Inter({
   subsets: ["latin"],
@@ -32,6 +33,7 @@ export default function RootLayout({
         <Toaster />
         <Footer />
       </body>
+      <GoogleAnalytics gaId="GTM-TT3T4V5Q" />
     </html>
   );
 }
