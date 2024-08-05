@@ -4,11 +4,13 @@ import InfoCard from "../_components/info";
 import { ImageCarousel } from "../_components/image_carousel";
 import Link from "next/link";
 import { RiGalleryView2 } from "react-icons/ri";
+import ReferrerCard from "./referrer/referrerCard";
 
 export default async function Home() {
   return (
     <HydrateClient>
       <div className="flex min-h-screen flex-col items-center bg-bg-blue text-primary-200">
+        <ReferrerCard />
         <ImageCarousel />
         <main className="flex flex-col items-center px-4 gap-6 py-4 md:py-8 md:px-8">
           <div className="w-full max-w-5xl flex flex-col justify-center gap-6 lg:flex-row">
