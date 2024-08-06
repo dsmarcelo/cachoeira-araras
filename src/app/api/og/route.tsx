@@ -3,6 +3,7 @@ import { formateDateDayMonthYear, truncateName } from '@/lib/utils'
 import { formatPhone } from '@/lib/utils'
 import { type Voucher } from '@prisma/client'
 import { type NextRequest } from 'next/server';
+
 // App router includes @vercel/og.
 // No need to install it.
 export const runtime = 'edge';
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
   const formatedName = truncateName(name);
   const formatedPhone = formatPhone(phone);
   const formatedQuantity = formatQuantity({ adults: parseInt(adults), elderly: parseInt(elderly) });
-  const expiration_date = expires_at ? formateDateDayMonthYear(expires_at) : 'Não informado';
+  const expiration_date = expires_at ? formateDateDayMonthYear(expires_at) : '-';
   console.log('🚀 ~ GET ~ expiration_date:', expiration_date);
   const formatedStatus = formatVoucherStatus(status, expiration_date);
 
@@ -68,6 +69,7 @@ export async function GET(request: NextRequest) {
         style={{
           height: '100%',
           width: '100%',
+          fontFamily: 'Inter',
           backgroundColor: 'black',
           display: 'flex',
           color: 'white',
@@ -75,14 +77,16 @@ export async function GET(request: NextRequest) {
           backgroundSize: 'contain',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
+          fontSize: 32,
+          fontWeight: 900,
         }}
       >
-        <div tw='flex relative' style={{ color: 'black' }}>
-          <div tw='flex text-6xl absolute top-40 left-20 flex-col font-bold tracking-tight' style={{ fontStyle: 'italic' }}>
-            <span>{formatedName}</span>
-            <span>{formatedPhone}</span>
-            <span>{formatedQuantity}</span>
-            <span>{formatedStatus}</span>
+        <div tw='flex font-bold' style={{ color: 'black', fontWeight: 900 }}>
+          <div tw='flex text-5xl absolute top-40 left-20 flex-col tracking-tight font-bold' style={{ gap: '4px' }}>
+            <div tw='flex' style={{ fontWeight: 900 }}>{formatedName}</div>
+            <div tw='flex font-bold'>{formatedPhone}</div>
+            <div tw='flex font-bold'>{formatedQuantity}</div>
+            <div tw='flex font-bold'>{formatedStatus}</div>
             {/* <span>{formatVoucherStatus(status)}</span> */}
           </div>
         </div>
@@ -91,6 +95,7 @@ export async function GET(request: NextRequest) {
     {
       width: 1500,
       height: 750,
+      status: 200,
     },
   );
 }
