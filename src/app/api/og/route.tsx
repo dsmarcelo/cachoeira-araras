@@ -18,7 +18,7 @@ const interSemiBold = fetch(
   new URL("../../../../assets/fonts/Inter-SemiBold.ttf", import.meta.url)
 ).then((res) => res.arrayBuffer());
 
-export function formatVoucherStatus(status: string, expiration_date: string) {
+function formatVoucherStatus(status: string, expiration_date: string) {
   if (!status) return <p className="text-red-500">Voucher inválido</p>;
   switch (status) {
     case "pending":
