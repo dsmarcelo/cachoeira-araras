@@ -96,8 +96,8 @@ export default function ValidateVoucher() {
   }
 
   return (
-    <div className='grid gap-4 mb-6 w-full px-4'>
-      <Card className={`${valid && 'border-green-500'} w-full max-w-[90vw] mx-auto`}>
+    <div className='grid gap-4 mb-6 w-full'>
+      <Card className={`${valid && 'border-green-500'} w-full mx-auto`}>
         <CardHeader>
           <CardTitle>Validar Voucher</CardTitle>
         </CardHeader>
