@@ -60,7 +60,7 @@ model Voucher {
     id            Int       @id @default(autoincrement())
     name          String
     phone         String
-    code          String    @unique @db.VarChar(4)
+    code          String    @unique
     adults        Int
     elderly       Int
     price         Float
