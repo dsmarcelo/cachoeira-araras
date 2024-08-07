@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
-import { formateDateDayMonthYear } from '@/lib/utils'
+import { formateDateDayMonthYear, formatPhone, truncateName } from '@/lib/utils'
+import { formatQuantity } from '@/lib/voucher';
 import { type Voucher } from '@prisma/client'
 import { DownloadIcon, ShareIcon } from 'lucide-react';
 import Image from 'next/image'
@@ -8,10 +9,14 @@ import React from 'react'
 export default function VoucherCard({ data }: { data: Voucher }) {
   const { name, phone, adults, elderly, status, expires_at, code } = data;
   const formatedExpiredDate = expires_at ? formateDateDayMonthYear(expires_at) : '';
+  const formatedName = truncateName(name);
+  const formatedPhone = formatPhone(phone);
+  const formatedQuantity = formatQuantity({ adults, elderly });
 
-  const queryParams = `?name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}&adults=${adults}&elderly=${elderly}&expires_at=${encodeURIComponent(formatedExpiredDate)}&status=${status}&code=${code}`;
+  const queryParams = `?name=${encodeURIComponent(formatedName)}&phone=${encodeURIComponent(formatedPhone)}&quantity=${formatedQuantity}&expires_at=${encodeURIComponent(formatedExpiredDate)}&status=${status}&code=${code}`;
   const imgURL = `http://localhost:3000/api/og${queryParams}`
 
+  console.log('🚀 ~ VoucherCard ~ imgURL:', imgURL);
 
   const handleDownload = () => {
     const link = document.createElement('a');
