@@ -13,8 +13,9 @@ export default function VoucherCard({ data }: { data: Voucher }) {
   const formatedPhone = formatPhone(phone);
   const formatedQuantity = formatQuantity({ adults, elderly });
 
+  const url = process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : ''
   const queryParams = `?name=${encodeURIComponent(formatedName)}&phone=${encodeURIComponent(formatedPhone)}&quantity=${formatedQuantity}&expires_at=${encodeURIComponent(formatedExpiredDate)}&status=${status}&code=${code}`;
-  const imgURL = `http://localhost:3000/api/og${queryParams}`
+  const imgURL = `${url}/api/og${queryParams}`
 
   console.log('🚀 ~ VoucherCard ~ imgURL:', imgURL);
 
