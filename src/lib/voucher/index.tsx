@@ -61,3 +61,18 @@ export function formatVoucherStatusIcons(status: string) {
       return null; // No icon for unknown status
   }
 }
+
+export function formatQuantity({ adults, elderly }: { adults: number; elderly: number; }): string {
+  const adultsText = adults === 1 ? '1 inteira' : `${adults} inteiras`;
+  const elderlyText = elderly === 1 ? '1 meia' : `${elderly} meias`;
+
+  if (adults > 0 && elderly > 0) {
+    return `${adultsText} e ${elderlyText}`;
+  } else if (adults > 0) {
+    return adultsText;
+  } else if (elderly > 0) {
+    return elderlyText;
+  } else {
+    return 'Nenhuma entrada';
+  }
+}
