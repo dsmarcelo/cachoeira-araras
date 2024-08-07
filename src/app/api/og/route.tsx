@@ -1,13 +1,9 @@
 import { ImageResponse } from 'next/og';
-import { formatPhone } from '@/lib/utils'
 import { type NextRequest } from 'next/server';
-import { formatQuantity, formatVoucherStatusWithoutBg } from '@/lib/voucher';
+import { formatVoucherStatusWithoutBg } from '@/lib/voucher';
 
 export const runtime = 'edge';
 
-const interBold = fetch(
-  new URL("../../../../assets/fonts/Inter-Bold.ttf", import.meta.url)
-).then((res) => res.arrayBuffer());
 const interSemiBold = fetch(
   new URL("../../../../assets/fonts/Inter-SemiBold.ttf", import.meta.url)
 ).then((res) => res.arrayBuffer());
@@ -20,7 +16,6 @@ export async function GET(request: NextRequest) {
     return new Response('Voucher not found', { status: 404 });
   }
 
-  const interBoldFontData = await interBold;
   const interSemiBoldFontData = await interSemiBold;
 
   const expiration_date = expires_at ? expires_at : '';
@@ -51,7 +46,7 @@ export async function GET(request: NextRequest) {
             <div tw='flex font-semibold'>{quantity}</div>
             <div tw='flex font-semibold'>{formatedStatus}</div>
           </div>
-          <div tw='flex absolute text-[48px] font-bold bottom-8 left-[585px]'>{code}</div>
+          <div tw='flex absolute text-[48px] font-semibold bottom-8 left-[585px]'>{code}</div>
         </div>
       </div>
     ),
@@ -60,11 +55,6 @@ export async function GET(request: NextRequest) {
       height: 375,
       status: 200,
       fonts: [
-        {
-          name: "Inter",
-          data: interBoldFontData,
-          weight: 700,
-        },
         {
           name: "Inter",
           data: interSemiBoldFontData,
