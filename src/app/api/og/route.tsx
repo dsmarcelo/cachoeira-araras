@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
   const expiration_date = expires_at ? expires_at : '';
   const formatedStatus = formatVoucherStatusWithoutBg(status, expiration_date);
 
-  const url = process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : 'http://localhost:3000'
+  const url = process.env.VERCEL_URL ?? 'http://localhost:3000'
+  console.log('🚀 ~ GET ~ url:', url);
 
   return new ImageResponse(
     (
