@@ -21,6 +21,8 @@ export async function GET(request: NextRequest) {
   const expiration_date = expires_at ? expires_at : '';
   const formatedStatus = formatVoucherStatusWithoutBg(status, expiration_date);
 
+  const url = process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : 'http://localhost:3000'
+
   return new ImageResponse(
     (
       <div
@@ -31,7 +33,7 @@ export async function GET(request: NextRequest) {
           backgroundColor: 'black',
           display: 'flex',
           color: 'white',
-          backgroundImage: `url(http://localhost:3000/voucher_card_w_750px.jpg)`,
+          backgroundImage: `url(${url}/voucher_card_w_750px.jpg)`,
           backgroundSize: 'contain',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
