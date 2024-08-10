@@ -46,7 +46,7 @@ export default function TestVoucherForm() {
       return null
     }
     void getPreference();
-  }, [])
+  }, [utils.mercadopago.getPrefence, utils.voucher.findByCode])
 
   type FormSchema = z.infer<typeof voucherFormSchema>
   const addVoucher = api.voucher.create.useMutation();

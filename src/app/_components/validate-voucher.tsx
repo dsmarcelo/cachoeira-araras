@@ -11,7 +11,7 @@ import VoucherCard from './voucher-card'
 import { useRouter } from 'next/navigation'
 import { formatVoucherStatus } from '@/lib/voucher'
 import { VoucherInfoCard } from '../admin/voucher-info-card'
-import { CompleteVoucherSchema } from '@/lib/voucher/types'
+import { type CompleteVoucherSchema } from '@/lib/voucher/types'
 
 type TVoucher = RouterOutputs['voucher']['findByCode'];
 export default function ValidateVoucher() {
