@@ -3,8 +3,6 @@ import { twMerge } from "tailwind-merge";
 import { type VoucherSchema } from "./voucher/types";
 import React from "react";
 
-const url = process.env.URL;
-
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }

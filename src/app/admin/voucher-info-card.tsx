@@ -1,17 +1,9 @@
 'use client'
 import * as React from "react"
 
-import { cn, formateDate, formateDateDayMonthYear, formatPhone, formatToBRL, truncateName } from "@/lib/utils"
+import { formateDate, formateDateDayMonthYear, formatPhone, formatToBRL, truncateName } from "@/lib/utils"
 // import { useMediaQuery } from "@/hooks/use-media-query"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import {
   Drawer,
   DrawerClose,
@@ -21,11 +13,7 @@ import {
   DrawerHeader,
   DrawerOverlay,
   DrawerTitle,
-  DrawerTrigger,
 } from "@/components/ui/drawer"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Row } from "@tanstack/react-table"
 import { type CompleteVoucherSchema } from "@/lib/voucher/types"
 import { formatVoucherStatus } from "@/lib/voucher"
 import { Copy } from "lucide-react"
