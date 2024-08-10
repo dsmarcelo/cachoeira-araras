@@ -13,16 +13,16 @@ export default function VoucherCard({ data }: { data: Voucher }) {
   const formatedPhone = formatPhone(phone);
   const formatedQuantity = formatQuantity({ adults, elderly });
 
-  const url = process.env.VERCEL_URL ?? 'http://localhost:3000'
+  // const url = process.env.VERCEL_URL ?? 'http://localhost:3000'
   const queryParams = `?name=${encodeURIComponent(formatedName)}&phone=${encodeURIComponent(formatedPhone)}&quantity=${formatedQuantity}&expires_at=${encodeURIComponent(formatedExpiredDate)}&status=${status}&code=${code}`;
-  const imgURL = `${url}/api/og${queryParams}`
+  const imgURL = `/api/og${queryParams}`
 
   console.log('🚀 ~ VoucherCard ~ imgURL:', imgURL);
 
   const handleDownload = () => {
     const link = document.createElement('a');
     link.href = imgURL;
-    link.download = 'generated-image.png';
+    link.download = `voucher-${code}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -32,20 +32,19 @@ export default function VoucherCard({ data }: { data: Voucher }) {
     try {
       const response = await fetch(imgURL);
       const blob = await response.blob();
-      const file = new File([blob], 'generated-image.png', { type: blob.type });
+      const file = new File([blob], `voucher-${code}.png`, { type: blob.type });
 
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: 'Check out this image!',
+          title: 'Comprei um voucher para cachoeira das araras!',
           text: 'Here is a dynamically generated image.',
         });
-        console.log('Image shared successfully');
       } else {
-        alert('Sharing not supported');
+        alert('Compartilhamento não suportado');
       }
     } catch (error) {
-      console.error('Error sharing the image:', error);
+      console.error('Erro ao compartilhar o voucher:', error);
     }
   };
 
