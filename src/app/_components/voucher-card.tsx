@@ -13,6 +13,11 @@ export default function VoucherCard({ data }: { data: Voucher }) {
   const formatedPhone = formatPhone(phone);
   const formatedQuantity = formatQuantity({ adults, elderly });
 
+  console.log('🚀 ~  process.env.VERCEL:', process.env.VERCEL);
+  console.log('🚀 ~  process.env.VERCEL_ENV:', process.env.VERCEL_ENV);
+  console.log('🚀 ~  process.env.VERCEL_BRANCH_URL:', process.env.VERCEL_BRANCH_URL);
+  console.log('🚀 ~  process.env.VERCEL_PROJECT_PRODUCTION_URL:', process.env.VERCEL_PROJECT_PRODUCTION_URL);
+
   let url = ''
   // const url = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'
   if (process.env.VERCEL_URL) {
