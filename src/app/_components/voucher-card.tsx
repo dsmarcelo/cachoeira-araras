@@ -13,9 +13,18 @@ export default function VoucherCard({ data }: { data: Voucher }) {
   const formatedPhone = formatPhone(phone);
   const formatedQuantity = formatQuantity({ adults, elderly });
 
-  const url = process.env.NEXT_PUBLIC_VERCEL_URL ?? 'http://localhost:3000'
+  let url = ''
+  // const url = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'
+  if (process.env.VERCEL_URL) {
+    url = `https://${process.env.VERCEL_URL}`
+  } else if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    url = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  } else {
+    url = 'http://localhost:3000'
+  }
+
   const queryParams = `?name=${encodeURIComponent(formatedName)}&phone=${encodeURIComponent(formatedPhone)}&quantity=${formatedQuantity}&expires_at=${encodeURIComponent(formatedExpiredDate)}&status=${status}&code=${code}`;
-  const imgURL = `${url}/api/og${queryParams}`
+  const imgURL = `https://${url}/api/og${queryParams}`
 
   console.log('🚀 ~ VoucherCard ~ imgURL:', imgURL);
 
