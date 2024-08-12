@@ -17,19 +17,20 @@ export default function VoucherCard({ data }: { data: Voucher }) {
   console.log('🚀 ~  process.env.VERCEL_ENV:', process.env.VERCEL_ENV);
   console.log('🚀 ~  process.env.VERCEL_BRANCH_URL:', process.env.VERCEL_BRANCH_URL);
   console.log('🚀 ~  process.env.VERCEL_PROJECT_PRODUCTION_URL:', process.env.VERCEL_PROJECT_PRODUCTION_URL);
+  console.log('🚀 ~  process.env.NEXT_PUBLIC_VERCEL_URL:', process.env.NEXT_PUBLIC_VERCEL_URL);
+  console.log('🚀 ~  process.env.NEXT_PUBLIC_VERCEL_ENV:', process.env.NEXT_PUBLIC_VERCEL_ENV);
 
   let url = ''
-  // const url = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'
-  if (process.env.VERCEL_URL) {
-    url = `https://${process.env.VERCEL_URL}`
-  } else if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    url = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+    url = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+  } else if (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
+    url = `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}`
   } else {
     url = 'http://localhost:3000'
   }
 
   const queryParams = `?name=${encodeURIComponent(formatedName)}&phone=${encodeURIComponent(formatedPhone)}&quantity=${formatedQuantity}&expires_at=${encodeURIComponent(formatedExpiredDate)}&status=${status}&code=${code}`;
-  const imgURL = `https://${url}/api/og${queryParams}`
+  const imgURL = `${url}/api/og${queryParams}`
 
   console.log('🚀 ~ VoucherCard ~ imgURL:', imgURL);
 
