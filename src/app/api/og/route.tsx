@@ -24,8 +24,6 @@ export async function GET(request: NextRequest) {
   let url = ''
   if (process.env.NEXT_PUBLIC_VERCEL_URL) {
     url = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-  } else if (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
-    url = `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}`
   } else {
     url = 'http://localhost:3000'
   }
