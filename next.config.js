@@ -13,6 +13,11 @@ const config = {images: {
       port: "3000",
       pathname: "/**",
     },
+    {
+      protocol: "https",
+      hostname: "*.vercel.app",
+      pathname: "/**",
+    },
   ],
 },};
 
