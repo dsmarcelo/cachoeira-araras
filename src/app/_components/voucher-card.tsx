@@ -1,8 +1,9 @@
 import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/use-toast';
 import { formateDateDayMonthYear, formatPhone, truncateName } from '@/lib/utils'
 import { formatQuantity } from '@/lib/voucher';
 import { type Voucher } from '@prisma/client'
-import { DownloadIcon, ShareIcon } from 'lucide-react';
+import { ShareIcon } from 'lucide-react';
 import Image from 'next/image'
 import React from 'react'
 
@@ -12,9 +13,6 @@ export default function VoucherCard({ data }: { data: Voucher }) {
   const formatedName = truncateName(name);
   const formatedPhone = formatPhone(phone);
   const formatedQuantity = formatQuantity({ adults, elderly });
-
-  console.log('🚀 ~  process.env.NEXT_PUBLIC_VERCEL_URL:', process.env.NEXT_PUBLIC_VERCEL_URL);
-  console.log('🚀 ~  process.env.NEXT_PUBLIC_VERCEL_ENV:', process.env.NEXT_PUBLIC_VERCEL_ENV);
 
   let url = ''
   if (process.env.NEXT_PUBLIC_VERCEL_URL) {
@@ -28,15 +26,6 @@ export default function VoucherCard({ data }: { data: Voucher }) {
   const queryParams = `?name=${encodeURIComponent(formatedName)}&phone=${encodeURIComponent(formatedPhone)}&quantity=${formatedQuantity}&expires_at=${encodeURIComponent(formatedExpiredDate)}&status=${status}&code=${code}`;
   const imgURL = `${url}/api/og${queryParams}`
 
-  const handleDownload = () => {
-    const link = document.createElement('a');
-    link.href = imgURL;
-    link.download = `voucher-${code}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const handleShare = async () => {
     try {
       const response = await fetch(imgURL);
@@ -47,12 +36,15 @@ export default function VoucherCard({ data }: { data: Voucher }) {
         await navigator.share({
           files: [file],
           title: 'Comprei um voucher para cachoeira das araras!',
-          text: 'Here is a dynamically generated image.',
+          text: 'Comprei esse voucher em cachoeiradasararas.com.br',
         });
       } else {
         alert('Compartilhamento não suportado');
       }
     } catch (error) {
+      toast({
+        title: 'Erro ao compartilhar o voucher',
+      })
       console.error('Erro ao compartilhar o voucher:', error);
     }
   };
@@ -60,14 +52,10 @@ export default function VoucherCard({ data }: { data: Voucher }) {
   return (
     <div className='w-full'>
       <div className='relative w-full aspect-[2/1]'>
-        <Image className='rounded-lg w-full' src={imgURL} fill alt='Voucher' />
+        <Image className='rounded-lg w-full' src={imgURL} fill sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 40vw' alt='Voucher' />
       </div>
       <div className='w-full flex justify-center flex-col items-center gap-2 mt-2'>
-        <Button variant={'ghost'} className='w-full' onClick={handleDownload}>
-          <DownloadIcon className='w-5 h-5 mr-2' />
-          Baixar Voucher
-        </Button>
-        <Button variant={'ghost'} className='w-full' onClick={handleShare}>
+        <Button variant={'default'} className='w-full bg-bg-blue' onClick={handleShare}>
           <ShareIcon className='w-5 h-5 mr-2' />
           Compartilhar Voucher
         </Button>
