@@ -35,7 +35,7 @@ export default function VoucherCard({ data }: { data: Voucher }) {
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: 'Comprei um voucher para cachoeira das araras!',
+          title: 'Voucher para cachoeira das araras!',
           text: 'Comprei esse voucher em cachoeiradasararas.com.br',
         });
       } else {
