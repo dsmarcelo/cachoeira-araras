@@ -21,13 +21,10 @@ export async function GET(request: NextRequest) {
   const expiration_date = expires_at ? expires_at : '';
   const formatedStatus = formatVoucherStatusWithoutBg(status, expiration_date);
 
-  let url = ''
-  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-    url = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-  } else {
-    url = 'http://localhost:3000'
-  }
-  console.log('🚀 ~ GET ~ url:', url);
+  const url = process.env.NEXT_PUBLIC_VERCEL_URL
+    ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+    : 'http://localhost:3000';
+
 
   return new ImageResponse(
     (
