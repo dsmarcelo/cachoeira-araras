@@ -13,7 +13,7 @@ export async function isLoggedIn(): Promise<boolean> {
 
 export async function logout() {
   cookies().set("session", "", { expires: new Date(0) });
-  redirect("/admin");
+  redirect("/");
 }
 
 export async function login(password: string) {

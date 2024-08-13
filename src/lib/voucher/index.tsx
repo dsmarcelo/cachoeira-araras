@@ -1,3 +1,5 @@
+import { FaExclamationCircle, FaCheckCircle, FaClock, FaTimesCircle } from 'react-icons/fa';
+
 export function formatVoucherStatus(status: string) {
   if (!status) return <p className="text-red-500">Voucher inválido</p>;
   switch (status) {
@@ -11,5 +13,66 @@ export function formatVoucherStatus(status: string) {
       return <p className="text-slate-500 w-fit bg-slate-200/30 rounded-lg px-1 pb-1">Voucher expirado</p>;
     default:
       return <p className="text-red-500 w-fit bg-red-200/30 rounded-lg px-1 pb-1">Voucher inválido</p>;
+  }
+}
+
+export function formatVoucherStatusWithoutBg(status: string, expiration_date: string) {
+  if (!status) return <span style={{ color: 'red' }}>Voucher inválido</span>;
+
+  switch (status) {
+    case "pending":
+      return <span style={{ color: 'yellow' }}>Aguardando pagamento</span>;
+    case "valid":
+      return <span style={{ color: '#10b981' }}>Valido até: {expiration_date}</span>;
+    case "redeemed":
+      return <span style={{ color: 'red' }}>Voucher já resgatado</span>;
+    case "expired":
+      return <span style={{ color: 'gray' }}>Voucher expirado</span>;
+    default:
+      return <span style={{ color: 'red' }}>Voucher inválido</span>;
+  }
+}
+
+export function formatVoucherStatusIcons(status: string) {
+  if (!status) {
+    return null; // No icon for invalid status
+  }
+
+  const iconSize = 16; // Set the desired icon size (adjust as needed)
+
+  switch (status) {
+    case "pending":
+      return (
+        <FaClock className="text-yellow-300" size={iconSize} />
+      );
+    case "valid":
+      return (
+        <FaCheckCircle className="text-green-400" size={iconSize} />
+      );
+    case "redeemed":
+      return (
+        <FaTimesCircle className="text-red-400" size={iconSize} />
+      );
+    case "expired":
+      return (
+        <FaExclamationCircle className="text-slate-300" size={iconSize} />
+      );
+    default:
+      return null; // No icon for unknown status
+  }
+}
+
+export function formatQuantity({ adults, elderly }: { adults: number; elderly: number; }): string {
+  const adultsText = adults === 1 ? '1 inteira' : `${adults} inteiras`;
+  const elderlyText = elderly === 1 ? '1 meia' : `${elderly} meias`;
+
+  if (adults > 0 && elderly > 0) {
+    return `${adultsText} e ${elderlyText}`;
+  } else if (adults > 0) {
+    return adultsText;
+  } else if (elderly > 0) {
+    return elderlyText;
+  } else {
+    return 'Nenhuma entrada';
   }
 }

@@ -1,8 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { type VoucherSchema } from "./voucher/types";
-
-const url = process.env.URL;
+import React from "react";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -55,4 +54,40 @@ export function formatPaymentUrl(
   payment_id: string,
 ): string {
   return `/pagamento?collection_id=${payment_id}&collection_status=approved&payment_id=${payment_id}&status=approved&preference_id=${preference_id}&site_id=MLB&processing_mode=aggregator&merchant_account_id=null`;
+}
+
+export function formatToBRL(value: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value);
+}
+
+export function truncateName(name: string): string {
+  const maxLength = 35;
+  if (name.length > maxLength) {
+    return name.slice(0, maxLength - 3) + "...";
+  }
+  return name;
+}
+
+export function useWindowWidth(): number {
+  const [windowWidth, setWindowWidth] = React.useState<number>(
+    window.innerWidth,
+  );
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    // Cleanup the event listener on component unmount
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  return windowWidth;
 }
