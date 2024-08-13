@@ -7,11 +7,10 @@ import { api, type RouterOutputs } from '@/trpc/react'
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
-import VoucherCard from './voucher-card'
 import { useRouter } from 'next/navigation'
 import { formatVoucherStatus } from '@/lib/voucher'
 import { VoucherInfoCard } from '../admin/voucher-info-card'
-import { CompleteVoucherSchema } from '@/lib/voucher/types'
+import { type CompleteVoucherSchema } from '@/lib/voucher/types'
 
 type TVoucher = RouterOutputs['voucher']['findByCode'];
 export default function ValidateVoucher() {
@@ -75,11 +74,6 @@ export default function ValidateVoucher() {
     return res
   }
 
-  async function deleteVoucher() {
-    await deleteVoucherApi.mutateAsync({ code: voucherCode })
-    return router.refresh()
-  }
-
   async function onSubmit() {
     if (!voucherCode) return null
     const res = await refetch();
@@ -95,9 +89,25 @@ export default function ValidateVoucher() {
     setValid(false);
   }
 
+  function dynamicCardBorder() {
+    switch (voucher?.status) {
+      case 'redeemed':
+        return 'border-red-500';
+      case 'pending':
+        return 'border-yellow-500';
+      case 'valid':
+        return 'border-green-500';
+      case 'expired':
+        return 'border-slate-500';
+      default:
+        return '';
+    }
+  }
+
+
   return (
-    <div className='grid gap-4 mb-6 w-full px-4'>
-      <Card className={`${valid && 'border-green-500'} w-full max-w-[90vw] mx-auto`}>
+    <div className='grid gap-4 mb-6 w-full'>
+      <Card className={`${dynamicCardBorder()} w-full mx-auto`}>
         <CardHeader>
           <CardTitle>Validar Voucher</CardTitle>
         </CardHeader>
@@ -120,19 +130,17 @@ export default function ValidateVoucher() {
               {isLoading ? 'Validando...' : 'Validar'}
             </Button>
             {errors.code && <p className='text-red-500 text-sm w-full'>{errors.code?.message}</p>}
-            {voucher && <Button className='w-full mx-auto' variant={'outline'} onClick={() => setOpenMoreInfo(true)}>Ver Detalhes</Button>}
             {voucher && <div className='mx-auto'>{voucher && formatVoucherStatus(voucher.status)}</div>}
-            {message && <h3 className='text-black font-semibold text-center'>{message}</h3>}
-            {valid ?
-              <Button type='button' onClick={useVoucher} className='bg-green-500 font-semibold text-center'>Usar Voucher</Button>
-              : null}
           </form>
         </CardContent>
       </Card>
+      {message && <h3 className='text-black font-semibold text-center'>{message}</h3>}
+      {voucher && <Button className='w-full mx-auto' variant={'outline'} onClick={() => setOpenMoreInfo(true)}>Ver Detalhes</Button>}
+      {valid ?
+        <Button type='button' onClick={useVoucher} className='bg-green-500 font-semibold text-center'>Usar Voucher</Button>
+        : null}
       {voucher ?
         <div className='flex overflow-visible flex-col justify-center gap-4 w-full'>
-          <button className='text-red-500 text-xs w-fit mx-auto mb-6 md:mb-0' onClick={deleteVoucher}>Deletar Voucher</button>
-          <div className='flex'><VoucherCard data={voucher} /></div>
           <VoucherInfoCard
             data={voucher as CompleteVoucherSchema}
             open={!!openMoreInfo}

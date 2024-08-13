@@ -1,7 +1,6 @@
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
-import { completeVoucherSchema, voucherSchema } from "@/lib/voucher/types";
+import { voucherSchema } from "@/lib/voucher/types";
 import { z } from "zod";
-import { type Voucher } from "@prisma/client";
 
 export const voucherRouter = createTRPCRouter({
   create: publicProcedure

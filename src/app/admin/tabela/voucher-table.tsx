@@ -12,7 +12,7 @@ import {
   type Row,
   getPaginationRowModel,
   getFilteredRowModel,
-  ColumnFiltersState,
+  type ColumnFiltersState,
 } from "@tanstack/react-table"
 
 import {
@@ -23,12 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -51,7 +45,6 @@ import { ListFilter } from "lucide-react"
 import { VoucherInfoCard } from "../voucher-info-card"
 import { DataTablePagination } from "./table-pagination"
 import { type CompleteVoucherSchema } from "@/lib/voucher/types"
-import { api } from "@/trpc/react"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[],
@@ -132,6 +125,7 @@ export function VoucherTable<TData, TValue>({
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => { setColumnsVisibility() }, []);
   window.onresize = () => setColumnsVisibility();
   return (
