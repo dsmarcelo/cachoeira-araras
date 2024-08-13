@@ -7,7 +7,6 @@ import { api, type RouterOutputs } from '@/trpc/react'
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useRouter } from 'next/navigation'
 import { formatVoucherStatus } from '@/lib/voucher'
 import { VoucherInfoCard } from '../admin/voucher-info-card'
 import { type CompleteVoucherSchema } from '@/lib/voucher/types'
@@ -20,10 +19,7 @@ export default function ValidateVoucher() {
   const [openMoreInfo, setOpenMoreInfo] = useState(false);
   const [message, setMessage] = useState('');
 
-  const router = useRouter();
-
   const updateVoucher = api.voucher.updateVoucherStatus.useMutation()
-  const deleteVoucherApi = api.voucher.delete.useMutation()
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
     setVoucher(undefined);
@@ -103,7 +99,6 @@ export default function ValidateVoucher() {
         return '';
     }
   }
-
 
   return (
     <div className='grid gap-4 mb-6 w-full'>
