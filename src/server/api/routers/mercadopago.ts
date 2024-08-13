@@ -4,10 +4,8 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
 import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
 const token = process.env.MERCADOPAGO_TOKEN;
-const url = process.env.NEXT_PUBLIC_VERCEL_URL
-  ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-  : "http://localhost:3000";
-const webhookUrl = process.env.NEXT_PUBLIC_VERCEL_URL;
+const url = process.env.URL;
+const webhookUrl = process.env.WEBHOOK_URL;
 
 if (!token) {
   throw new Error("MERCADOPAGO_TOKEN is not set");
