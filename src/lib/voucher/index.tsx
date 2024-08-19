@@ -16,6 +16,23 @@ export function formatVoucherStatus(status: string) {
   }
 }
 
+export function formatVoucherStatusWithoutBg(status: string, expiration_date: string) {
+  if (!status) return <span style={{ color: 'red' }}>Voucher inválido</span>;
+
+  switch (status) {
+    case "pending":
+      return <span style={{ color: 'yellow' }}>Aguardando pagamento</span>;
+    case "valid":
+      return <span style={{ color: '#10b981' }}>Valido até: {expiration_date}</span>;
+    case "redeemed":
+      return <span style={{ color: 'red' }}>Voucher já resgatado</span>;
+    case "expired":
+      return <span style={{ color: 'gray' }}>Voucher expirado</span>;
+    default:
+      return <span style={{ color: 'red' }}>Voucher inválido</span>;
+  }
+}
+
 export function formatVoucherStatusIcons(status: string) {
   if (!status) {
     return null; // No icon for invalid status
@@ -42,5 +59,20 @@ export function formatVoucherStatusIcons(status: string) {
       );
     default:
       return null; // No icon for unknown status
+  }
+}
+
+export function formatQuantity({ adults, elderly }: { adults: number; elderly: number; }): string {
+  const adultsText = adults === 1 ? '1 inteira' : `${adults} inteiras`;
+  const elderlyText = elderly === 1 ? '1 meia' : `${elderly} meias`;
+
+  if (adults > 0 && elderly > 0) {
+    return `${adultsText} e ${elderlyText}`;
+  } else if (adults > 0) {
+    return adultsText;
+  } else if (elderly > 0) {
+    return elderlyText;
+  } else {
+    return 'Nenhuma entrada';
   }
 }

@@ -67,19 +67,11 @@ export default async function PaymentApprovedPage({
     if (!voucher) return <div className='text-center h-screen text-3xl'>Não foi possível confirmar o pagamento</div>
 
     return (
-      <div className="flex flex-col w-full pt-8 px-4 items-center pb-48  bg-bg-blue overflow-hidden">
-        <h1 className='text-center text-4xl font-bold text-green-500 mb-8'>Pagamento aprovado</h1>
-        <div className='max-w-lg flex flex-col gap-8'>
-          <div className='w-screen p-2 mx-auto'>
-            <PaymentCard data={preference} payment_id={payment_id as string} />
-          </div>
+      <div className="flex flex-col w-full pt-8 px-4 items-center pb-24 bg-bg-blue overflow-hidden">
+        <h1 className='text-center text-2xl font-bold text-green-500 mb-8'>Pagamento aprovado</h1>
+        <div className='w-full max-w-lg flex flex-col gap-8'>
+          <PaymentCard data={preference} payment_id={payment_id as string} />
           <VoucherCard data={voucher} />
-        </div>
-        <Button className='flex gap-4 bg-green-600 py-4 px-6 rounded-full h-[contain] sm:mt-20 md:mt-36 hover:bg-green-700'>
-          <FaWhatsapp className="h-8 w-8" />
-          <Link href={formatWhatsAppMessage(voucher)} target='_blank' className='whitespace-pre-wrap'>Envie o voucher para o WhatsApp da Cachoeira das Araras</Link>
-        </Button>
-        <div className='mt-12'>
           <DeleteVoucherCookieBtn />
         </div>
       </div>
