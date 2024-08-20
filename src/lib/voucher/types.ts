@@ -90,3 +90,11 @@ export const completeVoucherSchema = z.object({
 });
 
 export type CompleteVoucherSchema = z.infer<typeof completeVoucherSchema>;
+
+export const referrerSchema = z.object({
+  voucherCode: z.string(),
+  referrer: z.string(),
+  url: z.string(),
+});
+
+export type ReferrerSchema = z.infer<typeof referrerSchema>;
