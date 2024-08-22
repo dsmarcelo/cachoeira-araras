@@ -72,6 +72,14 @@ export const initialVoucherSchema = z.object({
   code: z.string(),
 });
 
+export const referrerSchema = z.object({
+  voucherCode: z.string(),
+  referrer: z.string(),
+  url: z.string(),
+});
+
+export type ReferrerSchema = z.infer<typeof referrerSchema>;
+
 export const completeVoucherSchema = z.object({
   id: z.number(),
   name: z.string(),
@@ -85,16 +93,9 @@ export const completeVoucherSchema = z.object({
   preference_id: z.string(),
   payment_id: z.string().optional(),
   expires_at: z.union([z.date(), z.null()]).optional(),
+  referrer: referrerSchema.optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
 
 export type CompleteVoucherSchema = z.infer<typeof completeVoucherSchema>;
-
-export const referrerSchema = z.object({
-  voucherCode: z.string(),
-  referrer: z.string(),
-  url: z.string(),
-});
-
-export type ReferrerSchema = z.infer<typeof referrerSchema>;

@@ -1,4 +1,3 @@
-// src/app/api/check-referrer/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {

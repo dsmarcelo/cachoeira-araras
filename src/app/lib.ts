@@ -94,16 +94,16 @@ export async function createReferrer(voucherCode: string, referrerURL: string) {
 
   switch (true) {
     case referrerURL.includes("fbclid"):
-      referrer = "facebook";
+      referrer = "Facebook";
       break;
     case referrerURL.includes("gclid"):
-      referrer = "google";
+      referrer = "Google";
       break;
     case referrerURL.includes("igshid"):
-      referrer = "instagram";
+      referrer = "Instagram";
       break;
     case referrerURL.includes("mail.google"):
-      referrer = "gmail";
+      referrer = "Gmail";
       break;
     default:
       referrer = "";
