@@ -126,6 +126,7 @@ export default function VoucherForm() {
             <h2 className="text-2xl sm:text-3xl font-bold">Adquira já seu voucher</h2>
             <h5 className="text-primary-300 text-sm">
               Depois é só mostrar o codigo de identificação na portaria!
+              <p>Voucher válido por 30 dias após a compra</p>
             </h5>
           </div>
           <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 [&_input]:bg-primary-50 [&_input]:h-12">
@@ -187,7 +188,7 @@ export default function VoucherForm() {
             <div className="grid gap-2">
             </div>
             <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
-            <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-light-blue-500">
+            <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-lg bg-positive-green hover:bg-positive-green/80">
               {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
             </Button>
           </form>
