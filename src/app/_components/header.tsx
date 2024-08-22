@@ -14,7 +14,7 @@ export default function Header() {
       <div className='flex items-center w-full mx-auto max-w-5xl'>
         <nav className="hidden gap-1 text-lg font-medium md:flex md:flex-row md:items-center z-10">
           <div className='w-full flex flex-col mr-8'>
-            <Image src="/logo_nome.png" alt="logo" className='' width={120} height={80} />
+            <Image src="/logo_nome.png" alt="logo" className='' width={100} height={80} />
           </div>
           <Link
             href="/"
@@ -62,7 +62,7 @@ export default function Header() {
             </nav>
           </SheetContent>
         </Sheet>
-        <div className='md:hidden mx-auto w-48 h-10 md:h-16 absolute'>
+        <div className='md:hidden w-24 h-10 md:h-16 relative'>
           <Image src="/logo_nome.png" alt="logo" className='object-contain' sizes='' fill />
         </div>
         <nav className='ml-auto flex gap-1 items-center'>
