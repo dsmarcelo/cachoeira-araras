@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import React from 'react'
 import { FaInstagram, FaLocationArrow, FaWhatsapp } from 'react-icons/fa'
+import { MercadoPagoLogo } from './svg/mercado-pago'
 
 export default function Footer() {
   return (
@@ -25,6 +26,12 @@ export default function Footer() {
             <p>Localização</p>
           </Link>
         </div>
+      </div>
+      <div className='flex gap-1 items-center'>
+        <h4>Pagamento seguro com</h4>
+        <Link href={"https://www.mercadopago.com.br/"} target='_blank'>
+          <MercadoPagoLogo className='w-24 h-12' />
+        </Link>
       </div>
     </footer>
   )
