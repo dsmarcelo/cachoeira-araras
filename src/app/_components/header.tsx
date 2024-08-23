@@ -4,7 +4,7 @@ import {
   Menu,
 } from "lucide-react"
 import { FaFacebook, FaInstagram, FaWhatsapp } from "react-icons/fa";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Button } from '@/components/ui/button'
 import Image from 'next/image';
 
@@ -23,16 +23,10 @@ export default function Header() {
             Inicio
           </Link>
           <Link
-            href="/comprar"
-            className="flex items-center whitespace-nowrap gap-2 font-semibold md:text-base p-2 px-3 rounded-lg hover:bg-bg-blue/20"
-          >
-            Comprar voucher
-          </Link>
-          <Link
             href="/galeria"
             className="flex items-center whitespace-nowrap gap-2 font-semibold md:text-base p-2 px-3 rounded-lg hover:bg-bg-blue/20"
           >
-            Galeria
+            Fotos
           </Link>
         </nav>
         <Sheet>
@@ -51,13 +45,14 @@ export default function Header() {
             </Link>
             <nav className="grid gap-6 text-lg font-medium">
               <Link href="/" className="hover:text-foreground">
-                Inicio
-              </Link>
-              <Link href="/comprar" className="hover:text-foreground">
-                Comprar voucher
+                <SheetClose>
+                  Inicio
+                </SheetClose>
               </Link>
               <Link href="/galeria" className="hover:text-foreground">
-                Fotos
+                <SheetClose>
+                  Fotos
+                </SheetClose>
               </Link>
             </nav>
           </SheetContent>
