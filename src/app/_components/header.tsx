@@ -13,9 +13,9 @@ export default function Header() {
     <header className="top-0 max flex h-16 md:h-24 items-center gap-4 border-b-primary-500 bg-dark-blue text-primary-400 px-4 md:px-6">
       <div className='flex items-center w-full mx-auto max-w-5xl'>
         <nav className="hidden gap-1 text-lg font-medium md:flex md:flex-row md:items-center z-10">
-          <div className='w-full flex flex-col mr-8'>
+          <Link href="/" className='w-full flex flex-col mr-8'>
             <Image src="/logo_nome.png" alt="logo" className='' width={100} height={80} />
-          </div>
+          </Link>
           <Link
             href="/"
             className="flex items-center whitespace-nowrap gap-2 font-semibold md:text-base p-2 px-3 rounded-lg hover:bg-bg-blue/20"
@@ -41,7 +41,9 @@ export default function Header() {
           </SheetTrigger>
           <SheetContent side="left">
             <Link href="/" className='flex flex-col mb-8'>
-              <Image src="/logo_nome.png" alt="logo" className='' width={80} height={80} />
+              <SheetClose>
+                <Image src="/logo_nome.png" alt="logo" className='' width={80} height={80} />
+              </SheetClose>
             </Link>
             <nav className="grid gap-6 text-lg font-medium">
               <Link href="/" className="hover:text-foreground">
