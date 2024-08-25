@@ -1,3 +1,5 @@
+'use client'
+import { motion } from "framer-motion"
 import React from "react";
 import { MdOutlineDirectionsCar, MdLocalBar } from "react-icons/md";
 import { IoSunnyOutline } from "react-icons/io5";
@@ -5,7 +7,13 @@ import { RiRestaurant2Line } from "react-icons/ri";
 
 export default function InfoCard() {
   return (
-    <div className="flex flex-col mx-auto text-xl text-primary-200 max-w-2xl">
+    <motion.div
+      initial={{ opacity: 0, x: 100 }}
+      whileInView={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.3 }}
+      viewport={{ once: true, margin: "0px 100px -200px 0px" }}
+      className={`flex flex-col mx-auto text-xl text-primary-200 max-w-2xl`}
+    >
       <div className="font-semibold">
         Conforto, privacidade e contato direto com a natureza em uma localização
         privilegiada de Pirenópolis-GO.
@@ -46,6 +54,6 @@ export default function InfoCard() {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
