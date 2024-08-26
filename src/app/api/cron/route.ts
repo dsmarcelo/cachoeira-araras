@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
 
@@ -52,6 +53,10 @@ async function deleteExpiredPendingVouchers() {
 }
 
 export async function GET(req: Request) {
+  console.log(
+    '🚀 ~ GET ~ req.headers.get("Authorization"):',
+    req.headers.get("Authorization"),
+  );
   if (
     req.headers.get("Authorization") !== `Bearer ${process.env.CRON_SECRET}`
   ) {
@@ -60,6 +65,7 @@ export async function GET(req: Request) {
       { status: 401 },
     );
   }
+  console.log("Running cron job");
 
   await updateExpiredVouchers();
   await deleteExpiredPendingVouchers();
