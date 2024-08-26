@@ -4,55 +4,48 @@ import { NextResponse } from "next/server";
 const prisma = new PrismaClient();
 
 async function updateExpiredVouchers() {
-  const now = new Date();
+  const now = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
+  );
   try {
-    // Find all vouchers that have expired
-    const expiredVouchers = await prisma.voucher.findMany({
+    // Update all expired vouchers in a single query
+    await prisma.voucher.updateMany({
       where: {
         expires_at: {
           lte: now,
         },
         valid: true,
+        status: "valid",
+        deletedAt: null,
+      },
+      data: {
+        valid: false,
+        status: "expired",
       },
     });
-
-    // Update each expired voucher
-    for (const voucher of expiredVouchers) {
-      await prisma.voucher.update({
-        where: { id: voucher.id },
-        data: {
-          valid: false,
-          status: "expired",
-        },
-      });
-    }
   } catch (error) {
     console.error("Error updating expired vouchers:", error);
   }
 }
 
-async function deleteExpiredInvalidVouchers() {
-  const now = new Date();
+async function deleteExpiredPendingVouchers() {
+  const now = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
+  );
   try {
     // Find all vouchers that have expired
-    const expiredVouchers = await prisma.voucher.findMany({
+    await prisma.voucher.updateMany({
       where: {
         expires_at: {
           lte: now,
         },
         valid: false,
+        status: "pending",
+      },
+      data: {
+        deletedAt: now,
       },
     });
-
-    // Delete each expired voucher
-    for (const voucher of expiredVouchers) {
-      await prisma.voucher.update({
-        where: { id: voucher.id },
-        data: {
-          deletedAt: now,
-        },
-      });
-    }
   } catch (error) {
     console.error("Error deleting expired vouchers:", error);
   }
@@ -69,6 +62,6 @@ export async function GET(req: Request) {
   }
 
   await updateExpiredVouchers();
-  await deleteExpiredInvalidVouchers();
+  await deleteExpiredPendingVouchers();
   return NextResponse.json({ ok: true });
 }
