@@ -69,8 +69,19 @@ model Voucher {
   preference_id String    @unique
   payment_id    String?   @unique
   expires_at    DateTime?
-
+  Referrer Referrer?
+  
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
+}
+
+model Referrer {
+  id          Int      @id @default(autoincrement())
+  voucher     Voucher  @relation(fields: [voucherCode], references: [code], onDelete: Cascade)
+  voucherCode String   @unique
+  referrer    String
+  url         String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
