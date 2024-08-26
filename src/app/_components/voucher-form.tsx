@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation';
 import { voucherFormSchema } from "@/lib/voucher/types";
 import { formatPaymentUrl, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast"
-import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher } from "../lib";
+import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher, createReferrer } from "../lib";
 import VoucherCreatedCard from "./voucher-created-card";
 
 export default function VoucherForm() {
@@ -21,6 +21,7 @@ export default function VoucherForm() {
   const [code, setCode] = useState('');
   const [init_point, setInitPoint] = useState('');
   const [payment_sucess_url, setPaymentSuccessUrl] = useState('');
+  const [referrerURL, setReferrerURL] = useState<string | null>(null);
 
   const utils = api.useUtils();
 
@@ -45,6 +46,20 @@ export default function VoucherForm() {
       }
       return null
     }
+
+    const checkReferrer = async () => {
+      try {
+        const response = await fetch('/api/check-referrer');
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const data = await response.json();
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+        setReferrerURL(data);
+      } catch (error) {
+        console.error('Error checking referrer:', error);
+      }
+    };
+
+    void checkReferrer();
     void getPreference();
   }, [utils.mercadopago.getPrefence, utils.voucher.findByCode])
 
@@ -109,6 +124,8 @@ export default function VoucherForm() {
     try {
       const voucher = await addVoucher.mutateAsync(completeData);
       if (!voucher) return <div className='text-center h-screen text-3xl'>Erro ao criar o voucher, por favor atualize a página</div>
+      if (referrerURL === null) return;
+      await createReferrer(rcode, referrerURL);
     } catch (error) {
       console.error(error);
     }

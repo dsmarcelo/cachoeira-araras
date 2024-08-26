@@ -80,3 +80,41 @@ export async function activateVoucher(code: string) {
     throw error;
   }
 }
+
+export async function getReferrer() {
+  const referrer = cookies().get("referrer")?.value;
+  if (referrer) {
+    return referrer;
+  }
+  return null;
+}
+
+export async function createReferrer(voucherCode: string, referrerURL: string) {
+  let referrer: string;
+
+  switch (true) {
+    case referrerURL.includes("fbclid"):
+      referrer = "Facebook";
+      break;
+    case referrerURL.includes("gclid"):
+      referrer = "Google";
+      break;
+    case referrerURL.includes("igshid"):
+      referrer = "Instagram";
+      break;
+    case referrerURL.includes("mail.google"):
+      referrer = "Gmail";
+      break;
+    default:
+      referrer = "";
+      break;
+  }
+
+  const referrerResponse = api.referrer.create({
+    referrer,
+    voucherCode,
+    url: referrerURL,
+  });
+
+  return referrerResponse;
+}

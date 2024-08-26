@@ -1,7 +1,7 @@
 'use client'
 import * as React from "react"
 
-import { formateDate, formateDateDayMonthYear, formatPhone, formatToBRL, truncateName } from "@/lib/utils"
+import { formateDate, formateDateDayMonthYear, formatPhone, formatReferrer, formatToBRL, truncateName } from "@/lib/utils"
 // import { useMediaQuery } from "@/hooks/use-media-query"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,6 +30,12 @@ interface props {
 }
 
 export function VoucherInfoCard({ data, onClose, open }: props) {
+  function getReferrer() {
+    const res = api.referrer.findByCode.useQuery(data.code)
+    return res.data?.referrer ?? ''
+  }
+  const referrer = getReferrer()
+
 
   function paymentInfo() {
     const { payment_id } = data
@@ -99,7 +105,7 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
         <DrawerHeader className="text-left max-h-[80dvh] overflow-y-scroll">
           <DrawerTitle onClick={() => navigator.clipboard.writeText(data.code ?? '')}>{`Voucher ${data.code}`}</DrawerTitle>
           <DrawerDescription className="hover:bg-slate-100 rounded-md" onClick={() => navigator.clipboard.writeText(data.payment_id ?? '')}>
-            {`ID de pagamento: ${data.payment_id}`}
+            {data.payment_id ? `ID de pagamento: ${data.payment_id}` : 'Nenhum pagamento'}
           </DrawerDescription>
           <div className="flex flex-col gap-1">
             <h4 className="hover:bg-slate-100 rounded-md" onClick={() => navigator.clipboard.writeText(data.name)}>{truncateName(data.name)}</h4>
@@ -113,6 +119,7 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
             <p>{formatQuantity({ adults: data.adults, elderly: data.elderly })}</p>
             <h4>{formatVoucherStatus(data.status)}</h4>
             {<p>Gerado em: {formateDate(data.createdAt.toString())}</p>}
+            {referrer && `Origem: ${formatReferrer(referrer)}`}
             {data.expires_at &&
               <div className="flex flex-wrap gap-x-1">
                 <span>{data.expires_at > new Date(Date.now()) ? "Expira em" : "Expirou em"}: </span>

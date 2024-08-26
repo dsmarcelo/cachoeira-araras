@@ -91,3 +91,8 @@ export function useWindowWidth(): number {
 
   return windowWidth;
 }
+
+export function formatReferrer(referrer: string): string {
+  if (referrer.toLowerCase() === "facebook") return "Facebook ou Instagram";
+  return referrer.charAt(0).toUpperCase() + referrer.slice(1);
+}
