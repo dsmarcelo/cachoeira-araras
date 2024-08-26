@@ -7,8 +7,7 @@ import { useEffect } from "react";
 
 export default function Test() {
   async function TestCronJobs() {
-    console.log(process.env.CRON_SECRET)
-    return await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/cron`, {
+    return await fetch(`/api/cron`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${process.env.CRON_SECRET}`,
