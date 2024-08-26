@@ -52,22 +52,16 @@ async function deleteExpiredPendingVouchers() {
   }
 }
 
-export async function GET(req: Request) {
-  console.log(
-    '🚀 ~ GET ~ req.headers.get("Authorization"):',
-    req.headers.get("Authorization"),
-  );
-  if (
-    req.headers.get("Authorization") !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
-    return NextResponse.json(
-      { ok: false, message: "Unauthorized" },
-      { status: 401 },
-    );
+export async function GET(request: Request) {
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new Response("Unauthorized", {
+      status: 401,
+    });
   }
   console.log("Running cron job");
 
   await updateExpiredVouchers();
   await deleteExpiredPendingVouchers();
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ success: true });
 }
