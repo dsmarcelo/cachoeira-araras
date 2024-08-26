@@ -1,11 +1,14 @@
+'use client';
 import { Button } from "@/components/ui/button";
 import TestVoucherBuy from "../../_components/voucher-buy-test";
 import { isLoggedIn } from "@/app/lib";
 import PasswordLoginForm from "@/app/_components/passwordLoginForm";
+import { useEffect } from "react";
 
-export default async function Test() {
+export default function Test() {
   async function TestCronJobs() {
-    return await fetch("/api/cron", {
+    console.log(process.env.CRON_SECRET)
+    return await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/cron`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${process.env.CRON_SECRET}`,
@@ -13,12 +16,17 @@ export default async function Test() {
     });
   }
 
-  const isAdmin = await isLoggedIn();
-  if (!isAdmin) {
-    return <div className='flex min-h-screen w-full flex-col items-center justify-center px-4'>
-      <PasswordLoginForm />
-    </div>
-  }
+  useEffect(() => {
+    async function checkIsAdmin() {
+      const isAdmin = await isLoggedIn();
+      if (!isAdmin) {
+        return <div className='flex min-h-screen w-full flex-col items-center justify-center px-4'>
+          <PasswordLoginForm />
+        </div>
+      }
+    }
+    void checkIsAdmin()
+  }, []);
 
   return (
     <div>
