@@ -9,7 +9,7 @@ export default function VoucherBuy() {
     <motion.div
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.5 }}
       viewport={{ margin: "-50px 0px -100px 0px" }}
       className='mx-auto w-full max-w-2xl bg-dark-blue rounded-xl overflow-hidden'
     >

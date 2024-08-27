@@ -10,7 +10,7 @@ export default function InfoCard() {
     <motion.div
       initial={{ opacity: 0, x: 100 }}
       whileInView={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.5 }}
       viewport={{ once: true, margin: "0px 100px -200px 0px" }}
       className={`flex flex-col mx-auto text-xl text-primary-200 max-w-2xl`}
     >
