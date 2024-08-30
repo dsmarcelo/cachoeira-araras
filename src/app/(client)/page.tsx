@@ -8,9 +8,9 @@ import { RiGalleryView2 } from "react-icons/ri";
 export default async function Home() {
   return (
     <HydrateClient>
-      <div className="flex min-h-screen flex-col items-center bg-bg-blue text-primary-200">
+      <div className="flex min-h-screen flex-col items-center bg-bg-blue lg:pt-8 text-primary-200">
         <ImageCarousel />
-        <main className="flex flex-col items-center px-4 gap-6 py-4 md:py-8 md:px-8">
+        <main className="flex flex-col items-center px-4 gap-6 z-10 -mt-6 lg:mt-0 md:py-8 md:px-8">
           <div className="w-full max-w-5xl flex flex-col justify-center gap-6 lg:flex-row">
             <VoucherBuy />
             <InfoCard />

@@ -9,7 +9,6 @@ import {
   CarouselItem,
 } from "@/components/ui/carousel"
 import Image from "next/image"
-import Link from "next/link"
 import { motion } from "framer-motion"
 
 export function ImageCarousel() {
@@ -33,9 +32,9 @@ export function ImageCarousel() {
       initial={{ opacity: 0, y: -16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="w-full max-w-5xl mx-auto lg:rounded-2xl lg:mt-8 overflow-hidden"
+      className="w-full max-w-5xl mx-auto lg:rounded-2xl overflow-hidden"
     >
-      <Link href="/galeria" className="w-full max-w-5xl mx-auto lg:rounded-2xl lg:mt-8 overflow-hidden">
+      <div className="w-full max-w-5xl mx-auto lg:rounded-2xl overflow-hidden">
         <Carousel
           plugins={[autoplay.current, fade.current]}
           opts={{
@@ -56,11 +55,12 @@ export function ImageCarousel() {
                     sizes="(max-width: 768px) 100vw, 75vw"
                   />
                 </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-bg-blue via-transparent via-15% to-transparent lg:hidden"></div>
               </CarouselItem>
             ))}
           </CarouselContent>
         </Carousel>
-      </Link>
+      </div>
     </motion.div>
   )
 }
