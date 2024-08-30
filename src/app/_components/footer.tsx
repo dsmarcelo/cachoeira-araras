@@ -4,7 +4,7 @@ import Link from 'next/link'
 import React from 'react'
 import { FaInstagram, FaLocationArrow, FaWhatsapp } from 'react-icons/fa'
 import { MercadoPagoLogo } from './svg/mercado-pago'
-import { motion, useScroll } from 'framer-motion'
+import { motion } from 'framer-motion'
 
 export default function Footer() {
   return (
