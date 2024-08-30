@@ -14,6 +14,7 @@ import { formatPaymentUrl, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast"
 import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher } from "../lib";
 import VoucherCreatedCard from "./voucher-created-card";
+import MoreVoucherFormInfo from "./voucher/more-info";
 
 export default function VoucherForm() {
   const router = useRouter();
@@ -122,18 +123,15 @@ export default function VoucherForm() {
     <div className="mx-auto w-full bg-dark-blue">
       <div className="border-none bg-dark-blue text-primary-50 p-4 pb-0">
         <div className="">
-          <div className="mb-8">
-            <h2 className="text-2xl sm:text-3xl font-bold">Adquira já seu voucher</h2>
-            <h5 className="text-primary-300 text-sm">
-              Depois é só mostrar o codigo de identificação na portaria!
-              <p>Voucher válido por 30 dias após a compra</p>
-            </h5>
-          </div>
-          <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 [&_input]:bg-primary-50 [&_input]:h-12">
+          <form
+            onSubmit={handleSubmit(onSubmit)}
+            className="grid gap-4 [&_input]:bg-primary-50 [&_input]:h-12 [&_label]:text-sm [&_label]:leading-none"
+          >
+            <h3 className='font-medium text-sm uppercase text-center text-primary-100 leading-none'>Entrada permitida entre 07h e 17h</h3>
             <div className="grid gap-2">
               <Label htmlFor="name">Nome</Label>
               <Input
-                className="text-bg-blue"
+                className="text-bg-blue rounded-xl"
                 id="name"
                 placeholder="Seu nome completo"
                 maxLength={40}
@@ -150,7 +148,7 @@ export default function VoucherForm() {
                 render={({ field }) => (
                   <Input
                     {...field}
-                    className="text-bg-blue"
+                    className="text-bg-blue rounded-xl"
                     id="phone"
                     type="tel"
                     placeholder="(XX) 99999-9999"
@@ -168,7 +166,7 @@ export default function VoucherForm() {
                 type="number"
                 min="0"
                 max="20"
-                className="text-bg-blue"
+                className="text-bg-blue rounded-xl"
                 {...register('adults')}
               />
               {errors.adults && <p className='text-red-500 text-sm'>{errors.adults?.message}</p>}
@@ -180,15 +178,13 @@ export default function VoucherForm() {
                 type="number"
                 min="0"
                 max="20"
-                className="text-bg-blue"
+                className="text-bg-blue rounded-xl"
                 {...register('elderly')}
               />
               {errors.adults && <p className='text-red-500 text-sm'>{errors.elderly?.message}</p>}
             </div>
-            <div className="grid gap-2">
-            </div>
             <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
-            <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-lg bg-positive-green hover:bg-positive-green/80">
+            <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-positive-green/80">
               {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
             </Button>
           </form>
@@ -197,6 +193,7 @@ export default function VoucherForm() {
           </div>
         </div>
       </div >
+      <MoreVoucherFormInfo />
     </div>
   )
 }
