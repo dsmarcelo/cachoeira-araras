@@ -3,6 +3,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import PriceTable from './price-table'
 import VoucherForm from './voucher-form'
+import MoreVoucherFormInfo from './voucher/more-info'
 
 export default function VoucherBuy() {
   return (
@@ -10,17 +11,16 @@ export default function VoucherBuy() {
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      viewport={{ margin: "-50px 0px -100px 0px" }}
-      className='mx-auto w-full max-w-2xl bg-dark-blue rounded-xl overflow-hidden'
+      viewport={{ once: true, margin: "-50px 0px -100px 0px" }}
+      className='mx-auto w-full h-fit max-w-2xl flex flex-col justify-between bg-dark-blue rounded-xl overflow-hidden'
     >
-      <motion.div
-      >
+      <motion.div>
         <PriceTable />
       </motion.div>
-      <motion.div
-      >
+      <motion.div>
         <VoucherForm />
       </motion.div>
+      <MoreVoucherFormInfo />
     </motion.div>
   )
 }

@@ -14,7 +14,6 @@ import { formatPaymentUrl, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast"
 import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher } from "../lib";
 import VoucherCreatedCard from "./voucher-created-card";
-import MoreVoucherFormInfo from "./voucher/more-info";
 
 export default function VoucherForm() {
   const router = useRouter();
@@ -74,7 +73,7 @@ export default function VoucherForm() {
       code,
       title: `Voucher ${code}`,
       id: code,
-      description: `Voucher para ${data.adults} pessoas com mais de 8 anos e ${data.elderly} com mais de 60 anos ou especiais`,
+      description: `Voucher para ${data.adults} adultos e ${data.elderly} com mais de 60 anos ou especiais, ${data.phone}`,
       adults: data.adults,
       elderly: data.elderly,
       unit_price: calculatePrice(data.adults, data.elderly),
@@ -115,7 +114,7 @@ export default function VoucherForm() {
     }
   };
 
-  if (code) {
+  if (code && (init_point || payment_sucess_url)) {
     return <VoucherCreatedCard code={code} init_point={init_point} redirectToPayment={redirectToPayment} setCode={setCode} payment_success_url={payment_sucess_url} />
   }
 
@@ -138,7 +137,7 @@ export default function VoucherForm() {
                 {...register('name',
                   { required: "Nome é obrigatório" },
                 )} />
-              {errors.name && <p className='text-red-500 text-sm'>{errors.name?.message}</p>}
+              {errors.name && <p className='text-red-400 text-base font-medium'>{errors.name?.message}</p>}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="phone">Telefone</Label>
@@ -157,7 +156,7 @@ export default function VoucherForm() {
                   />
                 )}
               />
-              {errors.phone && <p className='text-red-500 text-sm'>{errors.phone?.message}</p>}
+              {errors.phone && <p className='text-red-400 text-base font-medium'>{errors.phone?.message}</p>}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="adults">Quantidade de pessoas <span className='font-bold'>com mais de 8 anos</span></Label>
@@ -169,7 +168,7 @@ export default function VoucherForm() {
                 className="text-bg-blue rounded-xl"
                 {...register('adults')}
               />
-              {errors.adults && <p className='text-red-500 text-sm'>{errors.adults?.message}</p>}
+              {errors.adults && <p className='text-red-400 text-base font-medium'>{errors.adults?.message}</p>}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="elderly">Mais de 60 anos ou especiais</Label>
@@ -181,7 +180,7 @@ export default function VoucherForm() {
                 className="text-bg-blue rounded-xl"
                 {...register('elderly')}
               />
-              {errors.adults && <p className='text-red-500 text-sm'>{errors.elderly?.message}</p>}
+              {errors.adults && <p className='text-red-400 text-base font-medium'>{errors.elderly?.message}</p>}
             </div>
             <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
             <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-positive-green/80">
@@ -189,11 +188,10 @@ export default function VoucherForm() {
             </Button>
           </form>
           <div className='mt-4 flex flex-col gap-4'>
-            {addVoucher.isError && <p className='text-red-500 text-sm'>Erro ao criar o voucher, tente novamente!</p>}
+            {addVoucher.isError && <p className='text-red-400 text-base font-medium'>Erro ao criar o voucher, tente novamente!</p>}
           </div>
         </div>
       </div >
-      <MoreVoucherFormInfo />
     </div>
   )
 }
