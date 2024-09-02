@@ -14,10 +14,12 @@ import { formatPaymentUrl, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast"
 import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher } from "../lib";
 import VoucherCreatedCard from "./voucher-created-card";
+import { Loader2 } from "lucide-react";
 
 export default function VoucherForm() {
   const router = useRouter();
   const { toast } = useToast()
+  const [isLoading, setIsLoading] = useState(false);
   const [code, setCode] = useState('');
   const [init_point, setInitPoint] = useState('');
   const [payment_sucess_url, setPaymentSuccessUrl] = useState('');
@@ -98,19 +100,25 @@ export default function VoucherForm() {
         description: 'Verifique a quantidade de pessoas',
       })
     }
-    const rcode = randomCode();
-    setCode(rcode);
-    const res = await buyVoucher({ data, code: rcode });
-    if (!res?.id || !res?.init_point) return;
-    await addCookieVoucher(rcode);
-    setInitPoint(res.init_point);
-    const preference_id = res.id;
-    const completeData = formatVoucher({ ...data, preference_id, code: rcode });
     try {
+      setIsLoading(true);
+      const rcode = randomCode();
+      setCode(rcode);
+      const res = await buyVoucher({ data, code: rcode });
+      if (!res?.id || !res?.init_point) return;
+      await addCookieVoucher(rcode);
+      const preference_id = res.id;
+      const completeData = formatVoucher({ ...data, preference_id, code: rcode });
       const voucher = await addVoucher.mutateAsync(completeData);
-      if (!voucher) return <div className='text-center h-screen text-3xl'>Erro ao criar o voucher, por favor atualize a página</div>
+      if (!voucher) return toast({
+        title: 'Erro',
+        description: 'Erro ao criar o voucher, por favor atualize a página e tente novamente',
+      })
+      setInitPoint(res.init_point);
+      setIsLoading(false);
     } catch (error) {
-      console.error(error);
+      return console.error(error);
+      // TODO: send error to server and show error page
     }
   };
 
@@ -184,7 +192,7 @@ export default function VoucherForm() {
             </div>
             <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
             <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-positive-green/80">
-              {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
+              {isLoading ? <div className="flex flex-row justify-center"><Loader2 className="animate-spin mr-2" /><p>Carregando...</p></div> : 'Compre seu voucher agora!'}
             </Button>
           </form>
           <div className='mt-4 flex flex-col gap-4'>

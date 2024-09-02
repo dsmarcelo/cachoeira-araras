@@ -21,7 +21,6 @@ export default function VoucherCreatedCard(
         description: 'Voucher deletado, por favor, tente novamente',
       })
     }
-    return router.refresh()
   }
 
   if (!init_point) {
