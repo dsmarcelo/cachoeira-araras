@@ -2,6 +2,10 @@ import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { voucherSchema } from "@/lib/voucher/types";
 import { z } from "zod";
 
+const now = new Date(
+  new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
+);
+
 export const voucherRouter = createTRPCRouter({
   create: publicProcedure
     .input(voucherSchema)
@@ -12,6 +16,24 @@ export const voucherRouter = createTRPCRouter({
     }),
 
   findAll: publicProcedure.query(async ({ ctx }) => {
+    return await ctx.db.voucher.findMany({
+      where: {
+        deletedAt: null,
+      },
+    });
+  }),
+
+  findAllDeleted: publicProcedure.query(async ({ ctx }) => {
+    return await ctx.db.voucher.findMany({
+      where: {
+        deletedAt: {
+          not: null,
+        },
+      },
+    });
+  }),
+
+  findAllEvenDeleted: publicProcedure.query(async ({ ctx }) => {
     return await ctx.db.voucher.findMany();
   }),
 
@@ -157,12 +179,25 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  delete: publicProcedure
+  hardDelete: publicProcedure
     .input(z.object({ code: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return await ctx.db.voucher.delete({
         where: {
           code: input.code,
+        },
+      });
+    }),
+
+  delete: publicProcedure
+    .input(z.object({ code: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.db.voucher.update({
+        where: {
+          code: input.code,
+        },
+        data: {
+          deletedAt: now,
         },
       });
     }),

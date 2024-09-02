@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation';
 import { voucherFormSchema } from "@/lib/voucher/types";
 import { formatPaymentUrl, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast"
-import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher } from "../lib";
+import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher, createReferrer } from "../lib";
 import VoucherCreatedCard from "./voucher-created-card";
 import { Loader2 } from "lucide-react";
 
@@ -23,6 +23,7 @@ export default function VoucherForm() {
   const [code, setCode] = useState('');
   const [init_point, setInitPoint] = useState('');
   const [payment_sucess_url, setPaymentSuccessUrl] = useState('');
+  const [referrerURL, setReferrerURL] = useState<string | null>(null);
 
   const utils = api.useUtils();
 
@@ -47,6 +48,20 @@ export default function VoucherForm() {
       }
       return null
     }
+
+    const checkReferrer = async () => {
+      try {
+        const response = await fetch('/api/check-referrer');
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const data = await response.json();
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+        setReferrerURL(data);
+      } catch (error) {
+        console.error('Error checking referrer:', error);
+      }
+    };
+
+    void checkReferrer();
     void getPreference();
   }, [utils.mercadopago.getPrefence, utils.voucher.findByCode])
 
@@ -115,6 +130,9 @@ export default function VoucherForm() {
         description: 'Erro ao criar o voucher, por favor atualize a página e tente novamente',
       })
       setInitPoint(res.init_point);
+      if (referrerURL) {
+        await createReferrer(rcode, referrerURL);
+      }
       setIsLoading(false);
     } catch (error) {
       return console.error(error);
@@ -126,79 +144,82 @@ export default function VoucherForm() {
     return <VoucherCreatedCard code={code} init_point={init_point} redirectToPayment={redirectToPayment} setCode={setCode} payment_success_url={payment_sucess_url} />
   }
 
+  function refresh() {
+    return;
+  }
+
   return (
     <div className="mx-auto w-full bg-dark-blue">
-      <div className="border-none bg-dark-blue text-primary-50 p-4 pb-0">
-        <div className="">
-          <form
-            onSubmit={handleSubmit(onSubmit)}
-            className="grid gap-4 [&_input]:bg-primary-50 [&_input]:h-12 [&_label]:text-sm [&_label]:leading-none"
-          >
-            <h3 className='font-medium text-sm uppercase text-center text-primary-100 leading-none'>Entrada permitida entre 07h e 17h</h3>
-            <div className="grid gap-2">
-              <Label htmlFor="name">Nome</Label>
-              <Input
-                className="text-bg-blue rounded-xl"
-                id="name"
-                placeholder="Seu nome completo"
-                maxLength={40}
-                {...register('name',
-                  { required: "Nome é obrigatório" },
-                )} />
-              {errors.name && <p className='text-red-400 text-base font-medium'>{errors.name?.message}</p>}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="phone">Telefone</Label>
-              <Controller
-                name="phone"
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    {...field}
-                    className="text-bg-blue rounded-xl"
-                    id="phone"
-                    type="tel"
-                    placeholder="(XX) 99999-9999"
-                    value={formatPhone(field.value)}
-                    onChange={(e) => field.onChange(normalizePhone(e.target.value))}
-                  />
-                )}
-              />
-              {errors.phone && <p className='text-red-400 text-base font-medium'>{errors.phone?.message}</p>}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="adults">Quantidade de pessoas <span className='font-bold'>com mais de 8 anos</span></Label>
-              <Input
-                id="adults"
-                type="number"
-                min="0"
-                max="20"
-                className="text-bg-blue rounded-xl"
-                {...register('adults')}
-              />
-              {errors.adults && <p className='text-red-400 text-base font-medium'>{errors.adults?.message}</p>}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="elderly">Mais de 60 anos ou especiais</Label>
-              <Input
-                id="elderly"
-                type="number"
-                min="0"
-                max="20"
-                className="text-bg-blue rounded-xl"
-                {...register('elderly')}
-              />
-              {errors.adults && <p className='text-red-400 text-base font-medium'>{errors.elderly?.message}</p>}
-            </div>
-            <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
-            <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-positive-green/80">
-              {isLoading ? <div className="flex flex-row justify-center"><Loader2 className="animate-spin mr-2" /><p>Carregando...</p></div> : 'Compre seu voucher agora!'}
-            </Button>
-          </form>
-          <div className='mt-4 flex flex-col gap-4'>
-            {addVoucher.isError && <p className='text-red-400 text-base font-medium'>Erro ao criar o voucher, tente novamente!</p>}
+      <div className="border-none bg-dark-blue text-primary-50 p-4">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="grid gap-4 [&_input]:bg-primary-50 [&_input]:h-12 [&_label]:text-sm [&_label]:leading-none"
+        >
+          <h3 className='font-medium text-sm uppercase text-center text-primary-100 leading-none'>Entrada permitida entre 07h e 17h</h3>
+          <div className="grid gap-2">
+            <Label htmlFor="name">Nome</Label>
+            <Input
+              className="text-bg-blue rounded-xl"
+              id="name"
+              placeholder="Seu nome completo"
+              maxLength={40}
+              {...register('name',
+                { required: "Nome é obrigatório" },
+              )} />
+            {errors.name && <p className='text-red-400 text-base font-medium'>{errors.name?.message}</p>}
           </div>
-        </div>
+          <div className="grid gap-2">
+            <Label htmlFor="phone">Telefone</Label>
+            <Controller
+              name="phone"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  className="text-bg-blue rounded-xl"
+                  id="phone"
+                  type="tel"
+                  placeholder="(XX) 99999-9999"
+                  value={formatPhone(field.value)}
+                  onChange={(e) => field.onChange(normalizePhone(e.target.value))}
+                />
+              )}
+            />
+            {errors.phone && <p className='text-red-400 text-base font-medium'>{errors.phone?.message}</p>}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="adults">Quantidade de pessoas <span className='font-bold'>com mais de 8 anos</span></Label>
+            <Input
+              id="adults"
+              type="number"
+              min="0"
+              max="20"
+              className="text-bg-blue rounded-xl"
+              {...register('adults')}
+            />
+            {errors.adults && <p className='text-red-400 text-base font-medium'>{errors.adults?.message}</p>}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="elderly">Mais de 60 anos ou especiais</Label>
+            <Input
+              id="elderly"
+              type="number"
+              min="0"
+              max="20"
+              className="text-bg-blue rounded-xl"
+              {...register('elderly')}
+            />
+            {errors.adults && <p className='text-red-400 text-base font-medium'>{errors.elderly?.message}</p>}
+          </div>
+          <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
+          <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-positive-green/80">
+            {isLoading ? <div className="flex flex-row justify-center"><Loader2 className="animate-spin mr-2" /><p>Carregando...</p></div> : 'Compre seu voucher agora!'}
+          </Button>
+        </form>
+        {addVoucher.isError && <div className='flex flex-col justify-center my-4 space-y-2 text-red-500 text-lg font-medium'>
+          <p>Erro ao criar o voucher, tente novamente!</p>
+          <Button onClick={() => location.reload()} className='h-20'>Recarregar página</Button>
+        </div>}
       </div >
     </div>
   )

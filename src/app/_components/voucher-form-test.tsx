@@ -186,7 +186,7 @@ export default function TestVoucherForm() {
             </div>
             <div className="grid gap-2">
             </div>
-            <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
+            <h1 className=' font-bold'>{`Valor: R$0,01`}</h1>
             <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-light-blue-500">
               {addVoucher.isPending ? 'Carregando...' : 'Compre seu voucher agora!'}
             </Button>
