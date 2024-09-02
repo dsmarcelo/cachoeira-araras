@@ -43,17 +43,6 @@ export default function VoucherCreatedCard(
     )
   }
 
-  // if (payment_success_url) {
-  //   return (<div className='p-4'>
-  //     <Button onClick={() => handleClick(false)} className='mb-4 h-8 bg-dark-blue text-primary-50'>
-  //       <FaArrowLeft className='mr-2 h-3 w-3' />
-  //       <p>Voltar</p>
-  //     </Button>
-  //     <p className='text-green-100 font-medium text-xl mb-4'>Ja recebemos seu pagamento, clique no botão abaixo para visualizar o voucher:</p>
-  //     <Button className='bg-positive-green h-14 text-xl w-full' onClick={() => window.open(payment_success_url)}>Visualizar voucher</Button>
-  //   </div>)
-  // }
-
   return (
     <motion.div
       className='p-4'
@@ -76,7 +65,7 @@ export default function VoucherCreatedCard(
             <Button className='bg-positive-green h-14 text-xl w-full' onClick={() => window.open(payment_success_url)}>Visualizar voucher</Button>
           </div>) : (
           <div className='flex flex-col gap-6'>
-            <p className='text-primary-100 font-medium'>Voucher criado com sucesso! Guarde o codigo abaixo, finalize o pagamento e volte ao site para utiliza-lo:</p>
+            <p className='text-primary-100 font-medium'>Voucher criado com sucesso! Guarde o codigo abaixo, finalize o pagamento clicando no botão abaixo e volte ao site para utiliza-lo:</p>
             <h2 className='text-7xl font-bold text-center text-primary-50'>{code}</h2>
             <Link href={init_point} className='bg-positive-green rounded-xl text-center h-14 text-xl w-full flex justify-center items-center font-medium text-primary-50' onClick={redirectToPayment}>
               <p className='translate-y-[-2px]'>Finalizar pagamento</p>
