@@ -6,12 +6,10 @@ import { FaArrowLeft } from 'react-icons/fa'
 import { toast } from '@/components/ui/use-toast'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { useRouter } from 'next/navigation'
 
 export default function VoucherCreatedCard(
   { code, init_point, redirectToPayment, setCode, payment_success_url }:
     { code: string, init_point: string, redirectToPayment: () => void, setCode: React.Dispatch<React.SetStateAction<string>>, payment_success_url: string }) {
-  const router = useRouter()
   async function handleClick(showToast = true) {
     setCode('')
     await deleteCookieVoucher()
