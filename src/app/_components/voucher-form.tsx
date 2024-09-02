@@ -27,28 +27,23 @@ export default function VoucherForm() {
 
   const utils = api.useUtils();
 
-  useEffect(() => {
-    async function getPreference() {
-      const cookieVoucher = await getCookieVoucher();
-      if (cookieVoucher) {
-        const voucher = await utils.voucher.findByCode.fetch({ code: cookieVoucher });
-        if (!voucher) return deleteCookieVoucher();
-        setCode(cookieVoucher);
+  async function checkPaymentStatus(code: string) {
+    const voucher = await utils.voucher.findByCode.fetch({ code });
+    if (!voucher) return deleteCookieVoucher();
 
-        if (voucher.status !== 'pending' && voucher.payment_id) {
-          const url = formatPaymentUrl(voucher.preference_id, voucher.payment_id);
-          setPaymentSuccessUrl(url);
-        }
-
-        const preference = await utils.mercadopago.getPrefence.fetch({ preference_id: voucher.preference_id });
-
-        if (preference.init_point) {
-          setInitPoint(preference.init_point);
-        }
-      }
-      return null
+    if (voucher.status !== 'pending' && voucher.payment_id) {
+      const url = formatPaymentUrl(voucher.preference_id, voucher.payment_id);
+      setPaymentSuccessUrl(url);
     }
 
+    const preference = await utils.mercadopago.getPrefence.fetch({ preference_id: voucher.preference_id });
+
+    if (preference.init_point) {
+      setInitPoint(preference.init_point);
+    }
+  }
+
+  useEffect(() => {
     const checkReferrer = async () => {
       try {
         const response = await fetch('/api/check-referrer');
@@ -61,8 +56,34 @@ export default function VoucherForm() {
       }
     };
 
-    void checkReferrer();
+    async function getPreference() {
+      if (code) {
+        return await checkPaymentStatus(code);
+      }
+      const cookieVoucher = await getCookieVoucher();
+      setCode(cookieVoucher ?? '');
+      if (cookieVoucher) {
+        await checkPaymentStatus(cookieVoucher);
+      }
+    }
+
+    void checkReferrer()
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        void getPreference();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup the event listener on component unmount
     void getPreference();
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [utils.mercadopago.getPrefence, utils.voucher.findByCode])
 
   type FormSchema = z.infer<typeof voucherFormSchema>
@@ -109,7 +130,6 @@ export default function VoucherForm() {
 
   async function onSubmit(data: FormSchema) {
     if (data.adults + data.elderly === 0) {
-      console.log('Erro')
       return toast({
         title: 'Erro',
         description: 'Verifique a quantidade de pessoas',
