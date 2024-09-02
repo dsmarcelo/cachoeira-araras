@@ -144,10 +144,6 @@ export default function VoucherForm() {
     return <VoucherCreatedCard code={code} init_point={init_point} redirectToPayment={redirectToPayment} setCode={setCode} payment_success_url={payment_sucess_url} />
   }
 
-  function refresh() {
-    return;
-  }
-
   return (
     <div className="mx-auto w-full bg-dark-blue">
       <div className="border-none bg-dark-blue text-primary-50 p-4">
