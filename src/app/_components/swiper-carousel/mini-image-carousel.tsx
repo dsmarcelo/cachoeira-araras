@@ -19,7 +19,7 @@ export function MiniImageCarousel() {
 
   const getImages = () => {
     const cQuantity = 4;
-    const bQuantity = 8;
+    const bQuantity = 9;
     const images = [];
 
     for (let i = 0; i < cQuantity; i++) {
@@ -63,8 +63,8 @@ export function MiniImageCarousel() {
               </CarouselItem>
             ))}
           </CarouselContent>
-          <CarouselPrevious variant={'ghost'} />
-          <CarouselNext variant={'ghost'} />
+          <CarouselPrevious variant={'ghost'} className='invisible sm:visible' />
+          <CarouselNext variant={'ghost'} className='invisible sm:visible' />
         </Carousel>
       </div>
     </motion.div>

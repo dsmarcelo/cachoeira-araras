@@ -4,7 +4,7 @@ import ImageGallery from '../../_components/galery';
 export default function page() {
   const getImages = () => {
     const cachoeiraQuantity = 4;
-    const barQuantity = 8;
+    const barQuantity = 9;
 
     type ImageGalleryProps = {
       cachoeira: string[];
