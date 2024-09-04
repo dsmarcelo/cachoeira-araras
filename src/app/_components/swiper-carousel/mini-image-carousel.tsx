@@ -14,7 +14,7 @@ import { motion } from "framer-motion"
 
 export function MiniImageCarousel() {
   const autoplay = React.useRef(
-    Autoplay({ delay: 3000, stopOnMouseEnter: true }),
+    Autoplay({ delay: 3000, stopOnInteraction: true }),
   )
 
   const getImages = () => {
@@ -53,19 +53,18 @@ export function MiniImageCarousel() {
                     src={image}
                     alt="Imagem"
                     fill
-                    className="object-cover rounded-xl"
-                    quality={85}
+                    unoptimized
+                    className="transition object-cover rounded-xl hover:scale-[98%]"
+                    quality={70}
                     priority
-                    sizes="(max-width: 640px) 90vw, 33vw"
+                    sizes="(max-width: 640px) 90vw, (max-width: 740px) 50vw 33vw"
                   />
                 </div>
               </CarouselItem>
             ))}
           </CarouselContent>
-          {/* <div className="w-full p-4 hidden md:flex justify-between"> */}
-          <CarouselPrevious variant={'default'} />
-          <CarouselNext variant={'default'} />
-          {/* </div> */}
+          <CarouselPrevious variant={'ghost'} />
+          <CarouselNext variant={'ghost'} />
         </Carousel>
       </div>
     </motion.div>

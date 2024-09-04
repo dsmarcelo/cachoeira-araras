@@ -76,10 +76,10 @@ importers:
         version: 2.1.1
       embla-carousel-autoplay:
         specifier: ^8.1.7
-        version: 8.1.8(embla-carousel@8.1.8)
+        version: 8.1.8(embla-carousel@8.2.1)
       embla-carousel-fade:
         specifier: ^8.1.7
-        version: 8.1.8(embla-carousel@8.1.8)
+        version: 8.1.8(embla-carousel@8.2.1)
       embla-carousel-react:
         specifier: ^8.1.8
         version: 8.1.8(react@18.3.1)
@@ -162,6 +162,9 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^7.1.1
         version: 7.18.0(eslint@8.57.0)(typescript@5.5.4)
+      embla-carousel:
+        specifier: ^8.2.1
+        version: 8.2.1
       eslint:
         specifier: ^8.57.0
         version: 8.57.0
@@ -2091,6 +2094,9 @@ packages:
 
   embla-carousel@8.1.8:
     resolution: {integrity: sha512-KuHPA8qcAts6YE6ELtt38XYAb26hnKw8Ga0lSXmrhm1oI97t6oACFkqSsy33dfeZQEhaZB6VwWvaWQJRJVgSgA==}
+
+  embla-carousel@8.2.1:
+    resolution: {integrity: sha512-9mTDtyMZJhFuuW5pixhTT4iLiJB1l3dH3IpXUKCsgLlRlHCiySf/wLKy5xIAzmxIsokcQ50xea8wi7BCt0+Rxg==}
 
   emoji-regex@10.3.0:
     resolution: {integrity: sha512-QpLs9D9v9kArv4lfDEgg1X/gN5XLnf/A6l9cs8SPZLRZR3ZkY9+kwIQTxm+fsSej5UMYGE8fdoaZVIBlqG0XTw==}
@@ -5726,13 +5732,13 @@ snapshots:
 
   electron-to-chromium@1.5.4: {}
 
-  embla-carousel-autoplay@8.1.8(embla-carousel@8.1.8):
+  embla-carousel-autoplay@8.1.8(embla-carousel@8.2.1):
     dependencies:
-      embla-carousel: 8.1.8
+      embla-carousel: 8.2.1
 
-  embla-carousel-fade@8.1.8(embla-carousel@8.1.8):
+  embla-carousel-fade@8.1.8(embla-carousel@8.2.1):
     dependencies:
-      embla-carousel: 8.1.8
+      embla-carousel: 8.2.1
 
   embla-carousel-react@8.1.8(react@18.3.1):
     dependencies:
@@ -5745,6 +5751,8 @@ snapshots:
       embla-carousel: 8.1.8
 
   embla-carousel@8.1.8: {}
+
+  embla-carousel@8.2.1: {}
 
   emoji-regex@10.3.0: {}
 

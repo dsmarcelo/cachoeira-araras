@@ -20,7 +20,7 @@ export default async function Home() {
           <MiniImageCarousel />
           <Link href="/galeria" className="h-16 w-full max-w-[500px] flex justify-center items-center rounded-xl font-medium bg-primary-500 text-bg-blue hover:bg-primary-600">
             <RiGalleryView2 className="mr-2 h-5 w-5" />
-            <h4 className="text-xl">Veja mais fotos</h4>
+            <h4 className="text-xl -translate-y-px">Galeria</h4>
           </Link>
         </section>
         <div className="w-full grid md:grid-cols-2 text-center md:text-right items-center gap-4 md:gap-8">

@@ -4,7 +4,7 @@ import * as React from "react"
 import useEmblaCarousel, {
   type UseEmblaCarouselType,
 } from "embla-carousel-react"
-import { ArrowLeft, ArrowRight } from "lucide-react"
+import { ArrowLeft, ArrowRight, ChevronRight } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -176,25 +176,7 @@ const CarouselItem = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => {
-  const { orientation, api, scrollNext, scrollPrev } = useCarousel();
-
-  const handleClick = () => {
-    if (!api || !ref || !(ref as React.RefObject<HTMLDivElement>).current) {
-      return;
-    }
-
-    const currentIndex = api.selectedScrollSnap();
-    const nodeIndex = Array.from(api.slideNodes()).indexOf(
-      (ref as React.RefObject<HTMLDivElement>).current!
-    );
-    console.log('🚀 ~ handleClick ~ nodeIndex:', nodeIndex);
-
-    if (nodeIndex < currentIndex) {
-      scrollPrev();
-    } else if (nodeIndex > currentIndex) {
-      scrollNext();
-    }
-  };
+  const { orientation } = useCarousel()
 
   return (
     <div
@@ -202,16 +184,15 @@ const CarouselItem = React.forwardRef<
       role="group"
       aria-roledescription="slide"
       className={cn(
-        "min-w-0 shrink-0 grow-0 basis-full cursor-pointer", // Adiciona cursor-pointer para indicar que é clicável
+        "min-w-0 shrink-0 grow-0 basis-full",
         orientation === "horizontal" ? "pl-4" : "pt-4",
         className
       )}
-      onClick={handleClick} // Adiciona o evento de clique
       {...props}
     />
-  );
-});
-CarouselItem.displayName = "CarouselItem";
+  )
+})
+CarouselItem.displayName = "CarouselItem"
 
 const CarouselPrevious = React.forwardRef<
   HTMLButtonElement,
@@ -225,9 +206,9 @@ const CarouselPrevious = React.forwardRef<
       variant={variant}
       size={size}
       className={cn(
-        "absolute h-24 w-24 rounded-full bg-white/20 hover:bg-white/80",
+        "absolute h-[110%] w-32 rounded-none border-none bg-opacity-0 hover:bg-opacity-0 hover:text-white",
         orientation === "horizontal"
-          ? "left-2 top-1/2 -translate-y-1/2"
+          ? "left-0 top-1/2 -translate-y-1/2"
           : "-top-12 left-1/2 -translate-x-1/2 rotate-90",
         className
       )}
@@ -235,8 +216,9 @@ const CarouselPrevious = React.forwardRef<
       onClick={scrollPrev}
       {...props}
     >
-      <ArrowLeft className="h-4 w-4" />
+      <ChevronRight className="z-10 h-8 w-8 rotate-180" />
       <span className="sr-only">Previous slide</span>
+      <div className="absolute inset-0 bg-gradient-to-l from-transparent to-black/60 hidden sm:block"></div>
     </Button>
   )
 })
@@ -254,9 +236,9 @@ const CarouselNext = React.forwardRef<
       variant={variant}
       size={size}
       className={cn(
-        "absolute h-24 w-24 rounded-full bg-white/20 hover:bg-white/80",
+        "absolute h-[110%] w-32 rounded-none border-none bg-opacity-0 hover:bg-opacity-0 hover:text-white",
         orientation === "horizontal"
-          ? "right-10 top-1/2 -translate-y-1/2"
+          ? "right-0 top-1/2 -translate-y-1/2"
           : "-bottom-12 left-1/2 -translate-x-1/2 rotate-90",
         className
       )}
@@ -264,8 +246,9 @@ const CarouselNext = React.forwardRef<
       onClick={scrollNext}
       {...props}
     >
-      <ArrowRight className="h-4 w-4" />
+      <ChevronRight className="z-10 h-8 w-8" />
       <span className="sr-only">Next slide</span>
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/60 hidden sm:block"></div>
     </Button>
   )
 })
