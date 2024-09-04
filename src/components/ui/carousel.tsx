@@ -4,7 +4,7 @@ import * as React from "react"
 import useEmblaCarousel, {
   type UseEmblaCarouselType,
 } from "embla-carousel-react"
-import { ArrowLeft, ArrowRight } from "lucide-react"
+import { ArrowLeft, ArrowRight, ChevronRight } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -206,9 +206,9 @@ const CarouselPrevious = React.forwardRef<
       variant={variant}
       size={size}
       className={cn(
-        "absolute  h-8 w-8 rounded-full",
+        "absolute h-[110%] w-32 rounded-none border-none bg-opacity-0 hover:bg-opacity-0 hover:text-white",
         orientation === "horizontal"
-          ? "-left-12 top-1/2 -translate-y-1/2"
+          ? "left-0 top-1/2 -translate-y-1/2"
           : "-top-12 left-1/2 -translate-x-1/2 rotate-90",
         className
       )}
@@ -216,8 +216,9 @@ const CarouselPrevious = React.forwardRef<
       onClick={scrollPrev}
       {...props}
     >
-      <ArrowLeft className="h-4 w-4" />
+      <ChevronRight className="z-10 h-8 w-8 rotate-180" />
       <span className="sr-only">Previous slide</span>
+      <div className="absolute inset-0 bg-gradient-to-l from-transparent to-black/60 hidden sm:block"></div>
     </Button>
   )
 })
@@ -235,9 +236,9 @@ const CarouselNext = React.forwardRef<
       variant={variant}
       size={size}
       className={cn(
-        "absolute h-8 w-8 rounded-full",
+        "absolute h-[110%] w-32 rounded-none border-none bg-opacity-0 hover:bg-opacity-0 hover:text-white",
         orientation === "horizontal"
-          ? "-right-12 top-1/2 -translate-y-1/2"
+          ? "right-0 top-1/2 -translate-y-1/2"
           : "-bottom-12 left-1/2 -translate-x-1/2 rotate-90",
         className
       )}
@@ -245,8 +246,9 @@ const CarouselNext = React.forwardRef<
       onClick={scrollNext}
       {...props}
     >
-      <ArrowRight className="h-4 w-4" />
+      <ChevronRight className="z-10 h-8 w-8" />
       <span className="sr-only">Next slide</span>
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/60 hidden sm:block"></div>
     </Button>
   )
 })

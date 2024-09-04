@@ -7,7 +7,7 @@ import { Controller, useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { calculatePrice, formatVoucher, randomCode } from '@/lib/utils/utils'
+import { formatVoucher, randomCode } from '@/lib/utils/utils'
 import { useRouter } from 'next/navigation';
 import { voucherFormSchema } from "@/lib/voucher/types";
 import { formatPaymentUrl, formatPhone } from "@/lib/utils";
@@ -61,8 +61,6 @@ export default function TestVoucherForm() {
       elderly: 0,
     },
   });
-
-  const formValues = watch();
 
   function normalizePhone(value: string) {
     return value.replace(/\D/g, '');
