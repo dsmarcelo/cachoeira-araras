@@ -176,7 +176,25 @@ const CarouselItem = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => {
-  const { orientation } = useCarousel()
+  const { orientation, api, scrollNext, scrollPrev } = useCarousel();
+
+  const handleClick = () => {
+    if (!api || !ref || !(ref as React.RefObject<HTMLDivElement>).current) {
+      return;
+    }
+
+    const currentIndex = api.selectedScrollSnap();
+    const nodeIndex = Array.from(api.slideNodes()).indexOf(
+      (ref as React.RefObject<HTMLDivElement>).current!
+    );
+    console.log('🚀 ~ handleClick ~ nodeIndex:', nodeIndex);
+
+    if (nodeIndex < currentIndex) {
+      scrollPrev();
+    } else if (nodeIndex > currentIndex) {
+      scrollNext();
+    }
+  };
 
   return (
     <div
@@ -184,15 +202,16 @@ const CarouselItem = React.forwardRef<
       role="group"
       aria-roledescription="slide"
       className={cn(
-        "min-w-0 shrink-0 grow-0 basis-full",
+        "min-w-0 shrink-0 grow-0 basis-full cursor-pointer", // Adiciona cursor-pointer para indicar que é clicável
         orientation === "horizontal" ? "pl-4" : "pt-4",
         className
       )}
+      onClick={handleClick} // Adiciona o evento de clique
       {...props}
     />
-  )
-})
-CarouselItem.displayName = "CarouselItem"
+  );
+});
+CarouselItem.displayName = "CarouselItem";
 
 const CarouselPrevious = React.forwardRef<
   HTMLButtonElement,
@@ -206,9 +225,9 @@ const CarouselPrevious = React.forwardRef<
       variant={variant}
       size={size}
       className={cn(
-        "h-8 w-8 rounded-full bg-primary-500 text-black hover:bg-primary-400",
+        "absolute h-24 w-24 rounded-full bg-white/20 hover:bg-white/80",
         orientation === "horizontal"
-          ? "left-12 -bottom-12"
+          ? "left-2 top-1/2 -translate-y-1/2"
           : "-top-12 left-1/2 -translate-x-1/2 rotate-90",
         className
       )}
@@ -235,9 +254,9 @@ const CarouselNext = React.forwardRef<
       variant={variant}
       size={size}
       className={cn(
-        "h-8 w-8 rounded-full bg-primary-500 text-black hover:bg-primary-400",
+        "absolute h-24 w-24 rounded-full bg-white/20 hover:bg-white/80",
         orientation === "horizontal"
-          ? "right-12 -bottom-12"
+          ? "right-10 top-1/2 -translate-y-1/2"
           : "-bottom-12 left-1/2 -translate-x-1/2 rotate-90",
         className
       )}

@@ -121,6 +121,7 @@ const config = {
         "accordion-up": "accordion-up 0.2s ease-out",
       },
       screens: {
+        xs: { raw: "(min-width: 480px)" },
         "max-md": { raw: "(max-width: 768px)" },
         "max-sm": { raw: "(max-width: 640px)" },
         tall: { raw: "(min-height: 800px)" },

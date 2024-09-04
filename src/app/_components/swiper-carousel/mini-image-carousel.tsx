@@ -47,7 +47,7 @@ export function MiniImageCarousel() {
         >
           <CarouselContent className="rounded-xl">
             {getImages().map((image, index) => (
-              <CarouselItem key={index} className="w-full max-h-[80vh] aspect-square md:basis-1/2 lg:basis-1/3">
+              <CarouselItem key={index} className="w-full max-h-[80vh] aspect-square sm:basis-1/2 lg:basis-1/3">
                 <div className="w-full h-full relative">
                   <Image
                     src={image}
@@ -56,16 +56,16 @@ export function MiniImageCarousel() {
                     className="object-cover rounded-xl"
                     quality={85}
                     priority
-                    sizes="(max-width: 768px) 100vw, 75vw"
+                    sizes="(max-width: 640px) 90vw, 33vw"
                   />
                 </div>
               </CarouselItem>
             ))}
           </CarouselContent>
-          <div className="w-full p-4 hidden md:flex justify-between">
-            <CarouselPrevious variant={'default'} />
-            <CarouselNext variant={'default'} />
-          </div>
+          {/* <div className="w-full p-4 hidden md:flex justify-between"> */}
+          <CarouselPrevious variant={'default'} />
+          <CarouselNext variant={'default'} />
+          {/* </div> */}
         </Carousel>
       </div>
     </motion.div>
