@@ -19,6 +19,7 @@
     "@auth/prisma-adapter": "^1.6.0",
     "@hookform/resolvers": "^3.9.0",
     "@mercadopago/sdk-react": "^0.0.19",
+    "@next/third-parties": "^14.2.5",
     "@prisma/client": "^5.14.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-dialog": "^1.1.1",
