@@ -9,6 +9,7 @@ import {
   CarouselItem,
 } from "@/components/ui/carousel"
 import Image from "next/image"
+import { motion } from "framer-motion"
 
 export function ImageCarousel() {
   const autoplay = React.useRef(
@@ -27,29 +28,39 @@ export function ImageCarousel() {
   }
 
   return (
-    <Carousel
-      plugins={[autoplay.current, fade.current]}
-      opts={{
-        loop: true,
-      }}
-      className="w-full aspect-[2/1] max-w-5xl mx-auto lg:rounded-2xl lg:mt-8 overflow-hidden"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="w-full max-w-5xl mx-auto lg:rounded-2xl overflow-hidden"
     >
-      <CarouselContent>
-        {getImages().map((image, index) => (
-          <CarouselItem key={index}>
-            <div className="w-full my-auto aspect-video object-center relative">
-              <Image
-                src={image}
-                alt="Imagem"
-                fill className="object-cover"
-                quality={100}
-                priority
-                sizes="(max-width: 768px) 100vw, 75vw"
-              />
-            </div>
-          </CarouselItem>
-        ))}
-      </CarouselContent>
-    </Carousel>
+      <div className="w-full max-w-5xl mx-auto lg:rounded-2xl overflow-hidden">
+        <Carousel
+          plugins={[autoplay.current, fade.current]}
+          opts={{
+            loop: true,
+          }}
+        >
+          <CarouselContent>
+            {getImages().map((image, index) => (
+              <CarouselItem key={index} className="w-full aspect-[2/1] md:max-tall:aspect-[3/1]">
+                <div className="w-full h-full relative">
+                  <Image
+                    src={image}
+                    alt="Imagem"
+                    fill
+                    className="object-cover"
+                    quality={85}
+                    priority
+                    sizes="(max-width: 768px) 100vw, 75vw"
+                  />
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-bg-blue via-transparent via-15% to-transparent lg:hidden"></div>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+        </Carousel>
+      </div>
+    </motion.div>
   )
 }

@@ -15,23 +15,25 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
-export default function DeleteVoucherCookieBtn() {
+export default function DeleteVoucherCookieBtn(
+  { label = "Comprar outro voucher", refresh = false, message = "Seu voucher continuara a funcionar, mas não será mais exibido no seu navegador. Tenha certeza que guardou o codigo do voucher antes de continuar." }
+    : { label?: string, refresh?: boolean, message?: string }) {
   const router = useRouter()
   async function resetCookieVoucher() {
     await deleteCookieVoucher()
-    return router.push('/')
+    refresh ? location.reload() : router.push('/')
   }
 
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant={"ghost"} className='w-full text-light rounded-full py-0 h-8'>Comprar outro voucher</Button>
+        <Button variant={"ghost"} className='w-full text-light rounded-full py-0 h-8'>{label}</Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Deseja deletar este voucher do seu navegador e comprar outro?</AlertDialogTitle>
           <AlertDialogDescription>
-            Seu voucher continuara a funcionar, mas não será mais exibido no seu navegador.
+            {message}
             <p className='font-bold'>Tenha certeza que guardou o codigo do voucher antes de continuar.</p>
           </AlertDialogDescription>
         </AlertDialogHeader>
