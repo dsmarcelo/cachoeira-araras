@@ -1,41 +1,67 @@
+export const dynamic = "force-dynamic";
 import { PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 const prisma = new PrismaClient();
 
-export async function GET(req: Request) {
-  if (
-    req.headers.get("Authorization") !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
-    return NextResponse.json(
-      { ok: false, message: "Unauthorized" },
-      { status: 401 },
-    );
-  }
-  const now = new Date();
-
+async function updateExpiredVouchers() {
+  const now = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
+  );
   try {
-    // Find all vouchers that have expired
-    const expiredVouchers = await prisma.voucher.findMany({
+    // Update all expired vouchers in a single query
+    await prisma.voucher.updateMany({
       where: {
         expires_at: {
           lte: now,
         },
         valid: true,
+        status: "valid",
+        deletedAt: null,
+      },
+      data: {
+        valid: false,
+        status: "expired",
       },
     });
-
-    // Update each expired voucher
-    for (const voucher of expiredVouchers) {
-      await prisma.voucher.update({
-        where: { id: voucher.id },
-        data: {
-          valid: false,
-          status: "expired",
-        },
-      });
-    }
   } catch (error) {
     console.error("Error updating expired vouchers:", error);
   }
+}
+
+async function deleteExpiredPendingVouchers() {
+  const now = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
+  );
+  try {
+    // Find all vouchers that have expired
+    await prisma.voucher.updateMany({
+      where: {
+        expires_at: {
+          lte: now,
+        },
+        valid: false,
+        status: "pending",
+      },
+      data: {
+        deletedAt: now,
+      },
+    });
+  } catch (error) {
+    console.error("Error deleting expired vouchers:", error);
+  }
+}
+
+export async function GET(request: Request) {
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new Response("Unauthorized", {
+      status: 401,
+    });
+  }
+  console.log("Running cron job");
+
+  await updateExpiredVouchers();
+  await deleteExpiredPendingVouchers();
+  return NextResponse.json({ success: true });
 }

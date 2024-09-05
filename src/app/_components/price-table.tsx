@@ -2,9 +2,9 @@ import React from 'react'
 
 export default function PriceTable() {
   return (
-    <div className='w-full flex flex-col items-center bg-secondary justify-center'>
-      <h3 className='font-semibold py-2 uppercase text-primary-100'>Tabela de preços</h3>
-      <div className='w-full px-4 flex flex-col gap-2 font-semibold py-2 bg-dark-blue text-primary-50'>
+    <div className='w-full flex flex-col items-center justify-center'>
+      <h3 className='font-bold text-xl py-2 h-12 text-primary-100'>Adquira já seu voucher</h3>
+      <div className='w-full px-4 flex flex-col gap-2 font-semibold py-2 bg-secondary text-primary-50'>
         <div className='w-full flex justify-between'>
           <div className='flex gap-2'>
             <p>Adulto</p>
@@ -24,7 +24,6 @@ export default function PriceTable() {
           Grátis
         </div>
       </div>
-      <h3 className='font-medium py-2 uppercase text-primary-100'>Entrada permitida entre 07h e 17h</h3>
     </div>
   )
 }
