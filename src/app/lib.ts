@@ -2,6 +2,9 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { api } from "@/trpc/server";
+import { type VoucherSchema } from "@/lib/voucher/types";
+import { formateDateDayMonthYear, formatPhone, formatToBRL } from "@/lib/utils";
+import { formatVoucherUrl } from "@/lib/utils/utils";
 
 export async function isLoggedIn(): Promise<boolean> {
   const session = cookies().get("session")?.value;
@@ -117,4 +120,55 @@ export async function createReferrer(voucherCode: string, referrerURL: string) {
   });
 
   return referrerResponse;
+}
+
+export async function sendWhatsappMessage(voucher: VoucherSchema) {
+  console.log("🚀 ~ sendWhatsappMessage ~ sendWhatsappMessage:");
+  const maxRetries = 3;
+  const retryDelay = 10000;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const body = `Olá 👋, obrigado por comprar seu voucher 🎫 na Cachoeira das Araras!
+
+Aqui estão algumas informações sobre o seu voucher:
+
+      Código: *${voucher.code}*
+      Nome: ${voucher.name}
+      Telefone: ${formatPhone(voucher.phone)}
+      Validade: ${voucher.expires_at ? formateDateDayMonthYear(voucher.expires_at) : "-"}
+      Entradas: ${voucher.adults} inteiras e ${voucher.elderly} meias
+      Valor: ${formatToBRL(voucher.price)}
+
+      ${voucher.payment_id ? `🌐 ${formatVoucherUrl(voucher.code, voucher.payment_id)}` : "-"}
+
+Entrada permitida entre 07h e 17h.
+
+Aproveite esse paraíso natural!`;
+
+      const res = await api.notification.sendWhatsAppMessage({
+        body,
+        phone: voucher.phone,
+      });
+
+      if (!res) {
+        throw new Error("Erro ao enviar mensagem WhatsApp");
+      }
+
+      return res;
+    } catch (error) {
+      console.error(
+        `Erro ao enviar mensagem WhatsApp (tentativa ${attempt}):`,
+        error,
+      );
+
+      if (attempt < maxRetries) {
+        console.log(`Tentando novamente em ${retryDelay / 1000} segundos...`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+      } else {
+        console.error("Falha ao enviar mensagem após várias tentativas.");
+        throw error;
+      }
+    }
+  }
 }

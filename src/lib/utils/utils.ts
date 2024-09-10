@@ -36,3 +36,7 @@ export function formatVoucher(data: initialVoucherSchema): VoucherSchema {
   };
   return completeData;
 }
+
+export function formatVoucherUrl(code: string, payment_id: string) {
+  return `${process.env.NEXT_PUBLIC_VERCEL_URL}/voucher?code=${code}&pid=${payment_id}`;
+}
