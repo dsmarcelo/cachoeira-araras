@@ -118,3 +118,8 @@ export async function createReferrer(voucherCode: string, referrerURL: string) {
 
   return referrerResponse;
 }
+
+export function createVoucherUrl(code: string, payment_id: string) {
+  const url = `/api/voucher?code=${code}&pid=${payment_id}`;
+  return url;
+}
