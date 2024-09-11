@@ -69,8 +69,8 @@ model Voucher {
   preference_id String    @unique
   payment_id    String?   @unique
   expires_at    DateTime?
-  Referrer Referrer?
-  
+  Referrer      Referrer?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
