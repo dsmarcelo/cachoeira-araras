@@ -61,7 +61,7 @@ async function validadeVoucherPayment(payment_id: string) {
         expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
       },
     });
-    await sendWhatsappMessage(voucher);
+    // await sendWhatsappMessage(voucher); // TODO: finish twilio account creation
     return new Response(JSON.stringify({ voucher }), {
       status: 200,
     });
