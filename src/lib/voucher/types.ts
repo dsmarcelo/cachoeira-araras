@@ -50,6 +50,9 @@ export const voucherFormSchema = z
       .gte(0, "Quantidade inválida")
       .lte(20, "No maximo 20 pessoas")
       .int(),
+    intendedDate: z
+      .date({ required_error: "Campo obrigatório" })
+      .min(new Date(), "Data inválida"),
   })
   .refine(
     (data) => {
