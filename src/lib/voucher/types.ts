@@ -52,7 +52,8 @@ export const voucherFormSchema = z
       .int(),
     intendedDate: z
       .date({ required_error: "Campo obrigatório" })
-      .min(new Date(Date.now() - 1000 * 60 * 60 * 24), "Data inválida"),
+      .min(new Date(Date.now() - 1000 * 60 * 60 * 24), "Data inválida")
+      .max(new Date(Date.now() + 1000 * 60 * 60 * 24 * 15), "Data inválida"),
   })
   .refine(
     (data) => {

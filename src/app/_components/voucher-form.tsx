@@ -168,9 +168,6 @@ export default function VoucherForm() {
     return <VoucherCreatedCard code={code} init_point={init_point} redirectToPayment={redirectToPayment} setCode={setCode} payment_success_url={payment_sucess_url} />
   }
 
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-
   return (
     <div className="mx-auto w-full bg-dark-blue">
       <div className="border-none bg-dark-blue text-primary-50 p-4">
@@ -268,7 +265,16 @@ export default function VoucherForm() {
                         mode="single"
                         selected={field.value}
                         onSelect={field.onChange}
-                        disabled={(date) => date < yesterday}
+                        disabled={(date) => {
+                          const today = new Date();
+                          const yesterday = new Date(today);
+                          yesterday.setDate(today.getDate() - 1);
+
+                          const maxDate = new Date(today);
+                          maxDate.setDate(today.getDate() + 15);
+
+                          return date < yesterday || date > maxDate;
+                        }}
                         initialFocus
                       />
                     </PopoverContent>
