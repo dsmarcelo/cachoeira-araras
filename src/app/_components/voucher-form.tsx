@@ -14,7 +14,7 @@ import { cn, formatPaymentUrl, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast"
 import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher, createReferrer } from "../lib";
 import VoucherCreatedCard from "./voucher-created-card";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, ChevronRight, Loader2 } from "lucide-react";
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -288,7 +288,15 @@ export default function VoucherForm() {
           <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
 
           <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-positive-green/80">
-            {isLoading ? <div className="flex flex-row justify-center"><Loader2 className="animate-spin mr-2" /><p>Carregando...</p></div> : 'Compre seu voucher agora!'}
+            {isLoading ?
+              <div className="flex flex-row justify-center items-center">
+                <Loader2 className="animate-spin mr-2" />
+                <p>Carregando...</p>
+              </div>
+              : <p>Continuar
+                <ChevronRight className="inline-block -translate-y-[1px] w-6 h-6" />
+              </p>
+            }
           </Button>
         </form>
         {addVoucher.isError && <div className='flex flex-col justify-center my-4 space-y-2 text-red-500 text-lg font-medium'>
