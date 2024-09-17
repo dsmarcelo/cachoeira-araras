@@ -19,6 +19,7 @@ import { format } from "date-fns"
 import { ptBR } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { formatMercadoPagoDescription } from "@/lib/voucher";
 
 export default function VoucherForm() {
   const router = useRouter();
@@ -115,12 +116,12 @@ export default function VoucherForm() {
       code,
       title: `Voucher ${code}`,
       id: code,
-      description: `Voucher para ${data.adults} adultos e ${data.elderly} com mais de 60 anos ou especiais, ${data.phone}`,
+      description: formatMercadoPagoDescription({ ...data, code }),
       adults: data.adults,
       elderly: data.elderly,
       unit_price: calculatePrice(data.adults, data.elderly),
-      name: data.name,
-      surname: data.name,
+      name: data.name.trim().split(' ')[0] ?? '',
+      surname: data.name.trim().split(' ').slice(1).join(' ') ?? '',
       phone: data.phone,
     });
 
