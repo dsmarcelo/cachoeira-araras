@@ -247,7 +247,7 @@ export default function VoucherForm() {
                       <Button
                         variant={"outline"}
                         className={cn(
-                          "w-full justify-start text-left font-normal bg-primary-50 text-dark",
+                          "w-full h-12 justify-start text-left font-normal bg-primary-50 text-dark rounded-xl",
                           !field.value && "text-muted-foreground"
                         )}
                       >
@@ -287,15 +287,16 @@ export default function VoucherForm() {
 
           <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
 
-          <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-positive-green/80">
+          <Button disabled={isSubmitting} type="submit" className="w-full h-16 px-6 text-xl rounded-xl bg-positive-green hover:bg-positive-green/80">
             {isLoading ?
               <div className="flex flex-row justify-center items-center">
                 <Loader2 className="animate-spin mr-2" />
                 <p>Carregando...</p>
               </div>
-              : <p>Continuar
-                <ChevronRight className="inline-block -translate-y-[1px] w-6 h-6" />
-              </p>
+              : <div className="w-full flex flex-row justify-between items-center">
+                <p>Continuar</p>
+                <ChevronRight className="w-6 h-6" />
+              </div>
             }
           </Button>
         </form>
