@@ -5,12 +5,15 @@ import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTyp
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
 const token = process.env.MERCADOPAGO_TOKEN;
 let url = "";
-if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+
+if (process.env.URL) {
+  url = process.env.URL;
+} else if (process.env.NEXT_PUBLIC_VERCEL_URL) {
   url = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
 } else if (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
   url = `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}`;
 } else {
-  url = process.env.URL ? process.env.URL : "http://localhost:3000";
+  url = "http://localhost:3000";
 }
 const webhookUrl = process.env.WEBHOOK_URL;
 
