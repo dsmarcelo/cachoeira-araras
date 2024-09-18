@@ -2,6 +2,7 @@ import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
 import { voucherRouter } from "./routers/voucher";
 import { mercadopagoRouter } from "./routers/mercadopago";
 import { referrerRouter } from "./routers/referrer";
+import { notificationRouter } from "./routers/notification";
 
 /**
  * This is the primary router for your server.
@@ -11,6 +12,7 @@ import { referrerRouter } from "./routers/referrer";
 export const appRouter = createTRPCRouter({
   voucher: voucherRouter,
   mercadopago: mercadopagoRouter,
+  notification: notificationRouter,
   referrer: referrerRouter,
 });
 

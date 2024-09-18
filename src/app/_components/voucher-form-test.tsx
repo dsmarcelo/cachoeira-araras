@@ -52,7 +52,7 @@ export default function TestVoucherForm() {
   const addVoucher = api.voucher.create.useMutation();
   const mercadopago = api.mercadopago.create.useMutation();
 
-  const { register, handleSubmit, control, formState: { errors, isSubmitting }, watch } = useForm<FormSchema>({
+  const { register, handleSubmit, control, formState: { errors, isSubmitting } } = useForm<FormSchema>({
     resolver: zodResolver(voucherFormSchema),
     defaultValues: {
       name: '',

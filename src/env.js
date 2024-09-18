@@ -26,6 +26,8 @@ export const env = createEnv({
     MERCADOPAGO_TOKEN: z.string(),
     WEBHOOK_URL: z.string(),
     CRON_SECRET: z.string(),
+    TWILIO_ACCOUNT_SID: z.string(),
+    TWILIO_AUTH_TOKEN: z.string(),
   },
 
   /**
@@ -50,6 +52,8 @@ export const env = createEnv({
     MERCADOPAGO_TOKEN: process.env.MERCADOPAGO_TOKEN,
     WEBHOOK_URL: process.env.WEBHOOK_URL,
     CRON_SECRET: process.env.CRON_SECRET,
+    TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+    TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

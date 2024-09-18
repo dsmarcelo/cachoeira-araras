@@ -76,3 +76,16 @@ export function formatQuantity({ adults, elderly }: { adults: number; elderly: n
     return 'Nenhuma entrada';
   }
 }
+
+export function formatMercadoPagoDescription({ adults, elderly, phone, code }: { adults: number; elderly: number; phone: string; code: string; }): string {
+
+  if (adults > 0 && elderly > 0) {
+    return `Voucher com código ${code}, ${adults} entrada(s) inteiras e ${elderly} entrada(s) meias. Telefone: ${phone}`;
+  } else if (adults > 0) {
+    return `Voucher com código ${code}, ${adults} entrada(s) inteiras. Telefone: ${phone}`;
+  } else if (elderly > 0) {
+    return `Voucher com código ${code}, ${elderly} entrada(s) meias. Telefone: ${phone}`;
+  } else {
+    return `Voucher com código ${code}, Telefone: ${phone}`;
+  }
+}

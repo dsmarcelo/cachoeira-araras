@@ -50,7 +50,6 @@ export function ImageCarousel() {
                     alt="Imagem"
                     fill
                     className="object-cover"
-                    quality={85}
                     priority
                     sizes="(max-width: 768px) 100vw, 75vw"
                   />

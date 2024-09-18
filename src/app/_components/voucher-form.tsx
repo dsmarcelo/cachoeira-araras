@@ -10,11 +10,16 @@ import { Label } from "@/components/ui/label"
 import { calculatePrice, formatVoucher, randomCode } from '@/lib/utils/utils'
 import { useRouter } from 'next/navigation';
 import { voucherFormSchema } from "@/lib/voucher/types";
-import { formatPaymentUrl, formatPhone } from "@/lib/utils";
+import { cn, formatPaymentUrl, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast"
 import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher, createReferrer } from "../lib";
 import VoucherCreatedCard from "./voucher-created-card";
-import { Loader2 } from "lucide-react";
+import { CalendarIcon, ChevronRight, Loader2 } from "lucide-react";
+import { format } from "date-fns"
+import { ptBR } from "date-fns/locale";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { formatMercadoPagoDescription } from "@/lib/voucher";
 
 export default function VoucherForm() {
   const router = useRouter();
@@ -111,12 +116,12 @@ export default function VoucherForm() {
       code,
       title: `Voucher ${code}`,
       id: code,
-      description: `Voucher para ${data.adults} adultos e ${data.elderly} com mais de 60 anos ou especiais, ${data.phone}`,
+      description: formatMercadoPagoDescription({ ...data, code }),
       adults: data.adults,
       elderly: data.elderly,
       unit_price: calculatePrice(data.adults, data.elderly),
-      name: data.name,
-      surname: data.name,
+      name: data.name.trim().split(' ')[0] ?? '',
+      surname: data.name.trim().split(' ').slice(1).join(' ') ?? '',
       phone: data.phone,
     });
 
@@ -227,9 +232,73 @@ export default function VoucherForm() {
             />
             {errors.adults && <p className='text-red-400 text-base font-medium'>{errors.elderly?.message}</p>}
           </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="date" className="flex items-center gap-2">
+              <CalendarIcon className="text-primary-50 h-4 w-4" />
+              Selecione a data que pretende ir
+            </Label>
+            <Popover>
+              <Controller
+                name="intendedDate"
+                control={control}
+                render={({ field }) => (
+                  <div>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full h-12 justify-start text-left font-normal bg-primary-50 text-dark rounded-xl",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        {field.value ? (
+                          format(field.value, "PPP", { locale: ptBR })
+                        ) : (
+                          <span className="text-dark">Selecione uma data</span>
+                        )}
+                        <CalendarIcon className="ml-auto text-dark h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 rounded-2xl shadow-xk" align="center">
+                      <Calendar
+                        className=""
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) => {
+                          const today = new Date();
+                          const yesterday = new Date(today);
+                          yesterday.setDate(today.getDate() - 1);
+
+                          const maxDate = new Date(today);
+                          maxDate.setDate(today.getDate() + 15);
+
+                          return date < yesterday || date > maxDate;
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </div>
+                )}
+              />
+            </Popover>
+            {errors.intendedDate && <p className='text-red-400 text-base font-medium'>{errors.intendedDate?.message}</p>}
+          </div>
+
           <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
-          <Button disabled={isSubmitting} type="submit" className="w-full h-16 text-xl rounded-xl bg-positive-green hover:bg-positive-green/80">
-            {isLoading ? <div className="flex flex-row justify-center"><Loader2 className="animate-spin mr-2" /><p>Carregando...</p></div> : 'Compre seu voucher agora!'}
+
+          <Button disabled={isSubmitting} type="submit" className="w-full h-16 px-6 text-xl rounded-xl bg-positive-green hover:bg-positive-green/80">
+            {isLoading ?
+              <div className="flex flex-row justify-center items-center">
+                <Loader2 className="animate-spin mr-2" />
+                <p>Carregando...</p>
+              </div>
+              : <div className="w-full flex flex-row justify-between items-center">
+                <p>Continuar</p>
+                <ChevronRight className="w-6 h-6" />
+              </div>
+            }
           </Button>
         </form>
         {addVoucher.isError && <div className='flex flex-col justify-center my-4 space-y-2 text-red-500 text-lg font-medium'>

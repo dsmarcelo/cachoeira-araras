@@ -37,16 +37,21 @@ export default function MoreVoucherFormInfo() {
             }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
           >
-            <div className="px-8 py-4 space-y-8">
-              <ol className="list-disc pl-4 space-y-4">
+            <div className="px-8 pb-6 space-y-6">
+              <ol className="list-disc pl-4 space-y-2">
                 <li>Insira seus dados</li>
-                <li>Clique no botão acima</li>
+                <li>Clique em continuar</li>
                 <li>Anote o código e realize o pagamento</li>
                 <li>Após o pagamento, volte para o site para visualizar seu voucher</li>
                 <li>Envie o voucher para o WhatsApp da cachoeira das araras</li>
                 <li>Depois é só apresentar o código do voucher na portaria para entrar</li>
               </ol>
-              <p className='mx-auto text-center'>Válido por 30 dias após a compra</p></div>
+              <div className='w-full h-[2px] bg-primary-700 rounded-full'></div>
+              <div className='space-y-2'>
+                <p>O voucher só poderá ser utilizado até o dia selecionado. Após essa data, ele não será mais válido.</p>
+                <p>Os vouchers não são reembolsaveis, verifique a data que pretende ir antes de finalizar a compra.</p>
+              </div>
+            </div>
           </motion.section>
         )}
       </AnimatePresence>
