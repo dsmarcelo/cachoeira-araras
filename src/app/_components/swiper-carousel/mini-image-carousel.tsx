@@ -53,9 +53,7 @@ export function MiniImageCarousel() {
                     src={image}
                     alt="Imagem"
                     fill
-                    unoptimized
                     className="transition object-cover rounded-xl hover:scale-[98%]"
-                    quality={70}
                     priority
                     sizes="(max-width: 640px) 90vw, (max-width: 740px) 50vw 33vw"
                   />

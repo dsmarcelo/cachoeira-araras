@@ -32,7 +32,11 @@ export function formatVoucher(data: initialVoucherSchema): VoucherSchema {
     code: data.code,
     preference_id: data.preference_id,
     price: calculatePrice(data.adults, data.elderly),
-    expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+    expires_at: data.intendedDate,
   };
   return completeData;
+}
+
+export function formatVoucherUrl(code: string, payment_id: string) {
+  return `${process.env.NEXT_PUBLIC_VERCEL_URL}/voucher?code=${code}&pid=${payment_id}`;
 }

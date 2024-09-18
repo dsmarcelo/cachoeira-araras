@@ -27,7 +27,7 @@ export default function DeleteVoucherCookieBtn(
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant={"ghost"} className='w-full text-light rounded-full py-0 h-8'>{label}</Button>
+        <Button variant={"ghost"} className='w-fit text-light rounded-full py-0 h-8'>{label}</Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>

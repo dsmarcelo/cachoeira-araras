@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
 import crypto from "crypto";
 import { api } from "@/trpc/server";
+// import { sendWhatsappMessage } from "@/app/lib";
 
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET ?? "your-secret-key";
 
@@ -57,9 +58,9 @@ async function validadeVoucherPayment(payment_id: string) {
         status: "valid",
         valid: true,
         payment_id: payment_id,
-        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
       },
     });
+    // await sendWhatsappMessage(voucher); // TODO: finish twilio account creation
     return new Response(JSON.stringify({ voucher }), {
       status: 200,
     });
