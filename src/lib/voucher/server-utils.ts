@@ -19,7 +19,6 @@ export async function confirmVoucherPayment(
         status: "valid",
         valid: true,
         payment_id,
-        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
       },
     });
     if (!voucher) console.error("Failed to update voucher");

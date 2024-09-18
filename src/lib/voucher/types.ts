@@ -50,6 +50,10 @@ export const voucherFormSchema = z
       .gte(0, "Quantidade inválida")
       .lte(20, "No maximo 20 pessoas")
       .int(),
+    intendedDate: z
+      .date({ required_error: "Campo obrigatório" })
+      .min(new Date(Date.now() - 1000 * 60 * 60 * 24), "Data inválida")
+      .max(new Date(Date.now() + 1000 * 60 * 60 * 24 * 15), "Data inválida"),
   })
   .refine(
     (data) => {
@@ -70,6 +74,7 @@ export const initialVoucherSchema = z.object({
   preference_id: z.string(),
   payment_id: z.string().optional(),
   code: z.string(),
+  intendedDate: z.date(),
 });
 
 export const referrerSchema = z.object({

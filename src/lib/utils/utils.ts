@@ -32,7 +32,7 @@ export function formatVoucher(data: initialVoucherSchema): VoucherSchema {
     code: data.code,
     preference_id: data.preference_id,
     price: calculatePrice(data.adults, data.elderly),
-    expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+    expires_at: data.intendedDate,
   };
   return completeData;
 }

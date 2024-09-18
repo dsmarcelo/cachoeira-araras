@@ -4,7 +4,14 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
 import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
 const token = process.env.MERCADOPAGO_TOKEN;
-const url = process.env.URL;
+let url = "";
+if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+  url = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+} else if (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
+  url = `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}`;
+} else {
+  url = process.env.URL ? process.env.URL : "http://localhost:3000";
+}
 const webhookUrl = process.env.WEBHOOK_URL;
 
 if (!token) {
