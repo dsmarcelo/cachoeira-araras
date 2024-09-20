@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { api } from "@/trpc/server";
 import { type VoucherSchema } from "@/lib/voucher/types";
 import { formateDateDayMonthYear, formatPhone, formatToBRL } from "@/lib/utils";
-import { formatVoucherUrl } from "@/lib/utils/utils";
+import { formatQuantity } from "@/lib/voucher";
 
 export async function isLoggedIn(): Promise<boolean> {
   const session = cookies().get("session")?.value;
@@ -122,6 +122,10 @@ export async function createReferrer(voucherCode: string, referrerURL: string) {
   return referrerResponse;
 }
 
+function formatVoucherUrl(code: string, payment_id: string) {
+  return `${process.env.URL}/voucher?code=${code}&pid=${payment_id}`;
+}
+
 export async function sendWhatsappMessage(voucher: VoucherSchema) {
   console.log("🚀 ~ sendWhatsappMessage ~ sendWhatsappMessage:");
   const maxRetries = 3;
@@ -137,10 +141,10 @@ Aqui estão algumas informações sobre o seu voucher:
       Nome: ${voucher.name}
       Telefone: ${formatPhone(voucher.phone)}
       Validade: ${voucher.expires_at ? formateDateDayMonthYear(voucher.expires_at) : "-"}
-      Entradas: ${voucher.adults} inteiras e ${voucher.elderly} meias
+      Entradas: ${formatQuantity(voucher.adults, voucher.elderly)}
       Valor: ${formatToBRL(voucher.price)}
 
-      ${voucher.payment_id ? `🌐 ${formatVoucherUrl(voucher.code, voucher.payment_id)}` : "-"}
+      ${voucher.payment_id ? `🌐 ${formatVoucherUrl(voucher.code, voucher.payment_id)}` : process.env.URL}
 
 Entrada permitida entre 07h e 17h.
 

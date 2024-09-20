@@ -1,21 +1,11 @@
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { z } from "zod";
+import axios from "axios";
 
-import twilio from "twilio";
-
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const client = twilio(accountSid, authToken);
-
-//TODO: notify when voucher is bought?
 //TODO: notify when voucher is used?
 
 function removeExtra9(phoneNumber: string): string {
-  if (phoneNumber.startsWith("62") && phoneNumber.length >= 5) {
-    return phoneNumber.slice(0, 2) + phoneNumber.slice(3);
-  } else {
-    return phoneNumber;
-  }
+  return "55" + phoneNumber;
 }
 
 export const notificationRouter = createTRPCRouter({
@@ -27,18 +17,19 @@ export const notificationRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input }) => {
-      const from = "whatsapp:+14155238886";
-
+      if (!process.env.ZAPI_INSTANCE_ID || !process.env.ZAPI_TOKEN) {
+        return { success: false, error: "Z-API not configured" };
+      }
       try {
-        await client.messages.create({
-          body: input.body,
-          from,
-          to: `whatsapp:+55${removeExtra9(input.phone)}`,
-        });
-        console.log(
-          "🚀 ~ .mutation ~ `whatsapp:+55${removeExtra9(input.phone)}`:",
-          `whatsapp:+55${removeExtra9(input.phone)}`,
+        const ZAPI_BASE_URL = `https://api.z-api.io/instances/${process.env.ZAPI_INSTANCE_ID}`;
+        await axios.post(
+          `${ZAPI_BASE_URL}/token/${process.env.ZAPI_TOKEN}/send-text`,
+          {
+            phone: removeExtra9(input.phone),
+            message: input.body,
+          },
         );
+
         return { success: true };
       } catch (error) {
         console.error("Error sending message:", error);

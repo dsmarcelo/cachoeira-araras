@@ -11,7 +11,7 @@ export default function VoucherCard({ data }: { data: Voucher }) {
   const formatedExpiredDate = expires_at ? formateDateDayMonthYear(expires_at) : '';
   const formatedName = truncateName(name);
   const formatedPhone = formatPhone(phone);
-  const formatedQuantity = formatQuantity({ adults, elderly });
+  const formatedQuantity = formatQuantity(adults, elderly);
 
   let url = ''
   if (process.env.NEXT_PUBLIC_VERCEL_URL) {

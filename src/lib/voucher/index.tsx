@@ -62,7 +62,7 @@ export function formatVoucherStatusIcons(status: string) {
   }
 }
 
-export function formatQuantity({ adults, elderly }: { adults: number; elderly: number; }): string {
+export function formatQuantity(adults: number, elderly: number): string {
   const adultsText = adults === 1 ? '1 inteira' : `${adults} inteiras`;
   const elderlyText = elderly === 1 ? '1 meia' : `${elderly} meias`;
 
