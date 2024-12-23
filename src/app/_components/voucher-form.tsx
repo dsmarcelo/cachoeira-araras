@@ -113,13 +113,6 @@ export default function VoucherForm() {
   };
 
   async function buyVoucher({ data, code }: { data: FormSchema, code: string }) {
-    if (process.env.NEXT_PUBLIC_VERCEL_ENV !== 'production') {
-      return {
-        id: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
-        init_point: "http://localhost:3000"
-      }
-    }
-
     const res = await mercadopago.mutateAsync({
       code,
       title: `Voucher ${code}`,
