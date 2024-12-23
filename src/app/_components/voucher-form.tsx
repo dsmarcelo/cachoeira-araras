@@ -20,6 +20,7 @@ import { ptBR } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { formatMercadoPagoDescription } from "@/lib/voucher";
+import { getBrazilianDate } from "@/lib/utils/date";
 
 export default function VoucherForm() {
   const router = useRouter();
@@ -112,6 +113,13 @@ export default function VoucherForm() {
   };
 
   async function buyVoucher({ data, code }: { data: FormSchema, code: string }) {
+    if (process.env.NEXT_PUBLIC_VERCEL_ENV !== 'production') {
+      return {
+        id: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
+        init_point: "http://localhost:3000"
+      }
+    }
+
     const res = await mercadopago.mutateAsync({
       code,
       title: `Voucher ${code}`,
@@ -145,7 +153,7 @@ export default function VoucherForm() {
       const rcode = randomCode();
       setCode(rcode);
       const res = await buyVoucher({ data, code: rcode });
-      if (!res?.id || !res?.init_point) return;
+      if (!res?.id || !res?.init_point) throw new Error("Falha ao criar preferencia");
       await addCookieVoucher(rcode);
       const preference_id = res.id;
       const completeData = formatVoucher({ ...data, preference_id, code: rcode });
@@ -260,18 +268,18 @@ export default function VoucherForm() {
                         <CalendarIcon className="ml-auto text-dark h-4 w-4 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-2xl shadow-xk" align="center">
+                    <PopoverContent className="w-auto p-0 rounded-2xl shadow-lg" align="center">
                       <Calendar
                         className=""
                         mode="single"
                         selected={field.value}
                         onSelect={field.onChange}
                         disabled={(date) => {
-                          const today = new Date();
-                          const yesterday = new Date(today);
+                          const today = getBrazilianDate();
+                          const yesterday = getBrazilianDate(new Date(today));
                           yesterday.setDate(today.getDate() - 1);
 
-                          const maxDate = new Date(today);
+                          const maxDate = getBrazilianDate(new Date(today));
                           maxDate.setDate(today.getDate() + 15);
 
                           return date < yesterday || date > maxDate;

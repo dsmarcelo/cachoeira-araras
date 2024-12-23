@@ -30,6 +30,21 @@ export function formateDateDayMonthYear(input: string | Date) {
   return `${day}/${month}/${year}`;
 }
 
+export function formatDateWeekDay(input: string | Date) {
+  let date = new Date();
+  typeof input === "string"
+    ? (date = new Date(input.toString()))
+    : (date = new Date(input));
+  const dayOfWeek = date.toLocaleDateString("pt-BR", { weekday: "long" });
+  const capitalizedDayOfWeek =
+    dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear()).slice(-2);
+
+  return `${capitalizedDayOfWeek} - ${day}/${month}/${year}`;
+}
+
 export function formatPhone(input: string): string {
   let cleanNumber = input.replace(/\D/g, "").substring(0, 11);
 
