@@ -10,16 +10,19 @@ export default function AdminHeader() {
   const pathname = usePathname();
 
   const navClasses = (path: string) =>
-    pathname === path ? 'bg-white' : 'bg-none text-slate-400 hover:bg-slate-200 hover:text-slate-700'
+    pathname === path ? 'bg-white border-b border-slate-300' : 'bg-none text-slate-400 hover:bg-slate-200 hover:text-slate-700'
 
   return (
     <header className='h-12 bg-slate-100 border-b flex justify-between items-center px-4 md:px-6'>
-      <div className='w-12'>
+      <div className='w-12 hidden sm:block'>
         <Image src="/logo_nome.png" alt="logo" className='invert brightness-75' width={80} height={80} />
       </div>
-      <nav className='grid grid-cols-2 w-48 font-medium text-sm mx-auto'>
+      <nav className='grid grid-cols-3 w-64 font-medium text-sm mx-auto'>
         <Link href="/admin" className='w-full text-center'>
           <p className={`${navClasses('/admin')} p-2 rounded-sm`}>Validar</p>
+        </Link>
+        <Link href="/admin/hoje" className='w-full text-center'>
+          <p className={`${navClasses('/admin/hoje')} p-2 rounded-sm`}>Hoje</p>
         </Link>
         <Link href="/admin/tabela" className='w-full text-center'>
           <p className={`${navClasses('/admin/tabela')} p-2 rounded-sm`}>Tabela</p>

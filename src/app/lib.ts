@@ -68,12 +68,20 @@ export async function activateVoucher(code: string) {
   if (!oldVoucher) return console.error("Voucher não encontrado");
 
   try {
+    const today = new Date();
+    const currentExpiry = oldVoucher.expires_at;
+
+    // Only update if expires_at is less than today or null
+    const shouldUpdateExpiry = !currentExpiry || currentExpiry < today;
+
     const voucher = await api.voucher.update({
       where: { code },
       data: {
         status: "valid",
         valid: true,
-        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
+        ...(shouldUpdateExpiry && {
+          expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
+        }),
       },
     });
     if (!voucher) console.error("Failed to update voucher");
