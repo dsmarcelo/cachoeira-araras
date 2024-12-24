@@ -51,7 +51,7 @@ export default function TodayVouchers() {
     )
   }
 
-  const paidVouchers = vouchers.filter(v => v.status === 'pending')
+  const paidVouchers = vouchers.filter(v => v.status === 'paid')
   const pendingVouchers = vouchers.filter(v => v.status === 'pending')
 
   return (
