@@ -69,6 +69,7 @@ export async function activateVoucher(code: string) {
 
   try {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const currentExpiry = oldVoucher.expires_at;
 
     // Only update if expires_at is less than today or null

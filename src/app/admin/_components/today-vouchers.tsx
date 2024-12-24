@@ -11,10 +11,18 @@ function VoucherCard({ voucher, onClick }: {
   voucher: CompleteVoucherSchema,
   onClick: (voucher: CompleteVoucherSchema) => void
 }) {
+  const statusClasses = {
+    valid: 'border-l-2 border-l-green-600',
+    pending: 'border-l-2 border-l-amber-600',
+    expired: 'border-l-2 border-l-red-600'
+  } as const
+
+  const dynamicClass = statusClasses[voucher.status as keyof typeof statusClasses] ?? ''
+
   return (
     <div
       key={voucher.id}
-      className='py-2 px-2 hover:bg-slate-50 cursor-pointer rounded-md'
+      className={`py-2 px-2 hover:bg-slate-50 cursor-pointer ${dynamicClass}`}
       onClick={() => onClick(voucher)}
     >
       <div className='flex justify-between items-center'>
@@ -51,7 +59,7 @@ export default function TodayVouchers() {
     )
   }
 
-  const paidVouchers = vouchers.filter(v => v.status === 'paid')
+  const paidVouchers = vouchers.filter(v => v.status === 'valid')
   const pendingVouchers = vouchers.filter(v => v.status === 'pending')
 
   return (

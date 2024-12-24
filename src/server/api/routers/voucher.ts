@@ -127,7 +127,7 @@ export const voucherRouter = createTRPCRouter({
           lt: tomorrow,
         },
         status: {
-          in: ["paid", "pending"],
+          in: ["valid", "pending"],
         },
         deletedAt: null,
       },
