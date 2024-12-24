@@ -113,6 +113,30 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
+  getTodayVouchers: publicProcedure.query(async ({ ctx }) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    return await ctx.db.voucher.findMany({
+      where: {
+        expires_at: {
+          gte: today,
+          lt: tomorrow,
+        },
+        status: {
+          in: ["paid", "pending"],
+        },
+        deletedAt: null,
+      },
+      orderBy: {
+        status: "asc",
+      },
+    });
+  }),
+
   update: publicProcedure
     .input(
       z.object({
