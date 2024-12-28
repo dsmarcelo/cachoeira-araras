@@ -28,7 +28,7 @@ function VoucherCard({ voucher, onClick }: {
       <div className='flex justify-between items-center'>
         <div>
           <p className='font-medium'>{voucher.name}</p>
-          <p className='text-base text-black'>{voucher.code}</p>
+          <p className='text-base text-slate-900'>{voucher.code}</p>
         </div>
         <div className='text-right'>
           <p className='font-medium'>{formatQuantity({ adults: voucher.adults, elderly: voucher.elderly })}</p>
