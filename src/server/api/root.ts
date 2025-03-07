@@ -3,7 +3,6 @@ import { voucherRouter } from "./routers/voucher";
 import { mercadopagoRouter } from "./routers/mercadopago";
 import { referrerRouter } from "./routers/referrer";
 import { notificationRouter } from "./routers/notification";
-import { paymentRouter } from "./routers/payment";
 
 /**
  * This is the primary router for your server.
@@ -15,7 +14,6 @@ export const appRouter = createTRPCRouter({
   mercadopago: mercadopagoRouter,
   notification: notificationRouter,
   referrer: referrerRouter,
-  payment: paymentRouter,
 });
 
 // export type definition of API
