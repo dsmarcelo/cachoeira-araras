@@ -44,24 +44,9 @@ const sidebarItems = [
     href: "/admin/dashboard/vendas",
   },
   {
-    name: "Visitantes",
-    icon: <Users className="h-5 w-5" />,
-    href: "/admin/dashboard/visitantes",
-  },
-  {
     name: "Vouchers",
     icon: <Ticket className="h-5 w-5" />,
     href: "/admin/dashboard/vouchers",
-  },
-  {
-    name: "Referências",
-    icon: <GitFork className="h-5 w-5" />,
-    href: "/admin/dashboard/referencias",
-  },
-  {
-    name: "Relatórios",
-    icon: <PieChart className="h-5 w-5" />,
-    href: "/admin/dashboard/relatorios",
   },
 ];
 

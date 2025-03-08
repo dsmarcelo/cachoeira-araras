@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { format, startOfToday, subDays, subMonths, subWeeks } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   CalendarIcon,
@@ -47,25 +46,10 @@ import {
   X,
 } from "lucide-react";
 import { formatPhone } from "@/lib/utils/utils";
-
-// Define Voucher type
-type Voucher = {
-  id: number;
-  name: string;
-  phone: string;
-  code: string;
-  adults: number;
-  elderly: number;
-  price: number;
-  valid: boolean;
-  status: string;
-  preference_id: string;
-  payment_id?: string;
-  expires_at?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;
-};
+import { type Voucher } from "@prisma/client";
+import { useSearchParams } from "next/navigation";
+import DateRangeSelector from "@/app/_components/date-range-selector";
+import { startOfMonth } from "date-fns";
 
 // Status filter options with colors
 const statusOptions = [
@@ -80,13 +64,15 @@ export default function VouchersPage() {
   // State for search and filters
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [dateRange, setDateRange] = useState<{
-    from: Date | undefined;
-    to: Date | undefined;
-  }>({
-    from: undefined,
-    to: undefined,
-  });
+
+  // Get URL params for date range
+  const searchParams = useSearchParams();
+  const fromParam = searchParams.get("from");
+  const toParam = searchParams.get("to");
+  const dateRange =
+    fromParam && toParam
+      ? { from: new Date(fromParam), to: new Date(toParam) }
+      : { from: startOfMonth(new Date()), to: new Date() };
 
   // Get all vouchers
   const { data: allVouchers, isLoading } = api.voucher.findAll.useQuery();
@@ -115,9 +101,7 @@ export default function VouchersPage() {
         // Date range filter
         const voucherDate = new Date(voucher.createdAt);
         const matchesDateRange =
-          dateRange.from && dateRange.to
-            ? voucherDate >= dateRange.from && voucherDate <= dateRange.to
-            : true;
+          voucherDate >= dateRange.from && voucherDate <= dateRange.to;
 
         // Search filter
         const matchesSearch = !searchQuery
@@ -160,11 +144,16 @@ export default function VouchersPage() {
         </Button>
       </div>
 
+      {/* Replace the old Popover date range selector with the DateRangeSelector component */}
+      <div className="mb-6">
+        <DateRangeSelector />
+      </div>
+
       {/* Filters */}
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         {/* Search */}
         <div className="relative">
-          <Search className="text-muted-foreground absolute left-2 top-2.5 h-4 w-4" />
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por nome, telefone ou código"
             className="pl-8"
@@ -193,42 +182,6 @@ export default function VouchersPage() {
             </SelectGroup>
           </SelectContent>
         </Select>
-
-        {/* Date range */}
-        <div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full justify-start text-left font-normal"
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateRange.from ? (
-                  dateRange.to ? (
-                    <>
-                      {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
-                      {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
-                    </>
-                  ) : (
-                    format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
-                  )
-                ) : (
-                  <span>Selecionar período</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="range"
-                selected={dateRange}
-                onSelect={(range) =>
-                  setDateRange(range ?? { from: undefined, to: undefined })
-                }
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
       </div>
 
       {/* Statistics Cards */}
@@ -238,13 +191,13 @@ export default function VouchersPage() {
             <CardTitle className="text-sm font-medium">
               Total de Receita
             </CardTitle>
-            <DollarSign className="text-muted-foreground h-4 w-4" />
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {formatCurrency(totalSales)}
             </div>
-            <p className="text-muted-foreground text-xs">
+            <p className="text-xs text-muted-foreground">
               {filteredVouchers.length} vouchers
             </p>
           </CardContent>
@@ -255,7 +208,7 @@ export default function VouchersPage() {
             <CardTitle className="text-sm font-medium">
               Status dos Vouchers
             </CardTitle>
-            <Ticket className="text-muted-foreground h-4 w-4" />
+            <Ticket className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
@@ -286,13 +239,13 @@ export default function VouchersPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Visitantes</CardTitle>
-            <Ticket className="text-muted-foreground h-4 w-4" />
+            <Ticket className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {totalAdults + totalElderly}
             </div>
-            <p className="text-muted-foreground text-xs">
+            <p className="text-xs text-muted-foreground">
               {totalAdults} inteiras, {totalElderly} meias
             </p>
           </CardContent>
@@ -303,7 +256,7 @@ export default function VouchersPage() {
             <CardTitle className="text-sm font-medium">
               Média por Voucher
             </CardTitle>
-            <DollarSign className="text-muted-foreground h-4 w-4" />
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -311,7 +264,7 @@ export default function VouchersPage() {
                 ? formatCurrency(totalSales / filteredVouchers.length)
                 : formatCurrency(0)}
             </div>
-            <p className="text-muted-foreground text-xs">
+            <p className="text-xs text-muted-foreground">
               {(filteredVouchers.length > 0
                 ? (totalAdults + totalElderly) / filteredVouchers.length
                 : 0

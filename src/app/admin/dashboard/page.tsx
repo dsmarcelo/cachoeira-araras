@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -195,7 +194,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="px-8 py-6">
+    <div className="space-y-4 px-8 py-6">
       <h1 className="mb-6 text-2xl font-bold">Visão Geral</h1>
 
       {/* Filters */}
@@ -238,7 +237,7 @@ export default function DashboardPage() {
         </TabsList>
 
         {/* Overview Tab */}
-        <TabsContent value="overview">
+        <TabsContent value="overview" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {/* Total Revenue Card */}
             <Card>
@@ -246,13 +245,13 @@ export default function DashboardPage() {
                 <CardTitle className="text-sm font-medium">
                   Receita Total
                 </CardTitle>
-                <DollarSign className="text-muted-foreground h-4 w-4" />
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
                   {formatCurrency(calculateTotalRevenue(filteredTodayVouchers))}
                 </div>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                   {filteredTodayVouchers.length} vouchers vendidos
                 </p>
               </CardContent>
@@ -264,13 +263,13 @@ export default function DashboardPage() {
                 <CardTitle className="text-sm font-medium">
                   Total de Visitantes
                 </CardTitle>
-                <Users className="text-muted-foreground h-4 w-4" />
+                <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
                   {calculateTotalVisitors(filteredTodayVouchers)}
                 </div>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                   {filteredTodayVouchers.reduce(
                     (total, v: Voucher) => total + v.adults,
                     0,
@@ -291,13 +290,13 @@ export default function DashboardPage() {
                 <CardTitle className="text-sm font-medium">
                   Esperados Hoje
                 </CardTitle>
-                <Ticket className="text-muted-foreground h-4 w-4" />
+                <Ticket className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
                   {calculateTotalVisitors(filteredTodayVouchers)}
                 </div>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                   {filteredTodayVouchers.length} vouchers para hoje
                 </p>
               </CardContent>
@@ -309,13 +308,13 @@ export default function DashboardPage() {
                 <CardTitle className="text-sm font-medium">
                   Vouchers Válidos
                 </CardTitle>
-                <Ticket className="text-muted-foreground h-4 w-4" />
+                <Ticket className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
                   {validVouchers?.length ?? 0}
                 </div>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                   Vouchers disponíveis para uso
                 </p>
               </CardContent>
@@ -425,7 +424,7 @@ export default function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex h-80 items-center justify-center border-t">
-              <p className="text-muted-foreground text-center">
+              <p className="text-center text-muted-foreground">
                 Os gráficos serão implementados em uma atualização futura.{" "}
                 <br />
                 Esta área mostrará visualizações dos dados de vouchers ao longo
@@ -494,7 +493,7 @@ export default function DashboardPage() {
               </Table>
             </div>
           ) : (
-            <div className="text-muted-foreground flex h-24 items-center justify-center text-center">
+            <div className="flex h-24 items-center justify-center text-center text-muted-foreground">
               Nenhum voucher encontrado para o período selecionado.
             </div>
           )}
