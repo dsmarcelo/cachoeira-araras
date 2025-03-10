@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  DollarSign,
-  GitFork,
-  Home,
-  PieChart,
-  Ticket,
-  Users,
-} from "lucide-react";
+import { Calendar, CalendarDays, DollarSign, Ticket } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -18,6 +11,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarHeader,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import Image from "next/image";
 
@@ -29,13 +23,13 @@ const sidebarItems = [
     href: "/admin",
   },
   {
-    name: "Voucher de hoje",
-    icon: <Ticket className="h-5 w-5" />,
+    name: "Vouchers de hoje",
+    icon: <Calendar className="h-5 w-5" />,
     href: "/admin/hoje",
   },
   {
-    name: "Visão Geral",
-    icon: <Home className="h-5 w-5" />,
+    name: "Detalhes de hoje",
+    icon: <CalendarDays className="h-5 w-5" />,
     href: "/admin/dashboard",
   },
   {
@@ -44,7 +38,7 @@ const sidebarItems = [
     href: "/admin/dashboard/vendas",
   },
   {
-    name: "Vouchers",
+    name: "Visão Geral",
     icon: <Ticket className="h-5 w-5" />,
     href: "/admin/dashboard/vouchers",
   },
@@ -52,6 +46,14 @@ const sidebarItems = [
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
+  const { setOpenMobile, isMobile } = useSidebar();
+
+  const handleMenuItemClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
   return (
     <Sidebar>
       <SidebarHeader className="flex items-center justify-center">
@@ -76,9 +78,10 @@ export default function DashboardSidebar() {
                       href={item.href}
                       className={`flex items-center rounded-lg px-2 py-2 text-sm font-medium ${
                         isActive
-                          ? "bg-muted text-muted-foreground"
+                          ? "bg-sidebar-primary font-medium text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
                           : "text-muted-foreground hover:bg-muted"
                       }`}
+                      onClick={handleMenuItemClick}
                     >
                       {item.icon}
                       <span className="ml-3">{item.name}</span>
