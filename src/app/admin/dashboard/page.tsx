@@ -74,21 +74,12 @@ export default function DashboardPage() {
   // State for search
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Add new state for time range filter
-  const [timeRange, setTimeRange] = useState<{
-    dateFilter: string;
-    customDateRange: { from?: Date; to?: Date };
-  }>({ dateFilter: "today", customDateRange: {} });
-
-  // Get all vouchers
-  const { data: allVouchers, isLoading } = api.voucher.findAll.useQuery<
-    Voucher[]
-  >() as { data: Voucher[] | undefined; isLoading: boolean };
-
   // Get today's vouchers (visitors expected today)
-  const { data: todayVouchers } = api.voucher.getTodayVouchers.useQuery<
-    Voucher[]
-  >() as { data: Voucher[] | undefined };
+  const { data: todayVouchers, isLoading } =
+    api.voucher.getTodayVouchers.useQuery<Voucher[]>() as {
+      data: Voucher[] | undefined;
+      isLoading: boolean;
+    };
 
   // Ensure todayVouchers is an array before processing to avoid unsafe access
   const todayVouchersData: Voucher[] = Array.isArray(todayVouchers)
@@ -104,68 +95,6 @@ export default function DashboardPage() {
       deletedAt: voucher.deletedAt ?? null,
     }))
     .filter((voucher: Voucher) => voucher.valid && voucher.payment_id !== null);
-
-  // Get valid vouchers
-  const { data: validVouchers } = api.voucher.findValid.useQuery();
-
-  // Calculate analytics based on filters
-  const getFilteredDateRange = () => {
-    const today = startOfToday();
-
-    switch (timeRange.dateFilter) {
-      case "today":
-        return { from: today, to: addDays(today, 1) };
-      case "yesterday":
-        return { from: subDays(today, 1), to: today };
-      case "last7days":
-        // Last 7 days including today
-        return { from: subDays(today, 6), to: addDays(today, 1) };
-      case "last30days":
-        return { from: subDays(today, 29), to: addDays(today, 1) };
-      case "thisMonth":
-        return {
-          from: new Date(today.getFullYear(), today.getMonth(), 1),
-          to: addDays(today, 1),
-        };
-      case "lastMonth": {
-        const firstDayLastMonth = new Date(
-          today.getFullYear(),
-          today.getMonth() - 1,
-          1,
-        );
-        const lastDayLastMonth = new Date(
-          today.getFullYear(),
-          today.getMonth(),
-          0,
-        );
-        return { from: firstDayLastMonth, to: addDays(lastDayLastMonth, 1) };
-      }
-      case "custom":
-        return {
-          from: timeRange.customDateRange.from ?? today,
-          to: timeRange.customDateRange.to ?? addDays(today, 1),
-        };
-      default:
-        return { from: today, to: addDays(today, 1) };
-    }
-  };
-
-  // Filter vouchers based on current filters
-  const filteredVouchers = validVouchers
-    ? validVouchers
-        .map((voucher) => ({
-          ...voucher,
-          payment_id: voucher.payment_id ?? undefined,
-          expires_at: voucher.expires_at ?? undefined,
-          deletedAt: voucher.deletedAt ?? undefined,
-        }))
-        .filter((voucher) => {
-          if (!voucher.expires_at) return false;
-          const exp = new Date(voucher.expires_at);
-          const { from, to } = getFilteredDateRange();
-          return isWithinInterval(exp, { start: from, end: to });
-        })
-    : [];
 
   // Calculate metrics
   const calculateTotalRevenue = (vouchers: Voucher[]): number => {
@@ -195,14 +124,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4 px-8 py-6">
-      <h1 className="mb-6 text-2xl font-bold">Visão Geral</h1>
+      <h1 className="mb-6 text-2xl font-bold">Visão Geral de Hoje</h1>
 
       {/* Filters */}
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div>
-          <TimeRangeSelector onChange={setTimeRange} />
-        </div>
-
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger>
@@ -233,7 +158,6 @@ export default function DashboardPage() {
         <TabsList className="mb-6">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="detailed">Detalhado</TabsTrigger>
-          <TabsTrigger value="charts">Gráficos</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -312,7 +236,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {validVouchers?.length ?? 0}
+                  {filteredTodayVouchers.length}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Vouchers disponíveis para uso
@@ -328,7 +252,7 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle>Vouchers</CardTitle>
               <CardDescription>
-                Lista de todos os vouchers para o período selecionado.
+                Lista de todos os vouchers de hoje.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -354,14 +278,14 @@ export default function DashboardPage() {
                           Carregando...
                         </TableCell>
                       </TableRow>
-                    ) : filteredVouchers.length === 0 ? (
+                    ) : filteredTodayVouchers.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={9} className="h-24 text-center">
                           Nenhum voucher encontrado.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredVouchers.map((voucher) => (
+                      filteredTodayVouchers.map((voucher) => (
                         <TableRow key={voucher.id}>
                           <TableCell>{voucher.code}</TableCell>
                           <TableCell>{voucher.name}</TableCell>
@@ -413,43 +337,16 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        {/* Charts Tab */}
-        <TabsContent value="charts" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Estatísticas</CardTitle>
-              <CardDescription>
-                Visualização gráfica dos dados ainda não implementada.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex h-80 items-center justify-center border-t">
-              <p className="text-center text-muted-foreground">
-                Os gráficos serão implementados em uma atualização futura.{" "}
-                <br />
-                Esta área mostrará visualizações dos dados de vouchers ao longo
-                do tempo.
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
-      {/* Voucher details for the filtered date range */}
+      {/* Voucher details for today */}
       <Card>
         <CardHeader>
-          {validVouchers && validVouchers.length > 0 ? (
+          {filteredTodayVouchers.length > 0 ? (
             <>
               <CardTitle>Detalhes dos Vouchers</CardTitle>
               <CardDescription>
-                Período:{" "}
-                {format(getFilteredDateRange().from, "dd/MM/yyyy", {
-                  locale: ptBR,
-                })}{" "}
-                -{" "}
-                {format(getFilteredDateRange().to, "dd/MM/yyyy", {
-                  locale: ptBR,
-                })}
+                Data: {format(new Date(), "dd/MM/yyyy", { locale: ptBR })}
               </CardDescription>
             </>
           ) : (
@@ -457,7 +354,7 @@ export default function DashboardPage() {
           )}
         </CardHeader>
         <CardContent>
-          {filteredVouchers.length > 0 ? (
+          {filteredTodayVouchers.length > 0 ? (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -472,7 +369,7 @@ export default function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredVouchers.map((voucher) => (
+                  {filteredTodayVouchers.map((voucher) => (
                     <TableRow key={voucher.id}>
                       <TableCell className="font-medium">
                         {voucher.code}
@@ -494,7 +391,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="flex h-24 items-center justify-center text-center text-muted-foreground">
-              Nenhum voucher encontrado para o período selecionado.
+              Nenhum voucher encontrado para hoje.
             </div>
           )}
         </CardContent>
