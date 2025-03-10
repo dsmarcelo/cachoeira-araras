@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import DateRangeSelector from "@/app/_components/date-range-selector";
 import { api } from "@/trpc/react";
@@ -19,14 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  format,
-  startOfDay,
-  subDays,
-  subMonths,
-  startOfMonth,
-  endOfMonth,
-} from "date-fns";
+import { format, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { DollarSign, LineChart, CreditCard } from "lucide-react";
 import { type Voucher } from "@prisma/client";
@@ -102,22 +94,6 @@ export default function SalesPage() {
     };
   };
 
-  const previousPeriod = getPreviousPeriodData();
-
-  // Calculate change percentages
-  const revenueChange = previousPeriod.revenue
-    ? ((totalRevenue - previousPeriod.revenue) / previousPeriod.revenue) * 100
-    : 0;
-  const vouchersChange = previousPeriod.vouchers
-    ? ((filteredVouchers.length - previousPeriod.vouchers) /
-        previousPeriod.vouchers) *
-      100
-    : 0;
-  const visitorsChange = previousPeriod.visitors
-    ? ((totalVisitors - previousPeriod.visitors) / previousPeriod.visitors) *
-      100
-    : 0;
-
   // Group sales by day
   const salesByDay = filteredVouchers.reduce(
     (acc, voucher) => {
@@ -154,6 +130,16 @@ export default function SalesPage() {
 
   const dailySalesData = Object.values(salesByDay).sort(
     (a, b) => a.date.getTime() - b.date.getTime(),
+  );
+
+  // After the calculation of totalVisitors, add:
+  const totalInteiras = filteredVouchers.reduce(
+    (total, v) => total + v.adults,
+    0,
+  );
+  const totalMeias = filteredVouchers.reduce(
+    (total, v) => total + v.elderly,
+    0,
   );
 
   return (
@@ -266,11 +252,13 @@ export default function SalesPage() {
                     </TableRow>
                   ))
                 )}
+                {/* Summary Row */}
                 {dailySalesData.length > 0 && (
                   <TableRow className="bg-muted/50 font-medium">
                     <TableCell>Total no Período</TableCell>
                     <TableCell>{filteredVouchers.length}</TableCell>
-                    <TableCell>{totalVisitors}</TableCell>
+                    <TableCell>{totalInteiras}</TableCell>
+                    <TableCell>{totalMeias}</TableCell>
                     <TableCell className="text-right">
                       {formatCurrency(totalRevenue)}
                     </TableCell>
