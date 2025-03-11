@@ -1,8 +1,7 @@
 'use client'
 import * as React from "react"
 
-import { formateDate, formateDateDayMonthYear, formatPhone, formatReferrer, formatToBRL, truncateName } from "@/lib/utils"
-// import { useMediaQuery } from "@/hooks/use-media-query"
+import { formatDateWeekDay, formateDate, formatPhone, formatReferrer, formatToBRL, truncateName } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -35,7 +34,6 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
     return res.data?.referrer ?? ''
   }
   const referrer = getReferrer()
-
 
   function paymentInfo() {
     const { payment_id } = data
@@ -122,8 +120,14 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
             {referrer && `Origem: ${formatReferrer(referrer)}`}
             {data.expires_at &&
               <div className="flex flex-wrap gap-x-1">
-                <span>{data.expires_at > new Date(Date.now()) ? "Expira em" : "Expirou em"}: </span>
-                <h4>{formateDateDayMonthYear(data.expires_at)}</h4>
+                <span>
+                  {data.expires_at.toDateString() === new Date().toDateString()
+                    ? "Expira hoje"
+                    : data.expires_at > new Date(Date.now() + (1000 * 60 * 60 * 24))
+                      ? "Expira em"
+                      : "Expirou em"}:
+                </span>
+                <h4>{formatDateWeekDay(data.expires_at)}</h4>
               </div>}
           </div>
           <div className="flex flex-wrap gap-x-1" onClick={() => navigator.clipboard.writeText(data.preference_id)}>
