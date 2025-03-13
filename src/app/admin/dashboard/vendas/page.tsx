@@ -61,7 +61,6 @@ export default function SalesPage() {
     (total, v) => total + v.price,
     0,
   );
-  const paidVouchers = filteredVouchers.filter((v) => v.payment_id).length;
 
   // Group sales by day
   const salesByDay = filteredVouchers.reduce(

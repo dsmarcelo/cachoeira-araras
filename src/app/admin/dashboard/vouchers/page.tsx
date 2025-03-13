@@ -42,7 +42,6 @@ import { formatPhone } from "@/lib/utils/utils";
 import { type Voucher } from "@prisma/client";
 import { useSearchParams } from "next/navigation";
 import { startOfMonth } from "date-fns";
-import DateRangePicker from "@/app/date-range-picker";
 import DateRangeSelector from "@/app/_components/date-range-selector";
 
 // Status filter options with colors
