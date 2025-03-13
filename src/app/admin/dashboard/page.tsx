@@ -19,12 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -35,28 +29,12 @@ import {
 } from "@/components/ui/table";
 import {
   format,
-  startOfToday,
-  subDays,
-  addDays,
-  subMonths,
-  subWeeks,
-  isWithinInterval,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, DollarSign, Ticket, Users } from "lucide-react";
-import TimeRangeSelector from "@/components/TimeRangeSelector";
+import { DollarSign, Ticket, Users } from "lucide-react";
 import type { Voucher } from "@/types/voucher";
 
 // Date filter options
-const dateFilters = [
-  { value: "today", label: "Hoje" },
-  { value: "yesterday", label: "Ontem" },
-  { value: "last7days", label: "Últimos 7 dias" },
-  { value: "last30days", label: "Últimos 30 dias" },
-  { value: "thisMonth", label: "Este mês" },
-  { value: "lastMonth", label: "Mês passado" },
-  { value: "custom", label: "Personalizado" },
-];
 
 // Status filter options
 const statusFilters = [
@@ -292,15 +270,14 @@ export default function DashboardPage() {
                           <TableCell>{voucher.phone}</TableCell>
                           <TableCell>
                             <span
-                              className={`rounded-full px-2 py-1 text-xs ${
-                                voucher.status === "valid"
-                                  ? "bg-green-100 text-green-800"
-                                  : voucher.status === "pending"
-                                    ? "bg-yellow-100 text-yellow-800"
-                                    : voucher.status === "used"
-                                      ? "bg-blue-100 text-blue-800"
-                                      : "bg-red-100 text-red-800"
-                              }`}
+                              className={`rounded-full px-2 py-1 text-xs ${voucher.status === "valid"
+                                ? "bg-green-100 text-green-800"
+                                : voucher.status === "pending"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : voucher.status === "used"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-red-100 text-red-800"
+                                }`}
                             >
                               {voucher.status === "valid"
                                 ? "Válido"
@@ -322,10 +299,10 @@ export default function DashboardPage() {
                           <TableCell>
                             {voucher.expires_at
                               ? format(
-                                  new Date(voucher.expires_at),
-                                  "dd/MM/yyyy",
-                                  { locale: ptBR },
-                                )
+                                new Date(voucher.expires_at),
+                                "dd/MM/yyyy",
+                                { locale: ptBR },
+                              )
                               : "N/A"}
                           </TableCell>
                         </TableRow>

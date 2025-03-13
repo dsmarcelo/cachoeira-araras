@@ -19,12 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -36,7 +30,6 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  CalendarIcon,
   Check,
   Clock,
   DollarSign,
@@ -48,8 +41,8 @@ import {
 import { formatPhone } from "@/lib/utils/utils";
 import { type Voucher } from "@prisma/client";
 import { useSearchParams } from "next/navigation";
-import DateRangeSelector from "@/app/_components/date-range-selector";
 import { startOfMonth } from "date-fns";
+import DateRangeSelector from "@/app/_components/date-range-selector";
 
 // Status filter options with colors
 const statusOptions = [
@@ -94,24 +87,24 @@ export default function VouchersPage() {
   const filteredVouchers: Voucher[] = !allVouchers
     ? []
     : allVouchers.filter((voucher) => {
-        // Status filter
-        const matchesStatus =
-          statusFilter === "all" ? true : voucher.status === statusFilter;
+      // Status filter
+      const matchesStatus =
+        statusFilter === "all" ? true : voucher.status === statusFilter;
 
-        // Date range filter
-        const voucherDate = new Date(voucher.createdAt);
-        const matchesDateRange =
-          voucherDate >= dateRange.from && voucherDate <= dateRange.to;
+      // Date range filter
+      const voucherDate = new Date(voucher.createdAt);
+      const matchesDateRange =
+        voucherDate >= dateRange.from && voucherDate <= dateRange.to;
 
-        // Search filter
-        const matchesSearch = !searchQuery
-          ? true
-          : voucher.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            voucher.phone.includes(searchQuery) ||
-            voucher.code.includes(searchQuery);
+      // Search filter
+      const matchesSearch = !searchQuery
+        ? true
+        : voucher.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        voucher.phone.includes(searchQuery) ||
+        voucher.code.includes(searchQuery);
 
-        return matchesStatus && matchesDateRange && matchesSearch;
-      });
+      return matchesStatus && matchesDateRange && matchesSearch;
+    });
 
   // Calculate statistics
   const totalSales = filteredVouchers.reduce((total, v) => total + v.price, 0);
@@ -323,15 +316,14 @@ export default function VouchersPage() {
                       <TableCell>{formatPhone(voucher.phone)}</TableCell>
                       <TableCell>
                         <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            voucher.status === "valid"
-                              ? "bg-green-100 text-green-800"
-                              : voucher.status === "pending"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : voucher.status === "used"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-red-100 text-red-800"
-                          }`}
+                          className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-medium ${voucher.status === "valid"
+                            ? "bg-green-100 text-green-800"
+                            : voucher.status === "pending"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : voucher.status === "used"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-red-100 text-red-800"
+                            }`}
                         >
                           {voucher.status === "valid" && (
                             <Check className="mr-1 h-3 w-3" />
@@ -365,12 +357,12 @@ export default function VouchersPage() {
                       </TableCell>
                       <TableCell>
                         {voucher.payment_id ? (
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                          <span className="inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">
                             <Check className="mr-1 h-3 w-3" />
                             Confirmado
                           </span>
                         ) : (
-                          <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">
+                          <span className="inline-flex items-center rounded-full bg-yellow-100 px-1.5 py-0.5 text-xs font-medium text-yellow-800">
                             <Clock className="mr-1 h-3 w-3" />
                             Pendente
                           </span>

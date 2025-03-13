@@ -61,38 +61,6 @@ export default function SalesPage() {
     (total, v) => total + v.price,
     0,
   );
-  const paidVouchers = filteredVouchers.filter((v) => v.payment_id).length;
-  const totalVisitors = filteredVouchers.reduce(
-    (total, v) => total + v.adults + v.elderly,
-    0,
-  );
-
-  // Get previous period data for comparison
-  const getPreviousPeriodData = () => {
-    if (!allVouchers) return { revenue: 0, vouchers: 0, visitors: 0 };
-
-    const periodLength = dateRange.to.getTime() - dateRange.from.getTime();
-    const previousPeriodEnd = new Date(dateRange.from.getTime() - 1);
-    const previousPeriodStart = new Date(
-      previousPeriodEnd.getTime() - periodLength,
-    );
-
-    const previousVouchers = allVouchers.filter((voucher) => {
-      const voucherDate = new Date(voucher.createdAt);
-      return (
-        voucherDate >= previousPeriodStart && voucherDate <= previousPeriodEnd
-      );
-    });
-
-    return {
-      revenue: previousVouchers.reduce((total, v) => total + v.price, 0),
-      vouchers: previousVouchers.length,
-      visitors: previousVouchers.reduce(
-        (total, v) => total + v.adults + v.elderly,
-        0,
-      ),
-    };
-  };
 
   // Group sales by day
   const salesByDay = filteredVouchers.reduce(
@@ -193,9 +161,6 @@ export default function SalesPage() {
                 ? formatCurrency(totalRevenue / filteredVouchers.length)
                 : formatCurrency(0)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {paidVouchers} vouchers pagos de {filteredVouchers.length}
-            </p>
           </CardContent>
         </Card>
       </div>
