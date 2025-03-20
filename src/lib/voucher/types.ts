@@ -56,10 +56,6 @@ export const voucherFormSchema = z
       .min(
         getBrazilianDate(new Date(Date.now() - 1000 * 60 * 60 * 24)),
         "Data inválida",
-      )
-      .max(
-        getBrazilianDate(new Date(Date.now() + 1000 * 60 * 60 * 24 * 15)),
-        "Data inválida",
       ),
   })
   .refine(
