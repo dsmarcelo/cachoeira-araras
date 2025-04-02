@@ -31,6 +31,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { formatMercadoPagoDescription } from "@/lib/voucher";
 import { getBrazilianDate } from "@/lib/utils/date";
 import { env } from "@/env";
+import NumberInput from "./input/number-input";
 
 export default function VoucherForm() {
   const router = useRouter();
@@ -264,13 +265,21 @@ export default function VoucherForm() {
               Quantidade de pessoas{" "}
               <span className="font-bold">com mais de 8 anos</span>
             </Label>
-            <Input
-              id="adults"
-              type="number"
-              min="0"
-              max="20"
-              className="rounded-xl text-bg-blue"
-              {...register("adults")}
+            <Controller
+              name="adults"
+              control={control}
+              render={({ field }) => (
+                <NumberInput
+                  id="adults"
+                  minValue={0}
+                  maxValue={20}
+                  defaultValue={1}
+                  selectedValue={field.value}
+                  onChange={field.onChange}
+                  className="rounded-xl text-bg-blue"
+                  placeholder="Quantidade de adultos"
+                />
+              )}
             />
             {errors.adults && (
               <p className="text-base font-medium text-red-400">
@@ -280,15 +289,23 @@ export default function VoucherForm() {
           </div>
           <div className="grid gap-2">
             <Label htmlFor="elderly">Mais de 60 anos ou especiais</Label>
-            <Input
-              id="elderly"
-              type="number"
-              min="0"
-              max="20"
-              className="rounded-xl text-bg-blue"
-              {...register("elderly")}
+            <Controller
+              name="elderly"
+              control={control}
+              render={({ field }) => (
+                <NumberInput
+                  id="elderly"
+                  minValue={0}
+                  maxValue={20}
+                  defaultValue={0}
+                  selectedValue={field.value}
+                  onChange={field.onChange}
+                  className="rounded-xl text-bg-blue"
+                  placeholder="Quantidade de idosos"
+                />
+              )}
             />
-            {errors.adults && (
+            {errors.elderly && (
               <p className="text-base font-medium text-red-400">
                 {errors.elderly?.message}
               </p>
