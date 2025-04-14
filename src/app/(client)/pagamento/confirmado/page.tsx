@@ -1,10 +1,11 @@
 import React from "react";
 import { api } from "@/trpc/server";
+import PaymentCard from "@/app/_components/payment-card";
+import VoucherCard from "@/app/_components/voucher-card";
 import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
 import { confirmVoucherPayment } from "@/lib/voucher/server-utils";
-import PendingPaymentCard from "./pendingPayment";
-import { redirect } from "next/navigation";
+import DeleteVoucherCookieBtn from "@/app/_components/delete-voucher-cookie-btn";
 
 const fetchPreference = async (
   preference_id: string,
@@ -32,7 +33,7 @@ const fetchPayment = async (
   }
 };
 
-export default async function PaymentApprovedPage({
+export default async function Page({
   searchParams,
 }: {
   searchParams: Record<string, string | string[] | undefined>;
@@ -46,24 +47,19 @@ export default async function PaymentApprovedPage({
   }
 
   const { preference_id, payment_id } = searchParams;
-  if (
-    !preference_id ||
-    !payment_id ||
-    typeof preference_id !== "string" ||
-    typeof payment_id !== "string"
-  )
+  if (!preference_id || !payment_id)
     return <div className="h-screen text-center text-3xl">Link inválido</div>;
 
-  const preference = await fetchPreference(preference_id);
+  const preference = await fetchPreference(preference_id as string);
+
   if (!preference)
     return (
       <div className="h-screen text-center text-3xl">
         Erro ao buscar preferência
       </div>
     );
-  const paymentURL = preference.init_point;
 
-  const payment = await fetchPayment(payment_id);
+  const payment = await fetchPayment(payment_id as string);
 
   if (!payment)
     return (
@@ -72,14 +68,18 @@ export default async function PaymentApprovedPage({
       </div>
     );
 
-  if (payment.status === "denied") {
-    return <div>Pagamento não aprovado</div>;
-  }
-  if (payment.status === "pending" && paymentURL) {
-    return <PendingPaymentCard paymentURL={paymentURL} />;
-  }
+  if (!preference)
+    return (
+      <div className="h-screen text-center text-3xl">
+        Erro ao buscar preferência
+      </div>
+    );
+
   if (payment.status === "approved") {
-    const voucher = await confirmVoucherPayment(preference_id, payment_id);
+    const voucher = await confirmVoucherPayment(
+      preference_id as string,
+      payment_id as string,
+    );
     if (!voucher)
       return (
         <div className="h-screen text-center text-3xl">
@@ -87,8 +87,17 @@ export default async function PaymentApprovedPage({
         </div>
       );
 
-    return redirect(
-      `/pagamento/confirmado?preference_id=${preference_id}&payment_id=${payment_id}`,
+    return (
+      <div className="flex w-full flex-col items-center overflow-hidden bg-bg-blue px-4 pb-24 pt-8">
+        <h1 className="mb-8 text-center text-2xl font-bold text-green-500">
+          Pagamento aprovado
+        </h1>
+        <div className="flex w-full max-w-lg flex-col gap-8">
+          <PaymentCard data={preference} payment_id={payment_id as string} />
+          <VoucherCard data={voucher} />
+          <DeleteVoucherCookieBtn />
+        </div>
+      </div>
     );
   }
 }
