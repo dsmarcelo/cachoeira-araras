@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getBrazilianDate } from "../utils/date";
+import { env } from "@/env";
 
 export const voucherSchema = z.object({
   name: z
@@ -54,11 +55,12 @@ export const voucherFormSchema = z
     intendedDate: z
       .date({ required_error: "Campo obrigatório" })
       .min(
-        getBrazilianDate(new Date(Date.now() - 1000 * 60 * 60 * 24)),
-        "Data inválida",
-      )
-      .max(
-        getBrazilianDate(new Date(Date.now() + 1000 * 60 * 60 * 24 * 15)),
+        getBrazilianDate(
+          new Date(
+            Date.now() -
+              1000 * 60 * 60 * 24 * env.NEXT_PUBLIC_MAX_INTENDED_DAYS,
+          ),
+        ),
         "Data inválida",
       ),
   })
