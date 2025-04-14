@@ -1,33 +1,42 @@
-'use client'
+"use client";
 import { api } from "@/trpc/react";
-import React, { useEffect, useState } from 'react'
-import type { z } from "zod"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { Controller, useForm } from "react-hook-form"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { calculatePrice, formatVoucher, randomCode } from '@/lib/utils/utils'
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from "react";
+import type { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { calculatePrice, formatVoucher, randomCode } from "@/lib/utils/utils";
+import { useRouter } from "next/navigation";
 import { voucherFormSchema } from "@/lib/voucher/types";
 import { cn, formatPaymentUrl, formatPhone } from "@/lib/utils";
-import { useToast } from "@/components/ui/use-toast"
-import { addCookieVoucher, deleteCookieVoucher, getCookieVoucher, createReferrer } from "../lib";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  addCookieVoucher,
+  deleteCookieVoucher,
+  getCookieVoucher,
+  createReferrer,
+} from "../lib";
 import VoucherCreatedCard from "./voucher-created-card";
 import { CalendarIcon, ChevronRight, Loader2 } from "lucide-react";
-import { format } from "date-fns"
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { formatMercadoPagoDescription } from "@/lib/voucher";
 
 export default function TestVoucherForm() {
   const router = useRouter();
-  const { toast } = useToast()
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [code, setCode] = useState('');
-  const [init_point, setInitPoint] = useState('');
-  const [payment_sucess_url, setPaymentSuccessUrl] = useState('');
+  const [code, setCode] = useState("");
+  const [init_point, setInitPoint] = useState("");
+  const [payment_sucess_url, setPaymentSuccessUrl] = useState("");
   const [referrerURL, setReferrerURL] = useState<string | null>(null);
 
   const utils = api.useUtils();
@@ -36,12 +45,14 @@ export default function TestVoucherForm() {
     const voucher = await utils.voucher.findByCode.fetch({ code });
     if (!voucher) return deleteCookieVoucher();
 
-    if (voucher.status !== 'pending' && voucher.payment_id) {
+    if (voucher.status !== "pending" && voucher.payment_id) {
       const url = formatPaymentUrl(voucher.preference_id, voucher.payment_id);
       setPaymentSuccessUrl(url);
     }
 
-    const preference = await utils.mercadopago.getPrefence.fetch({ preference_id: voucher.preference_id });
+    const preference = await utils.mercadopago.getPrefence.fetch({
+      preference_id: voucher.preference_id,
+    });
 
     if (preference.init_point) {
       setInitPoint(preference.init_point);
@@ -51,13 +62,13 @@ export default function TestVoucherForm() {
   useEffect(() => {
     const checkReferrer = async () => {
       try {
-        const response = await fetch('/api/check-referrer');
+        const response = await fetch("/api/check-referrer");
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const data = await response.json();
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
         setReferrerURL(data);
       } catch (error) {
-        console.error('Error checking referrer:', error);
+        console.error("Error checking referrer:", error);
       }
     };
 
@@ -66,40 +77,46 @@ export default function TestVoucherForm() {
         return await checkPaymentStatus(code);
       }
       const cookieVoucher = await getCookieVoucher();
-      setCode(cookieVoucher ?? '');
+      setCode(cookieVoucher ?? "");
       if (cookieVoucher) {
         await checkPaymentStatus(cookieVoucher);
       }
     }
 
-    void checkReferrer()
+    void checkReferrer();
 
     function handleVisibilityChange() {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === "visible") {
         void getPreference();
       }
-    };
+    }
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Cleanup the event listener on component unmount
     void getPreference();
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [utils.mercadopago.getPrefence, utils.voucher.findByCode])
+  }, [utils.mercadopago.getPrefence, utils.voucher.findByCode]);
 
-  type FormSchema = z.infer<typeof voucherFormSchema>
+  type FormSchema = z.infer<typeof voucherFormSchema>;
   const addVoucher = api.voucher.create.useMutation();
   const mercadopago = api.mercadopago.create.useMutation();
 
-  const { register, handleSubmit, control, formState: { errors, isSubmitting }, watch } = useForm<FormSchema>({
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors, isSubmitting },
+    watch,
+  } = useForm<FormSchema>({
     resolver: zodResolver(voucherFormSchema),
     defaultValues: {
-      name: '',
-      phone: '',
+      name: "",
+      phone: "",
       adults: 1,
       elderly: 0,
     },
@@ -108,10 +125,16 @@ export default function TestVoucherForm() {
   const formValues = watch();
 
   function normalizePhone(value: string) {
-    return value.replace(/\D/g, '');
-  };
+    return value.replace(/\D/g, "");
+  }
 
-  async function buyVoucher({ data, code }: { data: FormSchema, code: string }) {
+  async function buyVoucher({
+    data,
+    code,
+  }: {
+    data: FormSchema;
+    code: string;
+  }) {
     const res = await mercadopago.mutateAsync({
       code,
       title: `Voucher ${code}`,
@@ -120,12 +143,12 @@ export default function TestVoucherForm() {
       adults: data.adults,
       elderly: data.elderly,
       unit_price: 0.01,
-      name: data.name.trim().split(' ')[0] ?? '',
-      surname: data.name.trim().split(' ').slice(1).join(' ') ?? '',
+      name: data.name.trim().split(" ")[0] ?? "",
+      surname: data.name.trim().split(" ").slice(1).join(" ") ?? "",
       phone: data.phone,
     });
 
-    if (!res) console.error('Failed to create preference');
+    if (!res) console.error("Failed to create preference");
     return res;
   }
 
@@ -136,9 +159,9 @@ export default function TestVoucherForm() {
   async function onSubmit(data: FormSchema) {
     if (data.adults + data.elderly === 0) {
       return toast({
-        title: 'Erro',
-        description: 'Verifique a quantidade de pessoas',
-      })
+        title: "Erro",
+        description: "Verifique a quantidade de pessoas",
+      });
     }
     try {
       setIsLoading(true);
@@ -148,12 +171,18 @@ export default function TestVoucherForm() {
       if (!res?.id || !res?.init_point) return;
       await addCookieVoucher(rcode);
       const preference_id = res.id;
-      const completeData = formatVoucher({ ...data, preference_id, code: rcode });
+      const completeData = formatVoucher({
+        ...data,
+        preference_id,
+        code: rcode,
+      });
       const voucher = await addVoucher.mutateAsync(completeData);
-      if (!voucher) return toast({
-        title: 'Erro',
-        description: 'Erro ao criar o voucher, por favor atualize a página e tente novamente',
-      })
+      if (!voucher)
+        return toast({
+          title: "Erro",
+          description:
+            "Erro ao criar o voucher, por favor atualize a página e tente novamente",
+        });
       setInitPoint(res.init_point);
       if (referrerURL) {
         await createReferrer(rcode, referrerURL);
@@ -163,31 +192,44 @@ export default function TestVoucherForm() {
       return console.error(error);
       // TODO: send error to server and show error page
     }
-  };
+  }
 
   if (code && (init_point || payment_sucess_url)) {
-    return <VoucherCreatedCard code={code} init_point={init_point} redirectToPayment={redirectToPayment} setCode={setCode} payment_success_url={payment_sucess_url} />
+    return (
+      <VoucherCreatedCard
+        code={code}
+        init_point={init_point}
+        redirectToPayment={redirectToPayment}
+        setCode={setCode}
+        payment_success_url={payment_sucess_url}
+      />
+    );
   }
 
   return (
     <div className="mx-auto w-full bg-dark-blue">
-      <div className="border-none bg-dark-blue text-primary-50 p-4">
+      <div className="border-none bg-dark-blue p-4 text-primary-50">
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="grid gap-4 [&_input]:bg-primary-50 [&_input]:h-12 [&_label]:text-sm [&_label]:leading-none"
+          className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-sm [&_label]:leading-none"
         >
-          <h3 className='font-medium text-sm uppercase text-center text-primary-100 leading-none'>Entrada permitida entre 07h e 17h</h3>
+          <h3 className="text-center text-sm font-medium uppercase leading-none text-primary-100">
+            Entrada permitida entre 07h e 17h
+          </h3>
           <div className="grid gap-2">
             <Label htmlFor="name">Nome</Label>
             <Input
-              className="text-bg-blue rounded-xl"
+              className="rounded-xl text-bg-blue"
               id="name"
               placeholder="Seu nome completo"
               maxLength={40}
-              {...register('name',
-                { required: "Nome é obrigatório" },
-              )} />
-            {errors.name && <p className='text-red-400 text-base font-medium'>{errors.name?.message}</p>}
+              {...register("name", { required: "Nome é obrigatório" })}
+            />
+            {errors.name && (
+              <p className="text-base font-medium text-red-400">
+                {errors.name?.message}
+              </p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="phone">Telefone</Label>
@@ -197,28 +239,41 @@ export default function TestVoucherForm() {
               render={({ field }) => (
                 <Input
                   {...field}
-                  className="text-bg-blue rounded-xl"
+                  className="rounded-xl text-bg-blue"
                   id="phone"
                   type="tel"
                   placeholder="(XX) 99999-9999"
                   value={formatPhone(field.value)}
-                  onChange={(e) => field.onChange(normalizePhone(e.target.value))}
+                  onChange={(e) =>
+                    field.onChange(normalizePhone(e.target.value))
+                  }
                 />
               )}
             />
-            {errors.phone && <p className='text-red-400 text-base font-medium'>{errors.phone?.message}</p>}
+            {errors.phone && (
+              <p className="text-base font-medium text-red-400">
+                {errors.phone?.message}
+              </p>
+            )}
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="adults">Quantidade de pessoas <span className='font-bold'>com mais de 8 anos</span></Label>
+            <Label htmlFor="adults">
+              Quantidade de pessoas{" "}
+              <span className="font-bold">com mais de 8 anos</span>
+            </Label>
             <Input
               id="adults"
               type="number"
               min="0"
               max="20"
-              className="text-bg-blue rounded-xl"
-              {...register('adults')}
+              className="rounded-xl text-bg-blue"
+              {...register("adults")}
             />
-            {errors.adults && <p className='text-red-400 text-base font-medium'>{errors.adults?.message}</p>}
+            {errors.adults && (
+              <p className="text-base font-medium text-red-400">
+                {errors.adults?.message}
+              </p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="elderly">Mais de 60 anos ou especiais</Label>
@@ -227,15 +282,19 @@ export default function TestVoucherForm() {
               type="number"
               min="0"
               max="20"
-              className="text-bg-blue rounded-xl"
-              {...register('elderly')}
+              className="rounded-xl text-bg-blue"
+              {...register("elderly")}
             />
-            {errors.adults && <p className='text-red-400 text-base font-medium'>{errors.elderly?.message}</p>}
+            {errors.adults && (
+              <p className="text-base font-medium text-red-400">
+                {errors.elderly?.message}
+              </p>
+            )}
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="date" className="flex items-center gap-2">
-              <CalendarIcon className="text-primary-50 h-4 w-4" />
+              <CalendarIcon className="h-4 w-4 text-primary-50" />
               Selecione a data que pretende ir
             </Label>
             <Popover>
@@ -248,8 +307,8 @@ export default function TestVoucherForm() {
                       <Button
                         variant={"outline"}
                         className={cn(
-                          "w-full h-12 justify-start text-left font-normal bg-primary-50 text-dark rounded-xl",
-                          !field.value && "text-muted-foreground"
+                          "h-12 w-full justify-start rounded-xl bg-primary-50 text-left font-normal text-dark",
+                          !field.value && "text-muted-foreground",
                         )}
                       >
                         {field.value ? (
@@ -257,10 +316,13 @@ export default function TestVoucherForm() {
                         ) : (
                           <span className="text-dark">Selecione uma data</span>
                         )}
-                        <CalendarIcon className="ml-auto text-dark h-4 w-4 opacity-50" />
+                        <CalendarIcon className="ml-auto h-4 w-4 text-dark opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-2xl shadow-xk" align="center">
+                    <PopoverContent
+                      className="shadow-xk w-auto rounded-2xl p-0"
+                      align="center"
+                    >
                       <Calendar
                         className=""
                         mode="single"
@@ -283,29 +345,42 @@ export default function TestVoucherForm() {
                 )}
               />
             </Popover>
-            {errors.intendedDate && <p className='text-red-400 text-base font-medium'>{errors.intendedDate?.message}</p>}
+            {errors.intendedDate && (
+              <p className="text-base font-medium text-red-400">
+                {errors.intendedDate?.message}
+              </p>
+            )}
           </div>
 
-          <h1 className=' font-bold'>{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
+          <h1 className="font-bold">{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
 
-          <Button disabled={isSubmitting} type="submit" className="w-full h-16 px-6 text-xl rounded-xl bg-positive-green hover:bg-positive-green/80">
-            {isLoading ?
-              <div className="flex flex-row justify-center items-center">
-                <Loader2 className="animate-spin mr-2" />
+          <Button
+            disabled={isSubmitting}
+            type="submit"
+            className="h-16 w-full rounded-xl bg-positive-green px-6 text-xl hover:bg-positive-green/80"
+          >
+            {isLoading ? (
+              <div className="flex flex-row items-center justify-center">
+                <Loader2 className="mr-2 animate-spin" />
                 <p>Carregando...</p>
               </div>
-              : <div className="w-full flex flex-row justify-between items-center">
+            ) : (
+              <div className="flex w-full flex-row items-center justify-between">
                 <p>Continuar</p>
-                <ChevronRight className="w-6 h-6" />
+                <ChevronRight className="h-6 w-6" />
               </div>
-            }
+            )}
           </Button>
         </form>
-        {addVoucher.isError && <div className='flex flex-col justify-center my-4 space-y-2 text-red-500 text-lg font-medium'>
-          <p>Erro ao criar o voucher, tente novamente!</p>
-          <Button onClick={() => location.reload()} className='h-20'>Recarregar página</Button>
-        </div>}
-      </div >
+        {addVoucher.isError && (
+          <div className="my-4 flex flex-col justify-center space-y-2 text-lg font-medium text-red-500">
+            <p>Erro ao criar o voucher, tente novamente!</p>
+            <Button onClick={() => location.reload()} className="h-20">
+              Recarregar página
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
-  )
+  );
 }
