@@ -88,7 +88,7 @@ export default async function PaymentApprovedPage({
       );
 
     return redirect(
-      `/pagamento/confirmado?preference_id=${preference_id}&payment_id=${payment_id}`,
+      `/pagamento/aprovado?preference_id=${preference_id}&payment_id=${payment_id}`,
     );
   }
 }
