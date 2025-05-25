@@ -142,7 +142,7 @@ export default function TestVoucherForm() {
       description: formatMercadoPagoDescription({ ...data, code }),
       adults: data.adults,
       elderly: data.elderly,
-      unit_price: 0.01,
+      unit_price: 0.01, // Using a small value for testing purposes, could use calculatePrice(data.adults, data.elderly) for real pricing
       name: data.name.trim().split(" ")[0] ?? "",
       surname: data.name.trim().split(" ").slice(1).join(" ") ?? "",
       phone: data.phone,
@@ -352,7 +352,7 @@ export default function TestVoucherForm() {
             )}
           </div>
 
-          <h1 className="font-bold">{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
+          <h1 className="font-bold">{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2).replace('.', ',')}`}</h1>
 
           <Button
             disabled={isSubmitting}
