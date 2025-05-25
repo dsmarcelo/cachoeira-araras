@@ -19,7 +19,7 @@ export default function PaymentCard({ data, payment_id }: { data: PreferenceResp
         {items.map((item, index) => (
           <div key={index}>
             <h2>{item.title}</h2>
-            <p>Valor: R${item.unit_price},00</p>
+            <p>Valor: R${Number(item.unit_price).toFixed(2).replace('.', ',')}</p>
           </div>
         ))}
       </CardContent>

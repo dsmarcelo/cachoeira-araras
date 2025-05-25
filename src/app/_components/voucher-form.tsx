@@ -374,7 +374,7 @@ export default function VoucherForm() {
             )}
           </div>
 
-          <h1 className="font-bold">{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2)}`}</h1>
+          <h1 className="font-bold">{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2).replace('.', ',')}`}</h1>
 
           <Button
             disabled={isSubmitting}

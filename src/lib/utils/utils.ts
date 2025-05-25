@@ -16,8 +16,28 @@ export function randomCode(): string {
   return result;
 }
 
+/**
+ * Get the current voucher price from environment variables.
+ * This function will be updated later to fetch from database.
+ * @returns The current voucher price for adults
+ */
+export function getVoucherPrice(): number {
+  return Number(process.env.NEXT_PUBLIC_VOUCHER_PRICE ?? 50);
+}
+
+/**
+ * Get the current voucher price for elderly people.
+ * @returns The current voucher price for elderly (half of adult price)
+ */
+export function getElderlyVoucherPrice(): number {
+  return getVoucherPrice() / 2;
+}
+
+/**
+ * Calculate the total price for a voucher based on number of adults and elderly.
+ */
 export function calculatePrice(adults: number, elderly: number) {
-  const total = adults * 40 + elderly * 20;
+  const total = adults * getVoucherPrice() + elderly * getElderlyVoucherPrice();
   return total;
 }
 
