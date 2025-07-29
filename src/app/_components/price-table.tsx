@@ -35,7 +35,7 @@ export default function PriceTable() {
           </div>
         </div>
         <div className="w-full h-10 bg-dark-blue flex items-center justify-center ">
-          <p className='text-primary-50 font-semibold text-lg'>Acesso a piscina</p>
+          <p className='text-primary-50 font-semibold text-lg'>Day Use + Acesso a piscina</p>
         </div>
         <div className='w-full flex flex-col gap-2 px-4'>
           <div className='w-full flex justify-between'>
