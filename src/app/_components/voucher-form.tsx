@@ -227,7 +227,7 @@ export default function VoucherForm() {
       <div className="border-none bg-dark-blue p-4 text-primary-50">
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-sm [&_label]:leading-none"
+          className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-base [&_label]:leading-none"
         >
           <h3 className="text-center text-sm font-medium uppercase leading-none text-primary-100">
             Entrada permitida entre 08h e 17h
