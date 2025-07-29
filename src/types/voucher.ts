@@ -2,6 +2,14 @@
   Voucher type definition file
   Updated Voucher type so that payment_id, expires_at, and deletedAt are non-optional with null as possible value. This change resolves type mismatches with transformed voucher objects in the dashboard page.
 */
+// VoucherType is defined as a const object for JS compatibility
+export const VoucherType = {
+  default: "default",
+  pool: "pool",
+} as const;
+
+export type VoucherType = (typeof VoucherType)[keyof typeof VoucherType];
+
 export type Voucher = {
   id: number; // Unique identifier for the voucher
   name: string; // Name associated with the voucher
@@ -18,4 +26,5 @@ export type Voucher = {
   createdAt: Date; // Creation date of the voucher
   updatedAt: Date; // Last update timestamp
   deletedAt: Date | null; // Deletion timestamp (if voucher was deleted), can be null
+  type: VoucherType; // Type of voucher
 };

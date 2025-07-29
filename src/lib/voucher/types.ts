@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getBrazilianDate } from "../utils/date";
 import { env } from "@/env";
+import { VoucherType } from "@/types/voucher";
 
 export const voucherSchema = z.object({
   name: z
@@ -23,6 +24,7 @@ export const voucherSchema = z.object({
   valid: z.boolean(),
   status: z.string(),
   preference_id: z.string(),
+  type: z.nativeEnum(VoucherType),
   payment_id: z.string().optional().nullable(),
   expires_at: z.union([z.date(), z.null()]).optional(),
 });
@@ -84,6 +86,7 @@ export const initialVoucherSchema = z.object({
   payment_id: z.string().optional(),
   code: z.string(),
   intendedDate: z.date(),
+  type: z.nativeEnum(VoucherType),
 });
 
 export const referrerSchema = z.object({
@@ -108,6 +111,7 @@ export const completeVoucherSchema = z.object({
   payment_id: z.string().optional(),
   expires_at: z.union([z.date(), z.null()]).optional(),
   referrer: referrerSchema.optional(),
+  type: z.nativeEnum(VoucherType),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
