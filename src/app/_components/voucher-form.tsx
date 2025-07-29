@@ -7,6 +7,14 @@ import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { calculatePrice, formatVoucher, randomCode } from "@/lib/utils/utils";
 import { useRouter } from "next/navigation";
 import { voucherFormSchema } from "@/lib/voucher/types";
@@ -32,6 +40,7 @@ import { formatMercadoPagoDescription } from "@/lib/voucher";
 import { getBrazilianDate } from "@/lib/utils/date";
 import { env } from "@/env";
 import NumberInput from "./input/number-input";
+import { VoucherType } from "@/types/voucher";
 
 export default function VoucherForm() {
   const router = useRouter();
@@ -122,6 +131,7 @@ export default function VoucherForm() {
       phone: "",
       adults: 1,
       elderly: 0,
+      type: "default",
     },
   });
 
@@ -145,7 +155,7 @@ export default function VoucherForm() {
       description: formatMercadoPagoDescription({ ...data, code }),
       adults: data.adults,
       elderly: data.elderly,
-      unit_price: calculatePrice(data.adults, data.elderly),
+      unit_price: calculatePrice(data.adults, data.elderly, data.type),
       name: data.name.trim().split(" ")[0] ?? "",
       surname: data.name.trim().split(" ").slice(1).join(" ") ?? "",
       phone: data.phone,
@@ -374,7 +384,33 @@ export default function VoucherForm() {
             )}
           </div>
 
-          <h1 className="font-bold">{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2).replace('.', ',')}`}</h1>
+          <div className="grid gap-2">
+            <Label htmlFor="type">Tipo de Voucher</Label>
+            <Controller
+              name="type"
+              control={control}
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger className="h-12 rounded-xl bg-primary-50 text-bg-blue">
+                    <SelectValue placeholder="Selecione o tipo de voucher" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="default">Padrão</SelectItem>
+                      <SelectItem value="pool">Acesso a piscina</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.type && (
+              <p className="text-base font-medium text-red-400">
+                {errors.type?.message}
+              </p>
+            )}
+          </div>
+
+          <h1 className="font-bold">{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly, formValues.type).toFixed(2).replace('.', ',')}`}</h1>
 
           <Button
             disabled={isSubmitting}

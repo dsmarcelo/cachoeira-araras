@@ -36,8 +36,14 @@ export function getElderlyVoucherPrice(): number {
 /**
  * Calculate the total price for a voucher based on number of adults and elderly.
  */
-export function calculatePrice(adults: number, elderly: number) {
-  const total = adults * getVoucherPrice() + elderly * getElderlyVoucherPrice();
+export function calculatePrice(
+  adults: number,
+  elderly: number,
+  type = "default",
+) {
+  const basePrice = type === "pool" ? 70 : 50;
+  const elderlyPrice = basePrice / 2;
+  const total = adults * basePrice + elderly * elderlyPrice;
   return total;
 }
 
@@ -51,8 +57,9 @@ export function formatVoucher(data: initialVoucherSchema): VoucherSchema {
     valid: false,
     code: data.code,
     preference_id: data.preference_id,
-    price: calculatePrice(data.adults, data.elderly),
+    price: calculatePrice(data.adults, data.elderly, data.type),
     expires_at: data.intendedDate,
+    type: data.type,
   };
   return completeData;
 }

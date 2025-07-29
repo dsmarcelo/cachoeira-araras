@@ -65,6 +65,9 @@ export const voucherFormSchema = z
         ),
         "Data inválida",
       ),
+    type: z.nativeEnum(VoucherType, {
+      required_error: "Tipo de voucher é obrigatório",
+    }),
   })
   .refine(
     (data) => {
