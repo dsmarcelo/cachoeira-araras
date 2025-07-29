@@ -29,6 +29,9 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { formatMercadoPagoDescription } from "@/lib/voucher";
+import { getBrazilianDate } from "@/lib/utils/date";
+import { env } from "@/env";
+import NumberInput from "./input/number-input";
 
 export default function TestVoucherForm() {
   const router = useRouter();
@@ -144,7 +147,7 @@ export default function TestVoucherForm() {
       description: formatMercadoPagoDescription({ adults: data.adults, elderly: data.elderly, adults_pool: data.adults_pool, elderly_pool: data.elderly_pool, phone: data.phone, code }),
       adults: data.adults,
       elderly: data.elderly,
-      unit_price: 0.01, // Using a small value for testing purposes, could use calculatePrice(data.adults, data.elderly, data.type) for real pricing
+      unit_price: 0.01,
       name: data.name.trim().split(" ")[0] ?? "",
       surname: data.name.trim().split(" ").slice(1).join(" ") ?? "",
       phone: data.phone,
@@ -159,7 +162,7 @@ export default function TestVoucherForm() {
   }
 
   async function onSubmit(data: FormSchema) {
-    if (data.adults + data.elderly === 0) {
+    if (data.adults + data.elderly + data.adults_pool + data.elderly_pool === 0) {
       return toast({
         title: "Erro",
         description: "Verifique a quantidade de pessoas",
@@ -170,7 +173,8 @@ export default function TestVoucherForm() {
       const rcode = randomCode();
       setCode(rcode);
       const res = await buyVoucher({ data, code: rcode });
-      if (!res?.id || !res?.init_point) return;
+      if (!res?.id || !res?.init_point)
+        throw new Error("Falha ao criar preferencia");
       await addCookieVoucher(rcode);
       const preference_id = res.id;
       const completeData = formatVoucher({
@@ -213,10 +217,10 @@ export default function TestVoucherForm() {
       <div className="border-none bg-dark-blue p-4 text-primary-50">
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-sm [&_label]:leading-none"
+          className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-base [&_label]:leading-none"
         >
           <h3 className="text-center text-sm font-medium uppercase leading-none text-primary-100">
-            Entrada permitida entre 07h e 17h
+            Entrada permitida entre 08h e 17h
           </h3>
           <div className="grid gap-2">
             <Label htmlFor="name">Nome</Label>
@@ -258,75 +262,134 @@ export default function TestVoucherForm() {
               </p>
             )}
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="adults">
-              Quantidade de pessoas{" "}
-              <span className="font-bold">com mais de 8 anos</span>
-            </Label>
-            <Input
-              id="adults"
-              type="number"
-              min="0"
-              max="20"
-              className="rounded-xl text-bg-blue"
-              {...register("adults")}
-            />
-            {errors.adults && (
-              <p className="text-base font-medium text-red-400">
-                {errors.adults?.message}
-              </p>
-            )}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="elderly">Mais de 60 anos ou especiais</Label>
-            <Input
-              id="elderly"
-              type="number"
-              min="0"
-              max="20"
-              className="rounded-xl text-bg-blue"
-              {...register("elderly")}
-            />
-            {errors.adults && (
-              <p className="text-base font-medium text-red-400">
-                {errors.elderly?.message}
-              </p>
-            )}
-          </div>
 
-          {/* Pool Access Section */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="adults_pool">Adultos (Acesso a piscina)</Label>
-              <Input
-                id="adults_pool"
-                type="number"
-                min="0"
-                max="20"
-                className="rounded-xl text-bg-blue"
-                {...register("adults_pool")}
-              />
-              {errors.adults_pool && (
-                <p className="text-base font-medium text-red-400">
-                  {errors.adults_pool?.message}
-                </p>
-              )}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="elderly_pool">Idosos (Acesso a piscina)</Label>
-              <Input
-                id="elderly_pool"
-                type="number"
-                min="0"
-                max="20"
-                className="rounded-xl text-bg-blue"
-                {...register("elderly_pool")}
-              />
-              {errors.elderly_pool && (
-                <p className="text-base font-medium text-red-400">
-                  {errors.elderly_pool?.message}
-                </p>
-              )}
+          <div className=" pt-4">
+            <p className="text-sm text-primary-100 text-center font-bold">Selecione a quantidade de pessoas</p>
+
+            <div className="flex flex-col divide-y divide-primary-100">
+                <div className="flex items-center justify-between gap-2 py-4">
+                  <Label className="">
+                    <p className="font-bold text-base">Inteira</p>
+                    <p className="text-sm">(de 9 a 59 anos)</p>
+                    <p className="text-sm">R$ {getVoucherPrice().toFixed(2).replace('.', ',')}</p>
+                  </Label>
+                  <div className="w-fit">
+                    <Controller
+                      name="adults"
+                      control={control}
+                      render={({ field }) => (
+                        <NumberInput
+                          id="adults"
+                          minValue={0}
+                          maxValue={20}
+                          defaultValue={1}
+                          selectedValue={field.value}
+                          onChange={field.onChange}
+                          className="rounded-xl text-bg-blue"
+                          placeholder="Quantidade de adultos"
+                        />
+                      )}
+                    />
+                  </div>
+                  {errors.adults && (
+                    <p className="text-base font-medium text-red-400">
+                      {errors.adults?.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 py-4">
+                  <Label className="flex flex-col">
+                    <p className="font-bold text-base">Meia</p>
+                    <p className="text-sm">(+60 anos e especiais)</p>
+                    <p className="text-sm">R$ {getElderlyVoucherPrice().toFixed(2).replace('.', ',')}</p>
+                  </Label>
+                  <div className="w-fit">
+                    <Controller
+                      name="elderly"
+                      control={control}
+                      render={({ field }) => (
+                        <NumberInput
+                          id="elderly"
+                          minValue={0}
+                          maxValue={20}
+                          defaultValue={0}
+                          selectedValue={field.value}
+                          onChange={field.onChange}
+                          className="rounded-xl text-bg-blue"
+                          placeholder="Quantidade de idosos"
+                        />
+                      )}
+                    />
+                  </div>
+                  {errors.elderly && (
+                    <p className="text-base font-medium text-red-400">
+                      {errors.elderly?.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 py-4">
+                  <Label className="flex flex-col">
+                    <p className="font-bold text-base">Inteira (Piscina)</p>
+                    <p className="text-sm">(de 9 a 59 anos)</p>
+                    <p className="text-sm">R$ {getPoolVoucherPrice().toFixed(2).replace('.', ',')}</p>
+                  </Label>
+                  <div className="w-fit">
+                    <Controller
+                      name="adults_pool"
+                      control={control}
+                      render={({ field }) => (
+                        <NumberInput
+                          id="adults_pool"
+                          minValue={0}
+                          maxValue={20}
+                          defaultValue={0}
+                          selectedValue={field.value}
+                          onChange={field.onChange}
+                          className="rounded-xl text-bg-blue"
+                          placeholder="Quantidade de adultos"
+                        />
+                      )}
+                    />
+                  </div>
+                  {errors.adults_pool && (
+                    <p className="text-base font-medium text-red-400">
+                      {errors.adults_pool?.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 py-4">
+                  <Label className="flex flex-col">
+                    <p className="font-bold text-base">Meia (Piscina)</p>
+                    <p className="text-sm">(+60 anos e especiais)</p>
+                    <p className="text-sm">R$ {getPoolElderlyVoucherPrice().toFixed(2).replace('.', ',')}</p>
+                  </Label>
+                  <div className="w-fit">
+                    <Controller
+                      name="elderly_pool"
+                      control={control}
+                      render={({ field }) => (
+                        <NumberInput
+                          id="elderly_pool"
+                          minValue={0}
+                          maxValue={20}
+                          defaultValue={0}
+                          selectedValue={field.value}
+                          onChange={field.onChange}
+                          className="rounded-xl text-bg-blue"
+                          placeholder="Quantidade de meias"
+                        />
+                      )}
+                    />
+                  </div>
+                  {errors.elderly_pool && (
+                    <p className="text-base font-medium text-red-400">
+                      {errors.elderly_pool?.message}
+                    </p>
+                  )}
+                </div>
             </div>
           </div>
 
@@ -358,7 +421,7 @@ export default function TestVoucherForm() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="shadow-xk w-auto rounded-2xl p-0"
+                      className="w-auto rounded-2xl p-0 shadow-lg"
                       align="center"
                     >
                       <Calendar
@@ -367,12 +430,14 @@ export default function TestVoucherForm() {
                         selected={field.value}
                         onSelect={field.onChange}
                         disabled={(date) => {
-                          const today = new Date();
-                          const yesterday = new Date(today);
+                          const today = getBrazilianDate();
+                          const yesterday = getBrazilianDate(new Date(today));
                           yesterday.setDate(today.getDate() - 1);
 
-                          const maxDate = new Date(today);
-                          maxDate.setDate(today.getDate() + 15);
+                          const maxDate = getBrazilianDate(new Date(today));
+                          maxDate.setDate(
+                            today.getDate() + env.NEXT_PUBLIC_MAX_INTENDED_DAYS, //TODO: Replace with database config later
+                          );
 
                           return date < yesterday || date > maxDate;
                         }}
