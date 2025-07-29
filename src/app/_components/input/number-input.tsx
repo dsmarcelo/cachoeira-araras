@@ -1,7 +1,7 @@
 "use client";
 
 import { MinusIcon, PlusIcon } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useState, useEffect } from "react";
 import type { InputHTMLAttributes } from "react";
 
 interface NumberInputProps
@@ -27,15 +27,65 @@ export default function NumberInput({
   className,
   ...inputProps
 }: NumberInputProps) {
+  // Track the input value separately to handle empty state
+  const [inputValue, setInputValue] = useState(selectedValue.toString());
+
+  // Sync inputValue with selectedValue when it changes externally
+  useEffect(() => {
+    setInputValue(selectedValue.toString());
+  }, [selectedValue]);
+
   // Handle direct input changes
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = parseInt(e.target.value, 10);
-      if (!isNaN(value) && value >= minValue && value <= maxValue) {
-        onChange(value);
+      const rawValue = e.target.value;
+
+      // If input is empty, just update the display value
+      if (rawValue === "") {
+        setInputValue("");
+        return;
+      }
+
+      // Remove leading zeros but keep a single zero if that's the only digit
+      const trimmed = rawValue.replace(/^0+(?=\d)/, "");
+      const numericValue = parseInt(trimmed, 10);
+
+      // Update the display value to show the trimmed version
+      setInputValue(trimmed);
+
+      // Only update the actual value if it's a valid number within range
+      if (!isNaN(numericValue) && numericValue >= minValue && numericValue <= maxValue) {
+        onChange(numericValue);
       }
     },
     [minValue, maxValue, onChange],
+  );
+
+  // Handle input blur - set to 0 if empty, otherwise validate the current value
+  const handleInputBlur = useCallback(
+    (e: React.FocusEvent<HTMLInputElement>) => {
+      const rawValue = e.target.value;
+
+      if (rawValue === "") {
+        // If input is empty, set to 0 and update display
+        onChange(0);
+        setInputValue("0");
+        return;
+      }
+
+      const numericValue = parseInt(rawValue, 10);
+
+      // If invalid or out of range, reset to current selectedValue
+      if (isNaN(numericValue) || numericValue < minValue || numericValue > maxValue) {
+        setInputValue(selectedValue.toString());
+        return;
+      }
+
+      // Ensure the display value matches the actual value (remove leading zeros)
+      const trimmedValue = numericValue.toString();
+      setInputValue(trimmedValue);
+    },
+    [minValue, maxValue, onChange, selectedValue],
   );
 
   // Handle increment/decrement
@@ -69,8 +119,10 @@ export default function NumberInput({
           </button>
           <input
             type="number"
-            value={selectedValue}
+            inputMode="numeric"
+            value={inputValue}
             onChange={handleInputChange}
+            onBlur={handleInputBlur}
             min={minValue}
             max={maxValue}
             className="bg-background text-base h-full w-12 px-1 py-2 text-center tabular-nums text-dark focus:outline-none rounded-xl"
