@@ -40,6 +40,7 @@ export const env = createEnv({
     NEXT_PUBLIC_FACEBOOK_PIXEL_ID: z.string(),
     NEXT_PUBLIC_MAX_INTENDED_DAYS: z.coerce.number().default(30),
     NEXT_PUBLIC_VOUCHER_PRICE: z.coerce.number().default(50),
+    NEXT_PUBLIC_VOUCHER_POOL_PRICE: z.coerce.number().default(70),
   },
 
   /**
@@ -60,7 +61,7 @@ export const env = createEnv({
     NEXT_PUBLIC_FACEBOOK_PIXEL_ID: process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID,
     NEXT_PUBLIC_MAX_INTENDED_DAYS: process.env.NEXT_PUBLIC_MAX_INTENDED_DAYS,
     NEXT_PUBLIC_VOUCHER_PRICE: process.env.NEXT_PUBLIC_VOUCHER_PRICE,
-    
+    NEXT_PUBLIC_VOUCHER_POOL_PRICE: process.env.NEXT_PUBLIC_VOUCHER_POOL_PRICE,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
