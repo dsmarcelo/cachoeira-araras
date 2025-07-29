@@ -52,17 +52,17 @@ export default function NumberInput({
   }, [selectedValue, minValue, onChange]);
 
   const buttonClass =
-    "text-secondary hover:bg-primary-100 hover:text-foreground flex aspect-square h-full items-center justify-center border-primary-300 shadow-sm bg-light text-sm transition-colors disabled:pointer-events-none disabled:bg-light";
+    "text-primary-50 bg-transparent hover:text-black flex aspect-square h-10 rounded-full items-center justify-center border-primary-300 shadow-sm bg-light text-sm transition-colors disabled:pointer-events-none disabled:opacity-50";
 
   return (
     <div className="w-full">
       <div className="*:not-first:mt-2">
-        <div className="focus-within:ring-ring flex h-12 w-full items-center overflow-hidden rounded-xl text-sm transition-colors focus-within:ring-2">
+        <div className="focus-within:ring-ring flex gap-2 h-12 w-full items-center overflow-hidden rounded-xl text-sm transition-colors focus-within:ring-2">
           <button
             type="button"
             onClick={handleDecrement}
             disabled={selectedValue <= minValue}
-            className={`${buttonClass} enabled:border-r`}
+            className={`${buttonClass}`}
             aria-label="Decrease value"
           >
             <MinusIcon size={16} aria-hidden="true" />
@@ -73,7 +73,7 @@ export default function NumberInput({
             onChange={handleInputChange}
             min={minValue}
             max={maxValue}
-            className="bg-background h-full w-full px-3 py-2 text-center tabular-nums text-dark focus:outline-none"
+            className="bg-background text-base h-full w-12 px-1 py-2 text-center tabular-nums text-dark focus:outline-none rounded-xl"
             aria-label={label}
             {...inputProps}
           />
@@ -81,7 +81,7 @@ export default function NumberInput({
             type="button"
             onClick={handleIncrement}
             disabled={selectedValue >= maxValue}
-            className={`${buttonClass} enabled:border-l`}
+            className={`${buttonClass}`}
             aria-label="Increase value"
           >
             <PlusIcon size={16} aria-hidden="true" />
