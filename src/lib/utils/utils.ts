@@ -84,7 +84,6 @@ export function formatVoucher(data: initialVoucherSchema): VoucherSchema {
       data.elderly_pool,
     ),
     expires_at: data.intendedDate,
-    type: data.type,
   };
   return completeData;
 }

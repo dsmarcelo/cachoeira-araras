@@ -7,15 +7,7 @@ import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { calculatePrice, formatVoucher, randomCode } from "@/lib/utils/utils";
+import { calculatePrice, formatVoucher, getElderlyVoucherPrice, getPoolElderlyVoucherPrice, getPoolVoucherPrice, getVoucherPrice, randomCode } from "@/lib/utils/utils";
 import { useRouter } from "next/navigation";
 import { voucherFormSchema } from "@/lib/voucher/types";
 import { cn, formatPaymentUrl, formatPhone } from "@/lib/utils";
@@ -37,7 +29,6 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { formatMercadoPagoDescription } from "@/lib/voucher";
-import { VoucherType } from "@/types/voucher";
 
 export default function TestVoucherForm() {
   const router = useRouter();
@@ -130,7 +121,6 @@ export default function TestVoucherForm() {
       elderly: 0,
       adults_pool: 0,
       elderly_pool: 0,
-      type: "default",
     },
   });
 
@@ -396,32 +386,6 @@ export default function TestVoucherForm() {
             {errors.intendedDate && (
               <p className="text-base font-medium text-red-400">
                 {errors.intendedDate?.message}
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="type">Tipo de Voucher</Label>
-            <Controller
-              name="type"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="h-12 rounded-xl bg-primary-50 text-bg-blue">
-                    <SelectValue placeholder="Selecione o tipo de voucher" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="default">Padrão</SelectItem>
-                      <SelectItem value="pool">Acesso a piscina</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.type && (
-              <p className="text-base font-medium text-red-400">
-                {errors.type?.message}
               </p>
             )}
           </div>

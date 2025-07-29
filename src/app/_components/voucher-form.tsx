@@ -7,14 +7,6 @@ import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { calculatePrice, formatVoucher, getElderlyVoucherPrice, getPoolElderlyVoucherPrice, getPoolVoucherPrice, getVoucherPrice, randomCode } from "@/lib/utils/utils";
 import { useRouter } from "next/navigation";
 import { voucherFormSchema } from "@/lib/voucher/types";
@@ -40,7 +32,6 @@ import { formatMercadoPagoDescription } from "@/lib/voucher";
 import { getBrazilianDate } from "@/lib/utils/date";
 import { env } from "@/env";
 import NumberInput from "./input/number-input";
-import { VoucherType } from "@/types/voucher";
 
 export default function VoucherForm() {
   const router = useRouter();
@@ -133,7 +124,6 @@ export default function VoucherForm() {
       elderly: 0,
       adults_pool: 0,
       elderly_pool: 0,
-      type: "default",
     },
   });
 
@@ -172,7 +162,7 @@ export default function VoucherForm() {
   }
 
   async function onSubmit(data: FormSchema) {
-    if (data.adults + data.elderly === 0) {
+    if (data.adults + data.elderly + data.adults_pool + data.elderly_pool === 0) {
       return toast({
         title: "Erro",
         description: "Verifique a quantidade de pessoas",
@@ -461,32 +451,6 @@ export default function VoucherForm() {
             {errors.intendedDate && (
               <p className="text-base font-medium text-red-400">
                 {errors.intendedDate?.message}
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="type">Tipo de Voucher</Label>
-            <Controller
-              name="type"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="h-12 rounded-xl bg-primary-50 text-bg-blue">
-                    <SelectValue placeholder="Selecione o tipo de voucher" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="default">Padrão</SelectItem>
-                      <SelectItem value="pool">Acesso a piscina</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.type && (
-              <p className="text-base font-medium text-red-400">
-                {errors.type?.message}
               </p>
             )}
           </div>
