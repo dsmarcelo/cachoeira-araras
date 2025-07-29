@@ -77,15 +77,27 @@ export function formatQuantity({ adults, elderly }: { adults: number; elderly: n
   }
 }
 
-export function formatMercadoPagoDescription({ adults, elderly, phone, code }: { adults: number; elderly: number; phone: string; code: string; }): string {
+export function formatMercadoPagoDescription({ adults, elderly, adults_pool, elderly_pool, phone, code }: { adults: number; elderly: number; adults_pool: number; elderly_pool: number; phone: string; code: string; }): string {
+  let description = `Voucher com código ${code}`;
 
+  // Add default access information
   if (adults > 0 && elderly > 0) {
-    return `Voucher com código ${code}, ${adults} entrada(s) inteiras e ${elderly} entrada(s) meias. Telefone: ${phone}`;
+    description += `, ${adults} entrada(s) inteiras e ${elderly} entrada(s) meias`;
   } else if (adults > 0) {
-    return `Voucher com código ${code}, ${adults} entrada(s) inteiras. Telefone: ${phone}`;
+    description += `, ${adults} entrada(s) inteiras`;
   } else if (elderly > 0) {
-    return `Voucher com código ${code}, ${elderly} entrada(s) meias. Telefone: ${phone}`;
-  } else {
-    return `Voucher com código ${code}, Telefone: ${phone}`;
+    description += `, ${elderly} entrada(s) meias`;
   }
+
+  // Add pool access information
+  if (adults_pool > 0 && elderly_pool > 0) {
+    description += `, ${adults_pool} acesso(s) a piscina (inteiras) e ${elderly_pool} acesso(s) a piscina (meias)`;
+  } else if (adults_pool > 0) {
+    description += `, ${adults_pool} acesso(s) a piscina (inteiras)`;
+  } else if (elderly_pool > 0) {
+    description += `, ${elderly_pool} acesso(s) a piscina (meias)`;
+  }
+
+  description += `. Telefone: ${phone}`;
+  return description;
 }

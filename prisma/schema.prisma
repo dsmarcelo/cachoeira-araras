@@ -57,29 +57,25 @@ model VerificationToken {
 }
 
 model Voucher {
-  id            Int         @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())
   name          String
   phone         String
-  code          String      @unique
-  adults        Int
-  elderly       Int
+  code          String    @unique
+  adults        Int       @default(1)
+  elderly       Int       @default(0)
+  adults_pool   Int       @default(0)
+  elderly_pool  Int       @default(0)
   price         Float
-  valid         Boolean     @default(false)
-  status        String      @default("pending")
-  preference_id String      @unique
-  payment_id    String?     @unique
+  valid         Boolean   @default(false)
+  status        String    @default("pending")
+  preference_id String    @unique
+  payment_id    String?   @unique
   expires_at    DateTime?
   Referrer      Referrer?
-  type          VoucherType @default(default)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
-}
-
-enum VoucherType {
-  default
-  pool
 }
 
 model Referrer {

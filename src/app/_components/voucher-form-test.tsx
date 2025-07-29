@@ -128,6 +128,8 @@ export default function TestVoucherForm() {
       phone: "",
       adults: 1,
       elderly: 0,
+      adults_pool: 0,
+      elderly_pool: 0,
       type: "default",
     },
   });
@@ -149,7 +151,7 @@ export default function TestVoucherForm() {
       code,
       title: `Voucher ${code}`,
       id: code,
-      description: formatMercadoPagoDescription({ ...data, code }),
+      description: formatMercadoPagoDescription({ adults: data.adults, elderly: data.elderly, adults_pool: data.adults_pool, elderly_pool: data.elderly_pool, phone: data.phone, code }),
       adults: data.adults,
       elderly: data.elderly,
       unit_price: 0.01, // Using a small value for testing purposes, could use calculatePrice(data.adults, data.elderly, data.type) for real pricing
@@ -302,6 +304,42 @@ export default function TestVoucherForm() {
             )}
           </div>
 
+          {/* Pool Access Section */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="adults_pool">Adultos (Acesso a piscina)</Label>
+              <Input
+                id="adults_pool"
+                type="number"
+                min="0"
+                max="20"
+                className="rounded-xl text-bg-blue"
+                {...register("adults_pool")}
+              />
+              {errors.adults_pool && (
+                <p className="text-base font-medium text-red-400">
+                  {errors.adults_pool?.message}
+                </p>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="elderly_pool">Idosos (Acesso a piscina)</Label>
+              <Input
+                id="elderly_pool"
+                type="number"
+                min="0"
+                max="20"
+                className="rounded-xl text-bg-blue"
+                {...register("elderly_pool")}
+              />
+              {errors.elderly_pool && (
+                <p className="text-base font-medium text-red-400">
+                  {errors.elderly_pool?.message}
+                </p>
+              )}
+            </div>
+          </div>
+
           <div className="grid gap-2">
             <Label htmlFor="date" className="flex items-center gap-2">
               <CalendarIcon className="h-4 w-4 text-primary-50" />
@@ -388,7 +426,7 @@ export default function TestVoucherForm() {
             )}
           </div>
 
-          <h1 className="font-bold">{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly, formValues.type).toFixed(2).replace('.', ',')}`}</h1>
+          <h1 className="font-bold">{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly, formValues.adults_pool, formValues.elderly_pool).toFixed(2).replace('.', ',')}`}</h1>
 
           <Button
             disabled={isSubmitting}

@@ -42,9 +42,11 @@ import { formatPhone } from "@/lib/utils/utils";
 import { translateVoucherType } from "@/lib/utils";
 import { type Voucher as PrismaVoucher } from "@prisma/client";
 
-// Extended voucher type that includes the type property
+// Extended voucher type that includes the type property and pool fields
 type VoucherWithType = PrismaVoucher & {
   type: string;
+  adults_pool: number;
+  elderly_pool: number;
 };
 import { useSearchParams } from "next/navigation";
 import { startOfMonth } from "date-fns";
@@ -323,6 +325,8 @@ export default function VouchersPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Inteiras</TableHead>
                   <TableHead>Meias</TableHead>
+                  <TableHead>Inteiras (Piscina)</TableHead>
+                  <TableHead>Meias (Piscina)</TableHead>
                   <TableHead>Preço</TableHead>
                   <TableHead>Data Criação</TableHead>
                   <TableHead>Validade</TableHead>
@@ -332,13 +336,13 @@ export default function VouchersPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="h-24 text-center">
+                    <TableCell colSpan={13} className="h-24 text-center">
                       Carregando...
                     </TableCell>
                   </TableRow>
                 ) : filteredVouchers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="h-24 text-center">
+                    <TableCell colSpan={13} className="h-24 text-center">
                       Nenhum voucher encontrado.
                     </TableCell>
                   </TableRow>
@@ -385,6 +389,8 @@ export default function VouchersPage() {
                       </TableCell>
                       <TableCell>{voucher.adults}</TableCell>
                       <TableCell>{voucher.elderly}</TableCell>
+                      <TableCell>{voucher.adults_pool || 0}</TableCell>
+                      <TableCell>{voucher.elderly_pool || 0}</TableCell>
                       <TableCell>{formatCurrency(voucher.price)}</TableCell>
                       <TableCell>{formatDate(voucher.createdAt)}</TableCell>
                       <TableCell>

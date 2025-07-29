@@ -8,6 +8,13 @@ import {
 
 type initialVoucherSchema = z.infer<typeof initialVoucherSchema>;
 
+const voucherPrice = Number(process.env.NEXT_PUBLIC_VOUCHER_PRICE ?? 50);
+const poolVoucherPrice = Number(
+  process.env.NEXT_PUBLIC_POOL_VOUCHER_PRICE ?? 70,
+);
+const elderlyVoucherPrice = voucherPrice / 2;
+const poolElderlyVoucherPrice = poolVoucherPrice / 2;
+
 export function randomCode(): string {
   let result = "";
   const randomString = Math.random().toString(36).slice(2, 15);
@@ -25,6 +32,10 @@ export function getVoucherPrice(): number {
   return Number(process.env.NEXT_PUBLIC_VOUCHER_PRICE ?? 50);
 }
 
+export function getPoolVoucherPrice(): number {
+  return Number(process.env.NEXT_PUBLIC_POOL_VOUCHER_PRICE ?? 70);
+}
+
 /**
  * Get the current voucher price for elderly people.
  * @returns The current voucher price for elderly (half of adult price)
@@ -33,18 +44,25 @@ export function getElderlyVoucherPrice(): number {
   return getVoucherPrice() / 2;
 }
 
+export function getPoolElderlyVoucherPrice(): number {
+  return getPoolVoucherPrice() / 2;
+}
+
 /**
  * Calculate the total price for a voucher based on number of adults and elderly.
+ * Now supports separate pool access counts.
  */
 export function calculatePrice(
   adults: number,
   elderly: number,
-  type = "default",
+  adults_pool = 0,
+  elderly_pool = 0,
 ) {
-  const basePrice = type === "pool" ? 70 : 50;
-  const elderlyPrice = basePrice / 2;
-  const total = adults * basePrice + elderly * elderlyPrice;
-  return total;
+  const defaultTotal = adults * voucherPrice + elderly * elderlyVoucherPrice;
+  const poolTotal =
+    adults_pool * poolVoucherPrice + elderly_pool * poolElderlyVoucherPrice;
+
+  return defaultTotal + poolTotal;
 }
 
 export function formatVoucher(data: initialVoucherSchema): VoucherSchema {
@@ -53,11 +71,18 @@ export function formatVoucher(data: initialVoucherSchema): VoucherSchema {
     phone: data.phone,
     adults: data.adults,
     elderly: data.elderly,
+    adults_pool: data.adults_pool,
+    elderly_pool: data.elderly_pool,
     status: "pending" as const,
     valid: false,
     code: data.code,
     preference_id: data.preference_id,
-    price: calculatePrice(data.adults, data.elderly, data.type),
+    price: calculatePrice(
+      data.adults,
+      data.elderly,
+      data.adults_pool,
+      data.elderly_pool,
+    ),
     expires_at: data.intendedDate,
     type: data.type,
   };
