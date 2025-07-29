@@ -111,3 +111,19 @@ export function formatReferrer(referrer: string): string {
   if (referrer.toLowerCase() === "facebook") return "Facebook ou Instagram";
   return referrer.charAt(0).toUpperCase() + referrer.slice(1);
 }
+
+/**
+ * Translates voucher type from English to Portuguese
+ * @param type - The voucher type in English
+ * @returns The voucher type translated to Portuguese
+ */
+export function translateVoucherType(type: string): string {
+  switch (type.toLowerCase()) {
+    case "default":
+      return "Padrão";
+    case "pool":
+      return "Piscina";
+    default:
+      return type; // Return original if no translation found
+  }
+}

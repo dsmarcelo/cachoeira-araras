@@ -39,7 +39,13 @@ import {
   X,
 } from "lucide-react";
 import { formatPhone } from "@/lib/utils/utils";
-import { type Voucher } from "@prisma/client";
+import { translateVoucherType } from "@/lib/utils";
+import { type Voucher as PrismaVoucher } from "@prisma/client";
+
+// Extended voucher type that includes the type property
+type VoucherWithType = PrismaVoucher & {
+  type: string;
+};
 import { useSearchParams } from "next/navigation";
 import { startOfMonth } from "date-fns";
 import DateRangeSelector from "@/app/_components/date-range-selector";
@@ -53,10 +59,18 @@ const statusOptions = [
   { value: "expired", label: "Expirados", color: "red" },
 ];
 
+// Type filter options
+const typeOptions = [
+  { value: "all", label: "Todos os Tipos" },
+  { value: "default", label: "Padrão" },
+  { value: "pool", label: "Piscina" },
+];
+
 export default function VouchersPage() {
   // State for search and filters
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
 
   // Get URL params for date range
   const searchParams = useSearchParams();
@@ -84,12 +98,17 @@ export default function VouchersPage() {
   };
 
   // Filter vouchers
-  const filteredVouchers: Voucher[] = !allVouchers
+  const filteredVouchers: VoucherWithType[] = !allVouchers
     ? []
-    : allVouchers.filter((voucher) => {
+    : (allVouchers as VoucherWithType[]).filter((voucher) => {
       // Status filter
       const matchesStatus =
         statusFilter === "all" ? true : voucher.status === statusFilter;
+
+      // Type filter
+      const voucherType = voucher.type || 'default';
+      const matchesType =
+        typeFilter === "all" ? true : voucherType === typeFilter;
 
       // Date range filter
       const voucherDate = new Date(voucher.createdAt);
@@ -103,7 +122,7 @@ export default function VouchersPage() {
         voucher.phone.includes(searchQuery) ||
         voucher.code.includes(searchQuery);
 
-      return matchesStatus && matchesDateRange && matchesSearch;
+      return matchesStatus && matchesType && matchesDateRange && matchesSearch;
     });
 
   // Calculate statistics
@@ -143,7 +162,7 @@ export default function VouchersPage() {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -170,6 +189,22 @@ export default function VouchersPage() {
                     ></span>
                     {option.label}
                   </div>
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+
+        {/* Type filter */}
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger>
+            <SelectValue placeholder="Filtrar por tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {typeOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -282,6 +317,7 @@ export default function VouchersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Código</TableHead>
+                  <TableHead>Tipo de Voucher</TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead>Telefone</TableHead>
                   <TableHead>Status</TableHead>
@@ -296,13 +332,13 @@ export default function VouchersPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={11} className="h-24 text-center">
                       Carregando...
                     </TableCell>
                   </TableRow>
                 ) : filteredVouchers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={11} className="h-24 text-center">
                       Nenhum voucher encontrado.
                     </TableCell>
                   </TableRow>
@@ -312,6 +348,7 @@ export default function VouchersPage() {
                       <TableCell className="font-medium">
                         {voucher.code}
                       </TableCell>
+                      <TableCell>{translateVoucherType(voucher.type || 'default')}</TableCell>
                       <TableCell>{voucher.name}</TableCell>
                       <TableCell>{formatPhone(voucher.phone)}</TableCell>
                       <TableCell>
