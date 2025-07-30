@@ -112,21 +112,27 @@ export default function VouchersPage() {
       return matchesStatus && matchesDateRange && matchesSearch;
     });
 
+  // Sort vouchers by createdAt in descending order (newest to oldest)
+  filteredVouchers.sort((a, b) => {
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
   // Calculate statistics
+  const paidVouchers = filteredVouchers.filter((v) => v.payment_id !== null);
   const totalSales = filteredVouchers.reduce((total, v) => total + v.price, 0);
-  const totalAdults = filteredVouchers.reduce(
+  const totalAdults = paidVouchers.reduce(
     (total, v) => total + v.adults,
     0,
   );
-  const totalElderly = filteredVouchers.reduce(
+  const totalElderly = paidVouchers.reduce(
     (total, v) => total + v.elderly,
     0,
   );
-  const totalAdults_pool = filteredVouchers.reduce(
+  const totalAdults_pool = paidVouchers.reduce(
     (total, v) => total + v.adults_pool,
     0,
   );
-  const totalElderly_pool = filteredVouchers.reduce(
+  const totalElderly_pool = paidVouchers.reduce(
     (total, v) => total + v.elderly_pool,
     0,
   );
@@ -140,7 +146,7 @@ export default function VouchersPage() {
   const expiredCount = filteredVouchers.filter(
     (v) => v.status === "expired",
   ).length;
-
+  const visitorsCount = totalAdults + totalElderly + totalAdults_pool + totalElderly_pool;
   return (
     <div className="px-8 py-6">
       <div className="mb-6 flex items-center justify-between">
@@ -250,7 +256,7 @@ export default function VouchersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalAdults + totalElderly}
+              {visitorsCount}
             </div>
             <p className="text-xs text-muted-foreground">
               {totalAdults} inteiras, {totalElderly} meias, {totalAdults_pool} inteiras (piscina), {totalElderly_pool} meias (piscina)
