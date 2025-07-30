@@ -122,6 +122,14 @@ export default function VouchersPage() {
     (total, v) => total + v.elderly,
     0,
   );
+  const totalAdults_pool = filteredVouchers.reduce(
+    (total, v) => total + v.adults_pool,
+    0,
+  );
+  const totalElderly_pool = filteredVouchers.reduce(
+    (total, v) => total + v.elderly_pool,
+    0,
+  );
   const validCount = filteredVouchers.filter(
     (v) => v.status === "valid",
   ).length;
@@ -245,7 +253,7 @@ export default function VouchersPage() {
               {totalAdults + totalElderly}
             </div>
             <p className="text-xs text-muted-foreground">
-              {totalAdults} inteiras, {totalElderly} meias
+              {totalAdults} inteiras, {totalElderly} meias, {totalAdults_pool} inteiras (piscina), {totalElderly_pool} meias (piscina)
             </p>
           </CardContent>
         </Card>
