@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
-import crypto from "crypto";
+import * as crypto from "crypto";
 import { api } from "@/trpc/server";
+import { sendFacebookPixelEvent } from "@/lib/utils/webhook-pixel";
 // import { sendWhatsappMessage } from "@/app/lib";
 
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET ?? "your-secret-key";
@@ -60,7 +61,21 @@ async function validadeVoucherPayment(payment_id: string) {
         payment_id: payment_id,
       },
     });
-    // await sendWhatsappMessage(voucher); // TODO: finish twilio account creation
+
+    // Send Facebook Pixel conversion event for approved payments
+    try {
+      const pixelResult = await sendFacebookPixelEvent(payment);
+      if (pixelResult) {
+        console.log(`Facebook Pixel event sent successfully for payment ${payment_id}`);
+      } else {
+        console.log(`Facebook Pixel event skipped for payment ${payment_id}`);
+      }
+    } catch (error) {
+      console.error('Error sending Facebook Pixel event:', error);
+      // Don't fail the webhook if Facebook Pixel fails
+    }
+
+    // await sendWhatsappMessage(voucher); // TODO: finish whatsapp integration
     return new Response(JSON.stringify({ voucher }), {
       status: 200,
     });
