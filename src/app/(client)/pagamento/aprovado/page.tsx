@@ -6,6 +6,8 @@ import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTyp
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
 import { confirmVoucherPayment } from "@/lib/voucher/server-utils";
 import DeleteVoucherCookieBtn from "@/app/_components/delete-voucher-cookie-btn";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 const fetchPreference = async (
   preference_id: string,
@@ -48,14 +50,32 @@ export default async function Page({
 
   const { preference_id, payment_id } = searchParams;
   if (!preference_id || !payment_id)
-    return <div className="h-screen text-center text-3xl">Link inválido</div>;
+    return (
+      <div className="flex h-screen flex-col items-center justify-center">
+        <div className="text-center text-3xl">
+          Link inválido
+        </div>
+        <Link href="/">
+          <Button>
+            Voltar para a página inicial
+          </Button>
+        </Link>
+      </div>
+    );
 
   const preference = await fetchPreference(preference_id as string);
 
   if (!preference)
     return (
-      <div className="h-screen text-center text-3xl">
-        Erro ao buscar preferência
+      <div className="flex h-screen flex-col items-center justify-center">
+        <div className="text-center text-3xl">
+          Erro ao buscar preferência
+        </div>
+        <Link href="/">
+          <Button>
+            Voltar para a página inicial
+          </Button>
+        </Link>
       </div>
     );
 
@@ -63,16 +83,30 @@ export default async function Page({
 
   if (!payment)
     return (
-      <div className="h-screen text-center text-3xl">
-        Erro ao buscar pagamento
+      <div className="flex h-screen flex-col items-center justify-center">
+        <div className="text-center text-3xl">
+          Erro ao buscar pagamento
+        </div>
+        <Link href="/">
+          <Button>
+            Voltar para a página inicial
+          </Button>
+        </Link>
       </div>
     );
 
   if (!preference)
     return (
+  <div>
       <div className="h-screen text-center text-3xl">
         Erro ao buscar preferência
       </div>
+      <Link href="/">
+        <Button>
+          Voltar para a página inicial
+        </Button>
+      </Link>
+  </div>
     );
 
   if (payment.status === "approved") {
