@@ -6,10 +6,6 @@ import { env } from '../../env';
 const PIXEL_ID = env.FACEBOOK_PIXEL_ID;
 const ACCESS_TOKEN = env.FACEBOOK_ACCESS_TOKEN;
 
-// Google Ads configuration
-const GOOGLE_CONVERSION_ID = 'AW-16857323674';
-const GOOGLE_CONVERSION_LABEL = 'sSVHCLSl-_saEJqxmeY-';
-
 // Types for Facebook Pixel events
 interface FacebookPixelEvent {
   event_name: string;
@@ -54,7 +50,7 @@ interface GoogleAdsConversionPayload {
  * @param payment - The MercadoPago payment response object
  * @returns Promise<boolean> - True if the event was sent successfully, false otherwise
  */
-async function sendGoogleAdsConversion(payment: PaymentResponse): Promise<boolean> {
+export async function sendGoogleAdsConversion(payment: PaymentResponse): Promise<boolean> {
   try {
     // Check if payment is approved
     if (payment.status !== 'approved') {
@@ -114,8 +110,8 @@ async function sendGoogleAdsConversion(payment: PaymentResponse): Promise<boolea
     console.log('Google Analytics conversion sent successfully');
     return true;
 
-  } catch (error) {
-    console.error('Error sending Google Analytics conversion:', error);
+  } catch (error: unknown) {
+    console.error('Error sending Google Analytics conversion:', String(error));
     return false;
   }
 }
@@ -180,21 +176,22 @@ export async function sendFacebookPixelEvent(payment: PaymentResponse): Promise<
       return false;
     }
 
-    const result = await response.json() as Record<string, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const result: Record<string, unknown> = await response.json();
     console.log('Facebook Pixel event sent successfully:', result);
 
     // Also send Google Ads conversion
     try {
       await sendGoogleAdsConversion(payment);
-    } catch (error) {
-      console.error('Error sending Google Ads conversion:', error);
+    } catch (error: unknown) {
+      console.error('Error sending Google Ads conversion:', String(error));
       // Don't fail the main function if Google Ads fails
     }
 
     return true;
 
-  } catch (error) {
-    console.error('Error sending Facebook Pixel event:', error);
+  } catch (error: unknown) {
+    console.error('Error sending Facebook Pixel event:', String(error));
     return false;
   }
 }
