@@ -7,7 +7,7 @@ import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { calculatePrice, formatVoucher, randomCode } from "@/lib/utils/utils";
+import { calculatePrice, formatVoucher, getElderlyVoucherPrice, getPoolElderlyVoucherPrice, getPoolVoucherPrice, getVoucherPrice, randomCode } from "@/lib/utils/utils";
 import { useRouter } from "next/navigation";
 import { voucherFormSchema } from "@/lib/voucher/types";
 import { cn, formatPaymentUrl, formatPhone } from "@/lib/utils";
@@ -122,6 +122,8 @@ export default function VoucherForm() {
       phone: "",
       adults: 1,
       elderly: 0,
+      adults_pool: 0,
+      elderly_pool: 0,
     },
   });
 
@@ -142,10 +144,10 @@ export default function VoucherForm() {
       code,
       title: `Voucher ${code}`,
       id: code,
-      description: formatMercadoPagoDescription({ ...data, code }),
+      description: formatMercadoPagoDescription({ adults: data.adults, elderly: data.elderly, adults_pool: data.adults_pool, elderly_pool: data.elderly_pool, phone: data.phone, code }),
       adults: data.adults,
       elderly: data.elderly,
-      unit_price: calculatePrice(data.adults, data.elderly),
+      unit_price: calculatePrice(data.adults, data.elderly, data.adults_pool, data.elderly_pool),
       name: data.name.trim().split(" ")[0] ?? "",
       surname: data.name.trim().split(" ").slice(1).join(" ") ?? "",
       phone: data.phone,
@@ -160,7 +162,7 @@ export default function VoucherForm() {
   }
 
   async function onSubmit(data: FormSchema) {
-    if (data.adults + data.elderly === 0) {
+    if (data.adults + data.elderly + data.adults_pool + data.elderly_pool === 0) {
       return toast({
         title: "Erro",
         description: "Verifique a quantidade de pessoas",
@@ -215,10 +217,10 @@ export default function VoucherForm() {
       <div className="border-none bg-dark-blue p-4 text-primary-50">
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-sm [&_label]:leading-none"
+          className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-base [&_label]:leading-none"
         >
           <h3 className="text-center text-sm font-medium uppercase leading-none text-primary-100">
-            Entrada permitida entre 07h e 17h
+            Entrada permitida entre 08h e 17h
           </h3>
           <div className="grid gap-2">
             <Label htmlFor="name">Nome</Label>
@@ -260,56 +262,135 @@ export default function VoucherForm() {
               </p>
             )}
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="adults">
-              Quantidade de pessoas{" "}
-              <span className="font-bold">com mais de 8 anos</span>
-            </Label>
-            <Controller
-              name="adults"
-              control={control}
-              render={({ field }) => (
-                <NumberInput
-                  id="adults"
-                  minValue={0}
-                  maxValue={20}
-                  defaultValue={1}
-                  selectedValue={field.value}
-                  onChange={field.onChange}
-                  className="rounded-xl text-bg-blue"
-                  placeholder="Quantidade de adultos"
-                />
-              )}
-            />
-            {errors.adults && (
-              <p className="text-base font-medium text-red-400">
-                {errors.adults?.message}
-              </p>
-            )}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="elderly">Mais de 60 anos ou especiais</Label>
-            <Controller
-              name="elderly"
-              control={control}
-              render={({ field }) => (
-                <NumberInput
-                  id="elderly"
-                  minValue={0}
-                  maxValue={20}
-                  defaultValue={0}
-                  selectedValue={field.value}
-                  onChange={field.onChange}
-                  className="rounded-xl text-bg-blue"
-                  placeholder="Quantidade de idosos"
-                />
-              )}
-            />
-            {errors.elderly && (
-              <p className="text-base font-medium text-red-400">
-                {errors.elderly?.message}
-              </p>
-            )}
+
+          <div className=" pt-4">
+            <p className="text-sm text-primary-100 text-center font-bold">Selecione a quantidade de pessoas</p>
+
+            <div className="flex flex-col divide-y divide-primary-100">
+                <div className="flex items-center justify-between gap-2 py-4">
+                  <Label className="">
+                    <p className="font-bold text-base">Inteira</p>
+                    <p className="text-sm">(de 9 a 59 anos)</p>
+                    <p className="text-sm">R$ {getVoucherPrice().toFixed(2).replace('.', ',')}</p>
+                  </Label>
+                  <div className="w-fit">
+                    <Controller
+                      name="adults"
+                      control={control}
+                      render={({ field }) => (
+                        <NumberInput
+                          id="adults"
+                          minValue={0}
+                          maxValue={20}
+                          defaultValue={1}
+                          selectedValue={field.value}
+                          onChange={field.onChange}
+                          className="rounded-xl text-bg-blue"
+                          placeholder="Quantidade de adultos"
+                        />
+                      )}
+                    />
+                  </div>
+                  {errors.adults && (
+                    <p className="text-base font-medium text-red-400">
+                      {errors.adults?.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 py-4">
+                  <Label className="flex flex-col">
+                    <p className="font-bold text-base">Meia</p>
+                    <p className="text-sm">(+60 anos e especiais)</p>
+                    <p className="text-sm">R$ {getElderlyVoucherPrice().toFixed(2).replace('.', ',')}</p>
+                  </Label>
+                  <div className="w-fit">
+                    <Controller
+                      name="elderly"
+                      control={control}
+                      render={({ field }) => (
+                        <NumberInput
+                          id="elderly"
+                          minValue={0}
+                          maxValue={20}
+                          defaultValue={0}
+                          selectedValue={field.value}
+                          onChange={field.onChange}
+                          className="rounded-xl text-bg-blue"
+                          placeholder="Quantidade de idosos"
+                        />
+                      )}
+                    />
+                  </div>
+                  {errors.elderly && (
+                    <p className="text-base font-medium text-red-400">
+                      {errors.elderly?.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 py-4">
+                  <Label className="flex flex-col">
+                    <p className="font-bold text-base">Inteira (Piscina)</p>
+                    <p className="text-sm">(de 9 a 59 anos)</p>
+                    <p className="text-sm">R$ {getPoolVoucherPrice().toFixed(2).replace('.', ',')}</p>
+                  </Label>
+                  <div className="w-fit">
+                    <Controller
+                      name="adults_pool"
+                      control={control}
+                      render={({ field }) => (
+                        <NumberInput
+                          id="adults_pool"
+                          minValue={0}
+                          maxValue={20}
+                          defaultValue={0}
+                          selectedValue={field.value}
+                          onChange={field.onChange}
+                          className="rounded-xl text-bg-blue"
+                          placeholder="Quantidade de adultos"
+                        />
+                      )}
+                    />
+                  </div>
+                  {errors.adults_pool && (
+                    <p className="text-base font-medium text-red-400">
+                      {errors.adults_pool?.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 py-4">
+                  <Label className="flex flex-col">
+                    <p className="font-bold text-base">Meia (Piscina)</p>
+                    <p className="text-sm">(+60 anos e especiais)</p>
+                    <p className="text-sm">R$ {getPoolElderlyVoucherPrice().toFixed(2).replace('.', ',')}</p>
+                  </Label>
+                  <div className="w-fit">
+                    <Controller
+                      name="elderly_pool"
+                      control={control}
+                      render={({ field }) => (
+                        <NumberInput
+                          id="elderly_pool"
+                          minValue={0}
+                          maxValue={20}
+                          defaultValue={0}
+                          selectedValue={field.value}
+                          onChange={field.onChange}
+                          className="rounded-xl text-bg-blue"
+                          placeholder="Quantidade de meias"
+                        />
+                      )}
+                    />
+                  </div>
+                  {errors.elderly_pool && (
+                    <p className="text-base font-medium text-red-400">
+                      {errors.elderly_pool?.message}
+                    </p>
+                  )}
+                </div>
+            </div>
           </div>
 
           <div className="grid gap-2">
@@ -374,7 +455,7 @@ export default function VoucherForm() {
             )}
           </div>
 
-          <h1 className="font-bold">{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly).toFixed(2).replace('.', ',')}`}</h1>
+          <h1 className="font-bold">{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly, formValues.adults_pool, formValues.elderly_pool).toFixed(2).replace('.', ',')}`}</h1>
 
           <Button
             disabled={isSubmitting}

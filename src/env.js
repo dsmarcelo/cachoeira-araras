@@ -28,6 +28,10 @@ export const env = createEnv({
     CRON_SECRET: z.string(),
     TWILIO_ACCOUNT_SID: z.string(),
     TWILIO_AUTH_TOKEN: z.string(),
+    FACEBOOK_ACCESS_TOKEN: z.string().optional(),
+    FACEBOOK_PIXEL_ID: z.string().optional(),
+    GOOGLE_ANALYTICS_API_SECRET: z.string().optional(),
+    GOOGLE_ANALYTICS_MEASUREMENT_ID: z.string().optional(),
   },
 
   /**
@@ -37,9 +41,9 @@ export const env = createEnv({
    */
   client: {
     // NEXT_PUBLIC_CLIENTVAR: z.string(),
-    NEXT_PUBLIC_FACEBOOK_PIXEL_ID: z.string(),
     NEXT_PUBLIC_MAX_INTENDED_DAYS: z.coerce.number().default(30),
     NEXT_PUBLIC_VOUCHER_PRICE: z.coerce.number().default(50),
+    NEXT_PUBLIC_VOUCHER_POOL_PRICE: z.coerce.number().default(70),
   },
 
   /**
@@ -57,10 +61,13 @@ export const env = createEnv({
     CRON_SECRET: process.env.CRON_SECRET,
     TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
     TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
-    NEXT_PUBLIC_FACEBOOK_PIXEL_ID: process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID,
+    FACEBOOK_ACCESS_TOKEN: process.env.FACEBOOK_ACCESS_TOKEN,
+    FACEBOOK_PIXEL_ID: process.env.FACEBOOK_PIXEL_ID,
+    GOOGLE_ANALYTICS_API_SECRET: process.env.GOOGLE_ANALYTICS_API_SECRET,
+    GOOGLE_ANALYTICS_MEASUREMENT_ID: process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID,
     NEXT_PUBLIC_MAX_INTENDED_DAYS: process.env.NEXT_PUBLIC_MAX_INTENDED_DAYS,
     NEXT_PUBLIC_VOUCHER_PRICE: process.env.NEXT_PUBLIC_VOUCHER_PRICE,
-    
+    NEXT_PUBLIC_VOUCHER_POOL_PRICE: process.env.NEXT_PUBLIC_VOUCHER_POOL_PRICE,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

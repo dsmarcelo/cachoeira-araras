@@ -61,8 +61,10 @@ model Voucher {
   name          String
   phone         String
   code          String    @unique
-  adults        Int
-  elderly       Int
+  adults        Int       @default(1)
+  elderly       Int       @default(0)
+  adults_pool   Int       @default(0)
+  elderly_pool  Int       @default(0)
   price         Float
   valid         Boolean   @default(false)
   status        String    @default("pending")

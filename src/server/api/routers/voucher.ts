@@ -140,7 +140,10 @@ export const voucherRouter = createTRPCRouter({
   update: publicProcedure
     .input(
       z.object({
-        where: voucherSchema.partial(),
+        where: z.object({
+          code: z.string().optional(),
+          id: z.number().optional(),
+        }),
         data: voucherSchema.partial(),
       }),
     )
@@ -148,19 +151,13 @@ export const voucherRouter = createTRPCRouter({
       if (!input.where || Object.keys(input.where).length === 0) {
         throw new Error("The 'where' object cannot be empty");
       }
-      const where = input.where;
+
+      const whereClause = input.where.code
+        ? { code: input.where.code }
+        : { id: input.where.id };
+
       return await ctx.db.voucher.update({
-        where: {
-          code: where.code,
-          name: where.name,
-          phone: where.phone,
-          adults: where.adults,
-          elderly: where.elderly,
-          valid: where.valid,
-          status: where.status,
-          preference_id: where.preference_id,
-          expires_at: where.expires_at,
-        },
+        where: whereClause,
         data: input.data,
       });
     }),

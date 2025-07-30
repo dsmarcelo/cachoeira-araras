@@ -2,6 +2,7 @@
   Voucher type definition file
   Updated Voucher type so that payment_id, expires_at, and deletedAt are non-optional with null as possible value. This change resolves type mismatches with transformed voucher objects in the dashboard page.
 */
+
 export type Voucher = {
   id: number; // Unique identifier for the voucher
   name: string; // Name associated with the voucher
@@ -9,6 +10,8 @@ export type Voucher = {
   code: string; // Voucher code
   adults: number; // Number of full fare tickets
   elderly: number; // Number of half fare tickets
+  adults_pool: number; // Number of full fare tickets for pool
+  elderly_pool: number; // Number of half fare tickets for pool
   price: number; // Price of the voucher
   valid: boolean; // Indicates if voucher is valid
   status: string; // Status of the voucher (e.g., 'paid', 'pending')

@@ -18,6 +18,16 @@ export const voucherSchema = z.object({
     .gte(0, "Quantidade inválida")
     .lte(20, "No maximo 20 pessoas")
     .int(),
+  adults_pool: z.coerce
+    .number()
+    .gte(0, "Quantidade inválida")
+    .lte(20, "No maximo 20 pessoas")
+    .int(),
+  elderly_pool: z.coerce
+    .number()
+    .gte(0, "Quantidade inválida")
+    .lte(20, "No maximo 20 pessoas")
+    .int(),
   code: z.string(),
   price: z.number(),
   valid: z.boolean(),
@@ -45,6 +55,22 @@ export const voucherFormSchema = z
       .lte(20, "No maximo 20 pessoas")
       .int(),
     elderly: z.coerce
+      .number({
+        required_error: "Campo obrigatório",
+        invalid_type_error: "Deve ser um número",
+      })
+      .gte(0, "Quantidade inválida")
+      .lte(20, "No maximo 20 pessoas")
+      .int(),
+    adults_pool: z.coerce
+      .number({
+        required_error: "Campo obrigatório",
+        invalid_type_error: "Deve ser um número",
+      })
+      .gte(0, "Quantidade inválida")
+      .lte(20, "No maximo 20 pessoas")
+      .int(),
+    elderly_pool: z.coerce
       .number({
         required_error: "Campo obrigatório",
         invalid_type_error: "Deve ser um número",
@@ -80,6 +106,8 @@ export const initialVoucherSchema = z.object({
   phone: z.string(),
   adults: z.coerce.number().gte(0).lte(20),
   elderly: z.coerce.number().gte(0).lte(20),
+  adults_pool: z.coerce.number().gte(0).lte(20),
+  elderly_pool: z.coerce.number().gte(0).lte(20),
   preference_id: z.string(),
   payment_id: z.string().optional(),
   code: z.string(),
@@ -101,6 +129,8 @@ export const completeVoucherSchema = z.object({
   code: z.string(),
   adults: z.coerce.number().gte(0).lte(20),
   elderly: z.coerce.number().gte(0).lte(20),
+  adults_pool: z.coerce.number().gte(0).lte(20),
+  elderly_pool: z.coerce.number().gte(0).lte(20),
   price: z.number(),
   valid: z.boolean(),
   status: z.string(),

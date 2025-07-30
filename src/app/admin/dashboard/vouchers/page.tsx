@@ -39,7 +39,13 @@ import {
   X,
 } from "lucide-react";
 import { formatPhone } from "@/lib/utils/utils";
-import { type Voucher } from "@prisma/client";
+import { type Voucher as PrismaVoucher } from "@prisma/client";
+
+// Extended voucher type that includes pool fields
+type VoucherWithType = PrismaVoucher & {
+  adults_pool: number;
+  elderly_pool: number;
+};
 import { useSearchParams } from "next/navigation";
 import { startOfMonth } from "date-fns";
 import DateRangeSelector from "@/app/_components/date-range-selector";
@@ -84,9 +90,9 @@ export default function VouchersPage() {
   };
 
   // Filter vouchers
-  const filteredVouchers: Voucher[] = !allVouchers
+  const filteredVouchers: VoucherWithType[] = !allVouchers
     ? []
-    : allVouchers.filter((voucher) => {
+    : (allVouchers as VoucherWithType[]).filter((voucher) => {
       // Status filter
       const matchesStatus =
         statusFilter === "all" ? true : voucher.status === statusFilter;
@@ -106,14 +112,28 @@ export default function VouchersPage() {
       return matchesStatus && matchesDateRange && matchesSearch;
     });
 
+  // Sort vouchers by createdAt in descending order (newest to oldest)
+  filteredVouchers.sort((a, b) => {
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
   // Calculate statistics
+  const paidVouchers = filteredVouchers.filter((v) => v.payment_id !== null);
   const totalSales = filteredVouchers.reduce((total, v) => total + v.price, 0);
-  const totalAdults = filteredVouchers.reduce(
+  const totalAdults = paidVouchers.reduce(
     (total, v) => total + v.adults,
     0,
   );
-  const totalElderly = filteredVouchers.reduce(
+  const totalElderly = paidVouchers.reduce(
     (total, v) => total + v.elderly,
+    0,
+  );
+  const totalAdults_pool = paidVouchers.reduce(
+    (total, v) => total + v.adults_pool,
+    0,
+  );
+  const totalElderly_pool = paidVouchers.reduce(
+    (total, v) => total + v.elderly_pool,
     0,
   );
   const validCount = filteredVouchers.filter(
@@ -126,7 +146,7 @@ export default function VouchersPage() {
   const expiredCount = filteredVouchers.filter(
     (v) => v.status === "expired",
   ).length;
-
+  const visitorsCount = totalAdults + totalElderly + totalAdults_pool + totalElderly_pool;
   return (
     <div className="px-8 py-6">
       <div className="mb-6 flex items-center justify-between">
@@ -236,10 +256,10 @@ export default function VouchersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalAdults + totalElderly}
+              {visitorsCount}
             </div>
             <p className="text-xs text-muted-foreground">
-              {totalAdults} inteiras, {totalElderly} meias
+              {totalAdults} inteiras, {totalElderly} meias, {totalAdults_pool} inteiras (piscina), {totalElderly_pool} meias (piscina)
             </p>
           </CardContent>
         </Card>
@@ -287,6 +307,8 @@ export default function VouchersPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Inteiras</TableHead>
                   <TableHead>Meias</TableHead>
+                  <TableHead>Inteiras (Piscina)</TableHead>
+                  <TableHead>Meias (Piscina)</TableHead>
                   <TableHead>Preço</TableHead>
                   <TableHead>Data Criação</TableHead>
                   <TableHead>Validade</TableHead>
@@ -296,13 +318,13 @@ export default function VouchersPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={12} className="h-24 text-center">
                       Carregando...
                     </TableCell>
                   </TableRow>
                 ) : filteredVouchers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={12} className="h-24 text-center">
                       Nenhum voucher encontrado.
                     </TableCell>
                   </TableRow>
@@ -348,6 +370,8 @@ export default function VouchersPage() {
                       </TableCell>
                       <TableCell>{voucher.adults}</TableCell>
                       <TableCell>{voucher.elderly}</TableCell>
+                      <TableCell>{voucher.adults_pool || 0}</TableCell>
+                      <TableCell>{voucher.elderly_pool || 0}</TableCell>
                       <TableCell>{formatCurrency(voucher.price)}</TableCell>
                       <TableCell>{formatDate(voucher.createdAt)}</TableCell>
                       <TableCell>

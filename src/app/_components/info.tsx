@@ -5,6 +5,7 @@ import { MdOutlineDirectionsCar, MdLocalBar } from "react-icons/md";
 import { IoSunnyOutline } from "react-icons/io5";
 import { RiRestaurant2Line } from "react-icons/ri";
 import { FaChild, FaTicketAlt } from "react-icons/fa";
+import { FaPersonSwimming } from "react-icons/fa6";
 
 const itemVariants = {
   hidden: { opacity: 0, y: -40 },
@@ -119,6 +120,22 @@ export default function InfoCard() {
           <div className="font-semibold">Entrada facilitada</div>
           <div className="mt-3 font-light">
             Compre seu voucher online por pix ou cartão e entre apenas apresentando o código na portaria
+          </div>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true }}
+        className="flex gap-3 mt-4"
+        variants={itemVariants}
+      >
+        <FaPersonSwimming className="h-6 w-6 mt-1" />
+        <div className="flex flex-col flex-1">
+          <div className="font-semibold">Piscina aquecida</div>
+          <div className="mt-3 font-light">
+            Área exclusiva para piscinas aquecidas de adultos e crianças com bar
           </div>
         </div>
       </motion.div>
