@@ -27,3 +27,39 @@ You can check out the [create-t3-app GitHub repository](https://github.com/t3-os
 ## How do I deploy this?
 
 Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+
+## Facebook Pixel & Google Analytics Integration
+
+This project includes conversion tracking for both Facebook Pixel and Google Analytics when payment events occur. When a payment is approved through MercadoPago, conversion events are automatically sent to both platforms.
+
+### Environment Variables Required
+
+Add these environment variables to your deployment:
+
+```env
+# Facebook Pixel (required)
+FACEBOOK_PIXEL_ID=your_pixel_id_here
+FACEBOOK_ACCESS_TOKEN=your_access_token_here
+
+# Google Analytics 4 (optional)
+GOOGLE_ANALYTICS_MEASUREMENT_ID=G-XXXXXXXXXX
+GOOGLE_ANALYTICS_API_SECRET=your_api_secret_here
+```
+
+### How it works
+
+1. When a webhook is received from MercadoPago for an approved payment
+2. The system validates the payment status and extracts the payer's email
+3. **Facebook Pixel**:
+   - Email is hashed using SHA256 for privacy compliance
+   - A "Purchase" event is sent to Facebook's Conversions API with transaction details
+4. **Google Analytics**:
+   - A "purchase" event is sent to Google Analytics 4 Measurement Protocol
+   - Includes transaction details, item information, and conversion tracking
+
+### Files involved
+
+- `src/lib/utils/webhook-pixel.ts` - Main utility for sending Facebook Pixel and Google Analytics events
+- `src/app/api/webhook/route.ts` - Webhook endpoint that triggers the conversion events
+- `src/env.js` - Environment variable configuration
+- `test-simple.js` - Test file for validating both integrations

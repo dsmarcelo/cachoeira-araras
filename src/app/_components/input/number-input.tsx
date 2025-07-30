@@ -20,11 +20,9 @@ interface NumberInputProps
 export default function NumberInput({
   minValue,
   maxValue,
-  defaultValue,
   selectedValue,
   onChange,
   label = "Number input with plus/minus buttons",
-  className,
   ...inputProps
 }: NumberInputProps) {
   // Track the input value separately to handle empty state
