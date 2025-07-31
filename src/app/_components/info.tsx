@@ -133,9 +133,9 @@ export default function InfoCard() {
       >
         <FaPersonSwimming className="h-6 w-6 mt-1" />
         <div className="flex flex-col flex-1">
-          <div className="font-semibold">Piscina aquecida</div>
+          <div className="font-semibold">Piscina</div>
           <div className="mt-3 font-light">
-            Área exclusiva para piscinas aquecidas de adultos e crianças com bar
+            Área exclusiva para piscinas de adultos e crianças com bar
           </div>
         </div>
       </motion.div>
