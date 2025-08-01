@@ -120,7 +120,7 @@ export default function VoucherForm() {
     defaultValues: {
       name: "",
       phone: "",
-      adults: 1,
+      adults: 0,
       elderly: 0,
       adults_pool: 0,
       elderly_pool: 0,
