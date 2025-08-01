@@ -61,7 +61,7 @@ model Voucher {
   name          String
   phone         String
   code          String    @unique
-  adults        Int       @default(1)
+  adults        Int       @default(0)
   elderly       Int       @default(0)
   adults_pool   Int       @default(0)
   elderly_pool  Int       @default(0)
