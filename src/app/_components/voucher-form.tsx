@@ -282,7 +282,7 @@ export default function VoucherForm() {
                           id="adults"
                           minValue={0}
                           maxValue={20}
-                          defaultValue={1}
+                          defaultValue={0}
                           selectedValue={field.value}
                           onChange={field.onChange}
                           className="rounded-xl text-bg-blue"
