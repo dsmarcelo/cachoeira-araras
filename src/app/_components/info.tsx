@@ -6,6 +6,7 @@ import { IoSunnyOutline } from "react-icons/io5";
 import { RiRestaurant2Line } from "react-icons/ri";
 import { FaChild, FaTicketAlt } from "react-icons/fa";
 import { FaPersonSwimming } from "react-icons/fa6";
+import { GiCooler } from "react-icons/gi";
 
 const itemVariants = {
   hidden: { opacity: 0, y: -40 },
@@ -136,6 +137,22 @@ export default function InfoCard() {
           <div className="font-semibold">Piscina</div>
           <div className="mt-3 font-light">
             Área exclusiva para piscinas de adultos e crianças com bar
+          </div>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true }}
+        className="flex gap-3 mt-4"
+        variants={itemVariants}
+      >
+        <GiCooler className="h-6 w-6 mt-1" />
+        <div className="flex flex-col flex-1">
+          <div className="font-semibold">Entrada de comida e bebida liberada!</div>
+          <div className="mt-3 font-light">
+            Aqui o seu cooler é bem vindo! Pode entrar com bebida e comida.
           </div>
         </div>
       </motion.div>
