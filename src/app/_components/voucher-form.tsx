@@ -249,6 +249,7 @@ export default function VoucherForm() {
                   id="phone"
                   type="tel"
                   placeholder="(XX) 99999-9999"
+                  maxLength={15}
                   value={formatPhone(field.value)}
                   onChange={(e) =>
                     field.onChange(normalizePhone(e.target.value))
@@ -285,8 +286,6 @@ export default function VoucherForm() {
                           defaultValue={0}
                           selectedValue={field.value}
                           onChange={field.onChange}
-                          className="rounded-xl text-bg-blue"
-                          placeholder="Quantidade de adultos"
                         />
                       )}
                     />
@@ -316,8 +315,6 @@ export default function VoucherForm() {
                           defaultValue={0}
                           selectedValue={field.value}
                           onChange={field.onChange}
-                          className="rounded-xl text-bg-blue"
-                          placeholder="Quantidade de idosos"
                         />
                       )}
                     />
@@ -347,8 +344,6 @@ export default function VoucherForm() {
                           defaultValue={0}
                           selectedValue={field.value}
                           onChange={field.onChange}
-                          className="rounded-xl text-bg-blue"
-                          placeholder="Quantidade de adultos"
                         />
                       )}
                     />
@@ -378,8 +373,6 @@ export default function VoucherForm() {
                           defaultValue={0}
                           selectedValue={field.value}
                           onChange={field.onChange}
-                          className="rounded-xl text-bg-blue"
-                          placeholder="Quantidade de meias"
                         />
                       )}
                     />
