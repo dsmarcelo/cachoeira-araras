@@ -10,7 +10,7 @@ const interSemiBold = fetch(
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const { name, phone, quantity, status, expires_at, code } = Object.fromEntries(searchParams.entries());
+  const { name, phone, quantity, price, status, expires_at, code } = Object.fromEntries(searchParams.entries());
 
   if (!name || !phone || !quantity || !status || !code) {
     return new Response('Voucher not found', { status: 404 });
@@ -53,9 +53,10 @@ export async function GET(request: NextRequest) {
           <div tw='flex text-[34px] absolute top-22 left-8 flex-col tracking-tight font-semibold' style={{ gap: '14px' }}>
             <div tw='flex font-semibold'>{name}</div>
             <div tw='flex font-semibold'>{phone}</div>
-            <div tw='flex font-semibold'>{quantity}</div>
+            <div tw='flex font-semibold text-[28px] backdrop-blur-md bg-[#fdd56c] rounded-lg p-2'>{quantity}</div>
             <div tw='flex font-semibold'>{formatedStatus}</div>
           </div>
+          <div tw='flex absolute bottom-6 left-[300px]'>Valor: R$ { Number(price).toFixed(2).replace('.', ',')}</div>
           <div tw='flex absolute text-[48px] font-semibold bottom-8 left-[585px]'>{code}</div>
         </div>
       </div>
