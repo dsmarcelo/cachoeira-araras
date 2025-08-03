@@ -39,6 +39,8 @@ function VoucherCard({
             {formatQuantity({
               adults: voucher.adults,
               elderly: voucher.elderly,
+              adults_pool: voucher.adults_pool,
+              elderly_pool: voucher.elderly_pool,
             })}
           </p>
         </div>
