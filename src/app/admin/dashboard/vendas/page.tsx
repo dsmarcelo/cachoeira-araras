@@ -45,18 +45,20 @@ export default function SalesPage() {
     }).format(amount);
   };
 
-  // Filter vouchers based on the date range from URL
+  // Filter vouchers based on the date range from URL and only include paid vouchers
   const getFilteredVouchers = (): Voucher[] => {
     if (!allVouchers) return [];
     return allVouchers.filter((voucher) => {
       const voucherDate = new Date(voucher.createdAt);
-      return voucherDate >= dateRange.from && voucherDate <= dateRange.to;
+      const inDateRange = voucherDate >= dateRange.from && voucherDate <= dateRange.to;
+      const isPaid = voucher.payment_id !== null;
+      return inDateRange && isPaid;
     });
   };
 
   const filteredVouchers = getFilteredVouchers();
 
-  // Calculate metrics
+  // Calculate metrics - only from paid vouchers
   const totalRevenue = filteredVouchers.reduce(
     (total, v) => total + v.price,
     0,
@@ -141,7 +143,7 @@ export default function SalesPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Vouchers Vendidos
+              Vouchers Pagos
             </CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
