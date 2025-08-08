@@ -18,7 +18,7 @@ export function ImageCarousel() {
   const fade = React.useRef(Fade())
 
   const getImages = () => {
-    const quantity = 4;
+    const quantity = 10;
     const images = [];
 
     for (let i = 0; i < quantity; i++) {
