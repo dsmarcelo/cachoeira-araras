@@ -63,15 +63,13 @@ export default function VoucherForm() {
   }
 
   useEffect(() => {
+    // Avoid an extra Edge request by reading the referrer on the client directly
     const checkReferrer = async () => {
       try {
-        const response = await fetch("/api/check-referrer");
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const data = await response.json();
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-        setReferrerURL(data);
-      } catch (error) {
-        console.error("Error checking referrer:", error);
+        const ref = document.referrer || null;
+        setReferrerURL(ref);
+      } catch {
+        setReferrerURL(null);
       }
     };
 

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/carousel"
 import Image from "next/image"
 import { motion } from "framer-motion"
+import { env } from "@/env"
 
 export function MiniImageCarousel() {
   const autoplay = React.useRef(
@@ -18,8 +19,8 @@ export function MiniImageCarousel() {
   )
 
   const getImages = () => {
-    const cQuantity = 4;
-    const bQuantity = 9;
+    const cQuantity = env.NEXT_PUBLIC_DATA_SAVER ? 2 : 4;
+    const bQuantity = env.NEXT_PUBLIC_DATA_SAVER ? 3 : 9;
     const images = [];
 
     for (let i = 0; i < cQuantity; i++) {
@@ -40,7 +41,7 @@ export function MiniImageCarousel() {
     >
       <div>
         <Carousel
-          plugins={[autoplay.current]}
+          plugins={env.NEXT_PUBLIC_DATA_SAVER ? [] : [autoplay.current]}
           opts={{
             loop: true,
           }}
@@ -54,7 +55,8 @@ export function MiniImageCarousel() {
                     alt="Imagem"
                     fill
                     className="transition object-cover rounded-xl hover:scale-[98%]"
-                    priority
+                    priority={index < 1}
+                    loading={index < 1 ? 'eager' as const : 'lazy' as const}
                     sizes="(max-width: 640px) 90vw, (max-width: 740px) 50vw 33vw"
                   />
                 </div>

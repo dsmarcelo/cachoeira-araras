@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/carousel"
 import Image from "next/image"
 import { motion } from "framer-motion"
+import { env } from "@/env"
 
 export function ImageCarousel() {
   const autoplay = React.useRef(
@@ -18,13 +19,13 @@ export function ImageCarousel() {
   const fade = React.useRef(Fade())
 
   const getImages = () => {
-    const quantity = 4;
-    const images = [];
-
-    for (let i = 0; i < quantity; i++) {
-      images.push(`/images/carousel/${i + 1}.jpg`);
-    };
-    return images;
+    // Build the carousel image list once; keep minimal number when data saver is enabled
+    const totalImages = env.NEXT_PUBLIC_DATA_SAVER ? 1 : 4
+    const images: string[] = []
+    for (let i = 0; i < totalImages; i++) {
+      images.push(`/images/carousel/${i + 1}.jpg`)
+    }
+    return images
   }
 
   return (
@@ -36,7 +37,7 @@ export function ImageCarousel() {
     >
       <div className="w-full max-w-5xl mx-auto lg:rounded-2xl overflow-hidden">
         <Carousel
-          plugins={[autoplay.current, fade.current]}
+          plugins={env.NEXT_PUBLIC_DATA_SAVER ? [] : [autoplay.current, fade.current]}
           opts={{
             loop: true,
           }}
@@ -50,8 +51,12 @@ export function ImageCarousel() {
                     alt="Imagem"
                     fill
                     className="object-cover"
-                    priority
+                    // Only the first image is priority to avoid multiple eager image requests
+                    priority={index === 0}
+                    loading={index === 0 ? 'eager' as const : 'lazy' as const}
                     sizes="(max-width: 768px) 100vw, 75vw"
+                    // Disable server image optimizer to avoid additional server invocations for static assets
+                    unoptimized
                   />
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-bg-blue via-transparent via-15% to-transparent lg:hidden"></div>
