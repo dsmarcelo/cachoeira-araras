@@ -7,18 +7,62 @@ import {
   Carousel,
   CarouselContent,
   CarouselItem,
+  type CarouselApi,
 } from "@/components/ui/carousel"
 import Image from "next/image"
 import { motion } from "framer-motion"
 
 export function ImageCarousel() {
+  // Autoplay plugin instance. We disable built-in stop on interaction so we can
+  // implement a custom 3s pause on user drag, then resume.
   const autoplay = React.useRef(
-    Autoplay({ delay: 5000 }),
+    Autoplay({ delay: 5000, stopOnInteraction: false, stopOnMouseEnter: false }),
   )
   const fade = React.useRef(Fade())
+  const [emblaApi, setEmblaApi] = React.useState<CarouselApi | null>(null)
+  const resumeTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Attach Embla events to pause on drag and resume after 3s
+  React.useEffect(() => {
+    if (!emblaApi) return
+
+    const clearResumeTimeout = () => {
+      if (resumeTimeoutRef.current) {
+        clearTimeout(resumeTimeoutRef.current)
+        resumeTimeoutRef.current = null
+      }
+    }
+
+    const handlePointerDown = () => {
+      clearResumeTimeout()
+      autoplay.current.stop()
+    }
+
+    const handleSettle = () => {
+      clearResumeTimeout()
+      // Wait 3s after user interaction ends, then advance once and
+      // restart the normal autoplay cycle.
+      resumeTimeoutRef.current = setTimeout(() => {
+        // If the carousel is destroyed/unmounted, emblaApi will be falsy
+        if (!emblaApi) return
+        emblaApi.scrollNext()
+        // Reset starts the plugin timing again using its configured delay
+        autoplay.current.reset()
+      }, 3000)
+    }
+
+    emblaApi.on("pointerDown", handlePointerDown)
+    emblaApi.on("settle", handleSettle)
+
+    return () => {
+      clearResumeTimeout()
+      emblaApi.off("pointerDown", handlePointerDown)
+      emblaApi.off("settle", handleSettle)
+    }
+  }, [emblaApi])
 
   const getImages = () => {
-    const quantity = 10;
+    const quantity = 7;
     const images = [];
 
     for (let i = 0; i < quantity; i++) {
@@ -40,10 +84,11 @@ export function ImageCarousel() {
           opts={{
             loop: true,
           }}
+          setApi={setEmblaApi}
         >
           <CarouselContent>
             {getImages().map((image, index) => (
-              <CarouselItem key={index} className="w-full aspect-[2/1] md:max-tall:aspect-[3/1]">
+              <CarouselItem key={index} className="w-full aspect-[2/1] md:max-tall:aspect-[2.5/1]">
                 <div className="w-full h-full relative">
                   <Image
                     src={image}
