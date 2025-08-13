@@ -219,6 +219,11 @@ export default function VoucherForm() {
           onSubmit={handleSubmit(onSubmit)}
           className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-base [&_label]:leading-none"
         >
+          <div className="flex flex-col gap-2 bg-orange-600 rounded-xl p-2">
+            <h3 className="font-bold text-center text-sm uppercase text-white">
+              Excepcionalmente nesse domingo dia 17/08, não teremos vagas para as churrasqueiras.
+            </h3>
+          </div>
           <h3 className="text-center text-sm font-medium uppercase leading-none text-primary-100">
             Entrada permitida entre 08h e 17h
           </h3>
