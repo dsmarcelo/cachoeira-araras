@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, CalendarDays, DollarSign, Ticket } from "lucide-react";
+import { Calendar, CalendarDays, Cog, DollarSign, Ticket } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -42,6 +42,11 @@ const sidebarItems = [
     icon: <Ticket className="h-5 w-5" />,
     href: "/admin/dashboard/vouchers",
   },
+  {
+    name: "Configurações",
+    icon: <Cog className="h-5 w-5" />,
+    href: "/admin/dashboard/configuracoes",
+  },
 ];
 
 export default function DashboardSidebar() {
@@ -78,7 +83,7 @@ export default function DashboardSidebar() {
                       href={item.href}
                       className={`flex items-center rounded-lg px-2 py-2 text-sm font-medium ${
                         isActive
-                          ? "bg-sidebar-primary font-medium text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+                          ? "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground font-medium"
                           : "text-muted-foreground hover:bg-muted"
                       }`}
                       onClick={handleMenuItemClick}

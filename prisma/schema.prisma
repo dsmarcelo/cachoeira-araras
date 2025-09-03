@@ -87,3 +87,31 @@ model Referrer {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+enum SettingType {
+  string
+  number
+  boolean
+  json
+}
+
+enum Environment {
+  prod
+  staging
+  dev
+}
+
+model SiteSetting {
+  id          Int         @id @default(autoincrement())
+  key         String
+  type        SettingType
+  stringValue String?
+  numberValue Float?
+  boolValue   Boolean?
+  jsonValue   Json?
+  updatedAt   DateTime    @updatedAt
+  updatedBy   String?
+
+  @@unique([key])
+  @@index([key])
+}

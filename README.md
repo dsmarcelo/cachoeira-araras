@@ -1,3 +1,28 @@
+# Cachoeira das Araras - Sistema de Vouchers
+
+Sistema de gerenciamento de vouchers para Cachoeira das Araras.
+
+## Funcionalidades
+
+### Admin Dashboard
+
+- **Configurações**: Interface para gerenciar configurações do sistema
+  - Preços de vouchers (normal e piscina)
+  - Limites de dias e pessoas
+  - Mensagens do sistema
+  - Controles de habilitação de compras
+- **Vendas**: Relatórios e gestão de vendas
+- **Vouchers**: Gerenciamento de vouchers criados
+
+### Sistema de Vouchers
+
+- Compra de vouchers com diferentes opções
+- Validação de vouchers
+- Integração com Mercado Pago
+- Sistema de referência
+
+---
+
 # Create T3 App
 
 This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
