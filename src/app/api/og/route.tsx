@@ -1,12 +1,16 @@
 import { ImageResponse } from 'next/og';
 import { type NextRequest } from 'next/server';
+import fs from 'fs/promises';
+import path from 'path';
 import { formatVoucherStatusWithoutBg } from '@/lib/voucher';
 
-export const runtime = 'edge';
+// Switch OG generation to node runtime to avoid Edge invocations on Vercel Free
+export const runtime = 'nodejs';
 
-const interSemiBold = fetch(
-  new URL("../../../../assets/fonts/Inter-SemiBold.ttf", import.meta.url)
-).then((res) => res.arrayBuffer());
+// Read font from disk directly in Node runtime to avoid fetch-ing a relative URL
+const interSemiBold = fs
+  .readFile(path.join(process.cwd(), 'assets', 'fonts', 'Inter-SemiBold.ttf'))
+  .then((buf) => buf);
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -65,6 +69,10 @@ export async function GET(request: NextRequest) {
       width: 750,
       height: 375,
       status: 200,
+      // Aggressive caching to avoid repeated invocations for the same query params
+      headers: {
+        "Cache-Control": "public, max-age=31536000, s-maxage=31536000, immutable",
+      },
       fonts: [
         {
           name: "Inter",

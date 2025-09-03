@@ -38,6 +38,8 @@ export default function VoucherCard({ data }: { data: Voucher }) {
           src={imgURL}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 40vw"
+          // Avoid Next.js Image Optimization serverless hop; fetch OG directly
+          unoptimized
           alt="Voucher"
         />
       </div>

@@ -17,6 +17,8 @@ function ImageCard({ image, setImage }: { image: string, setImage: (image: strin
             fill
             sizes='100vw'
             className='object-contain'
+            priority={false}
+            loading='lazy'
           />
         </div>
       </div>
@@ -43,6 +45,7 @@ export default function ImageGallery({ images }: { images: ImageGalleryProps }) 
                 fill
                 sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 40vw'
                 className='object-cover'
+                loading='lazy'
               />
             </div>
           </div>
@@ -60,6 +63,7 @@ export default function ImageGallery({ images }: { images: ImageGalleryProps }) 
                 fill
                 sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 40vw'
                 className='object-cover'
+                loading='lazy'
               />
             </div>
           </div>
