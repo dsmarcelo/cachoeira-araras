@@ -13,11 +13,13 @@ const SETTING_CONFIG = {
     label: "Preço do Voucher",
     description: "Preço base para vouchers normais",
     type: "number" as const,
+    isCurrency: true,
   },
   "voucher.pool.price": {
     label: "Preço do Voucher Piscina",
     description: "Preço base para vouchers com acesso à piscina",
     type: "number" as const,
+    isCurrency: true,
   },
   "voucher.max.quantity.adults": {
     label: "Máximo de Adultos - Voucher Normal",
@@ -76,6 +78,7 @@ const SETTING_CONFIG = {
     label: string;
     description: string;
     type: "string" | "number" | "boolean" | "json";
+    isCurrency?: boolean;
   }
 >;
 
@@ -101,6 +104,7 @@ export default async function ConfiguracoesPage() {
             value: value,
             label: config.label,
             description: config.description,
+            isCurrency: "isCurrency" in config ? config.isCurrency : false,
           };
 
           switch (config.type) {

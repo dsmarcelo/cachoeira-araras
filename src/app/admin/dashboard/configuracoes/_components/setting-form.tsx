@@ -53,7 +53,9 @@ export function StringSettingForm({
   const [inputValue, setInputValue] = useState((value as string) || "");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-
+  if (isCurrency) {
+    alert("isCurrency");
+  }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -89,15 +91,22 @@ export function StringSettingForm({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           {isCurrency ? (
-            <div className="flex gap-2">
-              <Label htmlFor={settingKey}>R$</Label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                R$
+              </div>
               <Input
                 id={settingKey}
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                placeholder="Digite o valor..."
+                type="number"
+                step="0.01"
+                value={inputValue === "0" ? "" : inputValue}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setInputValue(value === "" ? "0" : value);
+                }}
+                placeholder="0,00"
                 disabled={isLoading}
+                className="pl-10"
               />
             </div>
           ) : (
@@ -128,6 +137,7 @@ export function NumberSettingForm({
   value,
   label,
   description,
+  isCurrency = false,
 }: SettingFormProps) {
   const [inputValue, setInputValue] = useState((value as number) || 0);
   const [isLoading, setIsLoading] = useState(false);
@@ -167,14 +177,38 @@ export function NumberSettingForm({
     <FormCard label={label} description={description}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Input
-            id={settingKey}
-            type="number"
-            value={inputValue}
-            onChange={(e) => setInputValue(Number(e.target.value))}
-            placeholder="Digite o valor numérico..."
-            disabled={isLoading}
-          />
+          {isCurrency ? (
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                R$
+              </div>
+              <Input
+                id={settingKey}
+                type="number"
+                step="0.01"
+                value={inputValue === 0 ? "" : inputValue}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setInputValue(value === "" ? 0 : Number(value));
+                }}
+                placeholder="0,00"
+                disabled={isLoading}
+                className="pl-10"
+              />
+            </div>
+          ) : (
+            <Input
+              id={settingKey}
+              type="number"
+              value={inputValue === 0 ? "" : inputValue}
+              onChange={(e) => {
+                const value = e.target.value;
+                setInputValue(value === "" ? 0 : Number(value));
+              }}
+              placeholder="Digite o valor numérico..."
+              disabled={isLoading}
+            />
+          )}
         </div>
         <Button className="float-right" type="submit" disabled={isLoading}>
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
