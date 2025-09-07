@@ -25,8 +25,8 @@ const SETTING_CONFIG = {
     type: "number" as const,
   },
   "voucher.max.quantity.elderly": {
-    label: "Máximo de Idosos - Voucher Normal",
-    description: "Número máximo de idosos permitidos em vouchers normais",
+    label: "Máximo de Entradas Meias - Voucher Normal",
+    description: "Número máximo de entradas meias permitidas em vouchers normais",
     type: "number" as const,
   },
   "voucher.max.quantity.adults.pool": {
@@ -35,8 +35,8 @@ const SETTING_CONFIG = {
     type: "number" as const,
   },
   "voucher.max.quantity.elderly.pool": {
-    label: "Máximo de Idosos - Voucher Piscina",
-    description: "Número máximo de idosos permitidos em vouchers com piscina",
+    label: "Máximo de Entradas Meias - Voucher Piscina",
+    description: "Número máximo de entradas meias permitidas em vouchers com piscina",
     type: "number" as const,
   },
   "enable.voucher.buy": {
