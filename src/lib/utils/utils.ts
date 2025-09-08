@@ -1,19 +1,11 @@
 "use client";
 
-import { type z } from "zod";
-import {
-  type VoucherSchema,
-  type initialVoucherSchema,
-} from "../voucher/types";
+import type { VoucherSchema, InitialVoucher } from "../voucher/types";
 
-type initialVoucherSchema = z.infer<typeof initialVoucherSchema>;
-
-const voucherPrice = Number(process.env.NEXT_PUBLIC_VOUCHER_PRICE ?? 50);
-const poolVoucherPrice = Number(
-  process.env.NEXT_PUBLIC_POOL_VOUCHER_PRICE ?? 70,
-);
-const elderlyVoucherPrice = voucherPrice / 2;
-const poolElderlyVoucherPrice = poolVoucherPrice / 2;
+export interface VoucherPricing {
+  voucherPrice: number;
+  poolVoucherPrice: number;
+}
 
 export function randomCode(): string {
   let result = "";
@@ -23,29 +15,20 @@ export function randomCode(): string {
   return result;
 }
 
-/**
- * Get the current voucher price from environment variables.
- * This function will be updated later to fetch from database.
- * @returns The current voucher price for adults
- */
-export function getVoucherPrice(): number {
-  return Number(process.env.NEXT_PUBLIC_VOUCHER_PRICE ?? 50);
+export function getVoucherPrice(pricing: VoucherPricing): number {
+  return pricing.voucherPrice;
 }
 
-export function getPoolVoucherPrice(): number {
-  return Number(process.env.NEXT_PUBLIC_POOL_VOUCHER_PRICE ?? 70);
+export function getPoolVoucherPrice(pricing: VoucherPricing): number {
+  return pricing.poolVoucherPrice;
 }
 
-/**
- * Get the current voucher price for elderly people.
- * @returns The current voucher price for elderly (half of adult price)
- */
-export function getElderlyVoucherPrice(): number {
-  return getVoucherPrice() / 2;
+export function getElderlyVoucherPrice(pricing: VoucherPricing): number {
+  return pricing.voucherPrice / 2;
 }
 
-export function getPoolElderlyVoucherPrice(): number {
-  return getPoolVoucherPrice() / 2;
+export function getPoolElderlyVoucherPrice(pricing: VoucherPricing): number {
+  return pricing.poolVoucherPrice / 2;
 }
 
 /**
@@ -57,15 +40,21 @@ export function calculatePrice(
   elderly: number,
   adults_pool = 0,
   elderly_pool = 0,
-) {
-  const defaultTotal = adults * voucherPrice + elderly * elderlyVoucherPrice;
+  pricing: VoucherPricing,
+): number {
+  const elderlyPrice = pricing.voucherPrice / 2;
+  const poolElderlyPrice = pricing.poolVoucherPrice / 2;
+  const defaultTotal = adults * pricing.voucherPrice + elderly * elderlyPrice;
   const poolTotal =
-    adults_pool * poolVoucherPrice + elderly_pool * poolElderlyVoucherPrice;
+    adults_pool * pricing.poolVoucherPrice + elderly_pool * poolElderlyPrice;
 
   return defaultTotal + poolTotal;
 }
 
-export function formatVoucher(data: initialVoucherSchema): VoucherSchema {
+export function formatVoucher(
+  data: InitialVoucher,
+  pricing: VoucherPricing,
+): VoucherSchema {
   const completeData = {
     name: data.name,
     phone: data.phone,
@@ -82,9 +71,10 @@ export function formatVoucher(data: initialVoucherSchema): VoucherSchema {
       data.elderly,
       data.adults_pool,
       data.elderly_pool,
+      pricing,
     ),
     expires_at: data.intendedDate,
-  };
+  } as const;
   return completeData;
 }
 

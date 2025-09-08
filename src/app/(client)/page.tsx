@@ -1,14 +1,21 @@
 import VoucherBuy from "../_components/voucher-buy";
 import InfoCard from "../_components/info";
 import { ImageCarousel } from "../_components/image_carousel";
+import { getSetting } from "@/lib/settings";
 import Link from "next/link";
 import { RiGalleryView2 } from "react-icons/ri";
 import { FaLocationArrow } from "react-icons/fa";
 import { MiniImageCarousel } from "../_components/swiper-carousel/mini-image-carousel";
 
 export default async function Home() {
+  const topMessage = await getSetting("top.message");
   return (
     <div className="flex min-h-screen flex-col items-center bg-bg-blue lg:pt-8 text-primary-200">
+      {topMessage && (
+        <div className="w-full bg-orange-600 p-2 text-center text-white">
+          {topMessage}
+        </div>
+      )}
       <ImageCarousel />
       <main className="flex flex-col items-center px-4 gap-12 md:gap-24 pb-8 z-10 -mt-6 lg:mt-0 md:py-8 md:px-8">
         <div className="w-full max-w-5xl flex flex-col justify-center gap-6 lg:flex-row">
