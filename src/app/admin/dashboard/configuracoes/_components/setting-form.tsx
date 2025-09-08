@@ -10,6 +10,7 @@ import type { SettingKey } from "@/lib/settings";
 import { Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import MultipleDaysCalendar from "@/components/ui/multiple-days-calendar";
 
 interface SettingFormProps {
   settingKey: SettingKey; // React reserves `key`, so we must use a different prop name
@@ -305,6 +306,26 @@ export function JsonSettingForm({
   const [isLoading, setIsLoading] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
   const { toast } = useToast();
+  const initialDates =
+    isDateArray && Array.isArray(value)
+      ? value
+          .map((d) => {
+            // Parse date string as local date to avoid timezone issues
+            const dateStr = String(d);
+            const parts = dateStr.split("-").map(Number);
+            if (parts.length !== 3 || parts.some(isNaN)) {
+              return null;
+            }
+            const year = parts[0]!;
+            const month = parts[1]!;
+            const day = parts[2]!;
+            return new Date(year, month - 1, day); // month is 0-indexed
+          })
+          .filter((d): d is Date => d !== null && !Number.isNaN(d.getTime()))
+      : [];
+  const [selectedDates, setSelectedDates] = useState<Date[] | undefined>(
+    isDateArray ? initialDates : undefined,
+  );
 
   const validateJson = (jsonString: string) => {
     try {
@@ -319,6 +340,40 @@ export function JsonSettingForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // When this setting represents a date array, serialize and save as string[] (ISO 8601 date-only)
+    if (isDateArray) {
+      setIsLoading(true);
+      try {
+        const isoDates = (selectedDates ?? []).map((d) => {
+          // Format as YYYY-MM-DD using local date to avoid timezone issues
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, "0");
+          const day = String(d.getDate()).padStart(2, "0");
+          return `${year}-${month}-${day}`;
+        });
+        const result = await updateSetting(settingKey, isoDates);
+
+        if (result.success) {
+          toast({ title: "Sucesso", description: result.message });
+        } else {
+          toast({
+            title: "Erro",
+            description: result.message,
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        toast({
+          title: "Erro",
+          description: "Erro inesperado ao salvar configuração",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
 
     if (!validateJson(inputValue)) {
       toast({
@@ -362,25 +417,38 @@ export function JsonSettingForm({
     <FormCard label={label} description={description}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor={settingKey}>Valor JSON</Label>
-          <textarea
-            id={settingKey}
-            value={inputValue}
-            onChange={(e) => {
-              setInputValue(e.target.value);
-              validateJson(e.target.value);
-            }}
-            placeholder='{"chave": "valor"}'
-            disabled={isLoading}
-            className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            rows={6}
-          />
-          {jsonError && <p className="text-sm text-red-500">{jsonError}</p>}
+          {isDateArray ? (
+            <>
+              <Label>Selecione os dias</Label>
+              <MultipleDaysCalendar
+                value={selectedDates}
+                onChange={setSelectedDates}
+                disabled={isLoading}
+              />
+            </>
+          ) : (
+            <>
+              <Label htmlFor={settingKey}>Valor JSON</Label>
+              <textarea
+                id={settingKey}
+                value={inputValue}
+                onChange={(e) => {
+                  setInputValue(e.target.value);
+                  validateJson(e.target.value);
+                }}
+                placeholder='{"chave": "valor"}'
+                disabled={isLoading}
+                className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                rows={6}
+              />
+              {jsonError && <p className="text-sm text-red-500">{jsonError}</p>}
+            </>
+          )}
         </div>
         <Button
           className="float-right"
           type="submit"
-          disabled={isLoading || !!jsonError}
+          disabled={isLoading || (!isDateArray && !!jsonError)}
         >
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Salvar
