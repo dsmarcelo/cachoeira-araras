@@ -28,7 +28,8 @@ const SETTING_CONFIG = {
   },
   "voucher.max.quantity.elderly": {
     label: "Máximo de Entradas Meias - Voucher Normal",
-    description: "Número máximo de entradas meias permitidas em vouchers normais",
+    description:
+      "Número máximo de entradas meias permitidas em vouchers normais",
     type: "number" as const,
   },
   "voucher.max.quantity.adults.pool": {
@@ -38,7 +39,8 @@ const SETTING_CONFIG = {
   },
   "voucher.max.quantity.elderly.pool": {
     label: "Máximo de Entradas Meias - Voucher Piscina",
-    description: "Número máximo de entradas meias permitidas em vouchers com piscina",
+    description:
+      "Número máximo de entradas meias permitidas em vouchers com piscina",
     type: "number" as const,
   },
   "enable.voucher.buy": {
@@ -71,6 +73,7 @@ const SETTING_CONFIG = {
     description:
       "Lista de datas desabilitadas para agendamento (formato JSON array)",
     type: "json" as const,
+    isDateArray: true,
   },
 } as const satisfies Record<
   string,
@@ -79,6 +82,7 @@ const SETTING_CONFIG = {
     description: string;
     type: "string" | "number" | "boolean" | "json";
     isCurrency?: boolean;
+    isDateArray?: boolean;
   }
 >;
 
@@ -105,6 +109,7 @@ export default async function ConfiguracoesPage() {
             label: config.label,
             description: config.description,
             isCurrency: "isCurrency" in config ? config.isCurrency : false,
+            isDateArray: "isDateArray" in config ? config.isDateArray : false,
           };
 
           switch (config.type) {

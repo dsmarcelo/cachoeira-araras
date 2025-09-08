@@ -39,7 +39,7 @@ export async function getAllSettings() {
  */
 export async function updateSetting(
   key: SettingKey,
-  value: string | number | boolean | Record<string, unknown>,
+  value: string | number | boolean | string[] | Record<string, unknown>,
   updatedBy?: string,
 ) {
   try {
