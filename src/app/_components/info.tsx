@@ -152,7 +152,7 @@ export default function InfoCard() {
         <div className="flex flex-col flex-1">
           <div className="font-semibold">Entrada de comida e bebida liberada!</div>
           <div className="mt-3 font-light">
-            Aqui o seu cooler é bem vindo! Pode entrar com bebida e comida.
+            Aqui o seu cooler é bem vindo! Pode entrar com bebida e comida. Apenas lata, garrafas de vidro não são permitidas, respeite a natureza.
           </div>
         </div>
       </motion.div>
