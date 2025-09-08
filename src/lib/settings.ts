@@ -87,7 +87,24 @@ export async function getSetting<K extends SettingKey>(
   const row = await siteSetting.findUnique({
     where: { key },
   });
-  if (!row) return null;
+  if (!row) {
+    // Provide sensible defaults when a setting is not yet stored
+    const defaults: Partial<SettingValueMap> = {
+      "voucher.price": 50,
+      "voucher.pool.price": 70,
+      "voucher.max.quantity.adults": 20,
+      "voucher.max.quantity.elderly": 20,
+      "voucher.max.quantity.adults.pool": 20,
+      "voucher.max.quantity.elderly.pool": 20,
+      "top.message": "",
+      "form.message": "",
+      "max.intended.days": 60,
+      "disabled.days": [],
+      "enable.voucher.buy": true,
+      "enable.voucher.pool.buy": true,
+    };
+    return (defaults[key] as SettingValueMap[K]) ?? null;
+  }
   switch (row.type) {
     case "string":
       return row.stringValue as SettingValueMap[K] | null;
