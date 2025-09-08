@@ -9,6 +9,7 @@ import { updateSetting } from "../actions";
 import type { SettingKey } from "@/lib/settings";
 import { Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 interface SettingFormProps {
   settingKey: SettingKey; // React reserves `key`, so we must use a different prop name
@@ -16,6 +17,7 @@ interface SettingFormProps {
   label: string;
   description?: string;
   isCurrency?: boolean;
+  isDateArray?: boolean;
 }
 
 function FormCard({
@@ -110,9 +112,8 @@ export function StringSettingForm({
               />
             </div>
           ) : (
-            <Input
+            <Textarea
               id={settingKey}
-              type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Digite o valor..."
@@ -296,6 +297,7 @@ export function JsonSettingForm({
   value,
   label,
   description,
+  isDateArray = false,
 }: SettingFormProps) {
   const [inputValue, setInputValue] = useState(
     value ? JSON.stringify(value, null, 2) : "",
