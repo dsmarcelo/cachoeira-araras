@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { getBrazilianDate } from "../utils/date";
-import { env } from "@/env";
 
 export const voucherSchema = z.object({
   name: z
@@ -39,58 +38,68 @@ export const voucherSchema = z.object({
 
 export type VoucherSchema = z.infer<typeof voucherSchema>;
 
-export const voucherFormSchema = z
-  .object({
-    name: z
-      .string()
-      .min(1, "Nome é obrigatorio")
-      .max(40, "Nome deve ser menor que 40 caracteres"),
-    phone: z.string().trim(),
-    adults: z.coerce
-      .number({
-        required_error: "Campo obrigatório",
-        invalid_type_error: "Deve ser um número",
-      })
-      .gte(0, "Quantidade inválida")
-      .lte(20, "No maximo 20 pessoas")
-      .int(),
-    elderly: z.coerce
-      .number({
-        required_error: "Campo obrigatório",
-        invalid_type_error: "Deve ser um número",
-      })
-      .gte(0, "Quantidade inválida")
-      .lte(20, "No maximo 20 pessoas")
-      .int(),
-    adults_pool: z.coerce
-      .number({
-        required_error: "Campo obrigatório",
-        invalid_type_error: "Deve ser um número",
-      })
-      .gte(0, "Quantidade inválida")
-      .lte(20, "No maximo 20 pessoas")
-      .int(),
-    elderly_pool: z.coerce
-      .number({
-        required_error: "Campo obrigatório",
-        invalid_type_error: "Deve ser um número",
-      })
-      .gte(0, "Quantidade inválida")
-      .lte(20, "No maximo 20 pessoas")
-      .int(),
-    intendedDate: z
-      .date({ required_error: "Campo obrigatório" })
-      .min(
-        getBrazilianDate(
-          new Date(
-            Date.now() -
-              1000 * 60 * 60 * 24 * env.NEXT_PUBLIC_MAX_INTENDED_DAYS,
+export const createVoucherFormSchema = (config: {
+  maxIntendedDays: number;
+  maxAdults: number;
+  maxElderly: number;
+  maxAdultsPool: number;
+  maxElderlyPool: number;
+}) =>
+  z
+    .object({
+      name: z
+        .string()
+        .min(1, "Nome é obrigatorio")
+        .max(40, "Nome deve ser menor que 40 caracteres"),
+      phone: z.string().trim(),
+      adults: z.coerce
+        .number({
+          required_error: "Campo obrigatório",
+          invalid_type_error: "Deve ser um número",
+        })
+        .gte(0, "Quantidade inválida")
+        .lte(config.maxAdults, `No maximo ${config.maxAdults} pessoas`)
+        .int(),
+      elderly: z.coerce
+        .number({
+          required_error: "Campo obrigatório",
+          invalid_type_error: "Deve ser um número",
+        })
+        .gte(0, "Quantidade inválida")
+        .lte(config.maxElderly, `No maximo ${config.maxElderly} pessoas`)
+        .int(),
+      adults_pool: z.coerce
+        .number({
+          required_error: "Campo obrigatório",
+          invalid_type_error: "Deve ser um número",
+        })
+        .gte(0, "Quantidade inválida")
+        .lte(
+          config.maxAdultsPool,
+          `No maximo ${config.maxAdultsPool} pessoas`,
+        )
+        .int(),
+      elderly_pool: z.coerce
+        .number({
+          required_error: "Campo obrigatório",
+          invalid_type_error: "Deve ser um número",
+        })
+        .gte(0, "Quantidade inválida")
+        .lte(
+          config.maxElderlyPool,
+          `No maximo ${config.maxElderlyPool} pessoas`,
+        )
+        .int(),
+      intendedDate: z
+        .date({ required_error: "Campo obrigatório" })
+        .min(
+          getBrazilianDate(
+            new Date(Date.now() - 1000 * 60 * 60 * 24 * config.maxIntendedDays),
           ),
+          "Data inválida",
         ),
-        "Data inválida",
-      ),
-  })
-  .refine(
+    })
+    .refine(
     (data) => {
       return data.phone.length >= 11 && data.phone.charAt(2) === "9";
     },
@@ -100,6 +109,10 @@ export const voucherFormSchema = z
       path: ["phone"],
     },
   );
+
+export type VoucherFormSchema = z.infer<
+  ReturnType<typeof createVoucherFormSchema>
+>;
 
 export const initialVoucherSchema = z.object({
   name: z.string(),
@@ -113,6 +126,8 @@ export const initialVoucherSchema = z.object({
   code: z.string(),
   intendedDate: z.date(),
 });
+
+export type InitialVoucher = z.infer<typeof initialVoucherSchema>;
 
 export const referrerSchema = z.object({
   voucherCode: z.string(),
