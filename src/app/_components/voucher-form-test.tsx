@@ -38,7 +38,6 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { formatMercadoPagoDescription } from "@/lib/voucher";
 import { getBrazilianDate } from "@/lib/utils/date";
-import { env } from "@/env";
 import NumberInput from "./input/number-input";
 
 export default function TestVoucherForm() {
@@ -56,10 +55,15 @@ export default function TestVoucherForm() {
   const disabledDaysQuery = api.settings.getDisabledDays.useQuery();
   const maxIntendedDaysQuery = api.settings.getMaxIntendedDays.useQuery();
   const topMessageQuery = api.settings.getTopMessage.useQuery();
+  const enableVoucherBuyQuery = api.settings.getEnableVoucherBuy.useQuery();
+  const enablePoolVoucherBuyQuery =
+    api.settings.getEnableVoucherPoolBuy.useQuery();
 
   const disabledDays = disabledDaysQuery.data || [];
   const maxIntendedDays = maxIntendedDaysQuery.data || 60;
   const topMessage = topMessageQuery.data || "";
+  const enableVoucherBuy = enableVoucherBuyQuery.data ?? true;
+  const enablePoolVoucherBuy = enablePoolVoucherBuyQuery.data ?? true;
 
   async function checkPaymentStatus(code: string) {
     const voucher = await utils.voucher.findByCode.fetch({ code });
@@ -183,6 +187,22 @@ export default function TestVoucherForm() {
   }
 
   async function onSubmit(data: FormSchema) {
+    // Guard against disabled feature flags (test variant)
+    if (!enableVoucherBuy && (data.adults > 0 || data.elderly > 0)) {
+      return toast({
+        title: "Indisponível",
+        description: "Compra de voucher normal está desativada",
+      });
+    }
+    if (
+      !enablePoolVoucherBuy &&
+      (data.adults_pool > 0 || data.elderly_pool > 0)
+    ) {
+      return toast({
+        title: "Indisponível",
+        description: "Compra de voucher com piscina está desativada",
+      });
+    }
     if (
       data.adults + data.elderly + data.adults_pool + data.elderly_pool ===
       0
@@ -293,138 +313,149 @@ export default function TestVoucherForm() {
             </p>
 
             <div className="flex flex-col divide-y divide-primary-100">
-              <div className="flex items-center justify-between gap-2 py-4">
-                <Label className="">
-                  <p className="text-base font-bold">Inteira</p>
-                  <p className="text-sm">(de 9 a 59 anos)</p>
-                  <p className="text-sm">
-                    R$ {getVoucherPrice().toFixed(2).replace(".", ",")}
-                  </p>
-                </Label>
-                <div className="w-fit">
-                  <Controller
-                    name="adults"
-                    control={control}
-                    render={({ field }) => (
-                      <NumberInput
-                        id="adults"
-                        minValue={0}
-                        maxValue={20}
-                        defaultValue={1}
-                        selectedValue={field.value}
-                        onChange={field.onChange}
-                        className="rounded-xl text-bg-blue"
-                        placeholder="Quantidade de adultos"
+              {enableVoucherBuy && (
+                <>
+                  <div className="flex items-center justify-between gap-2 py-4">
+                    <Label className="">
+                      <p className="text-base font-bold">Inteira</p>
+                      <p className="text-sm">(de 9 a 59 anos)</p>
+                      <p className="text-sm">
+                        R$ {getVoucherPrice().toFixed(2).replace(".", ",")}
+                      </p>
+                    </Label>
+                    <div className="w-fit">
+                      <Controller
+                        name="adults"
+                        control={control}
+                        render={({ field }) => (
+                          <NumberInput
+                            id="adults"
+                            minValue={0}
+                            maxValue={20}
+                            defaultValue={1}
+                            selectedValue={field.value}
+                            onChange={field.onChange}
+                            className="rounded-xl text-bg-blue"
+                            placeholder="Quantidade de adultos"
+                          />
+                        )}
                       />
+                    </div>
+                    {errors.adults && (
+                      <p className="text-base font-medium text-red-400">
+                        {errors.adults?.message}
+                      </p>
                     )}
-                  />
-                </div>
-                {errors.adults && (
-                  <p className="text-base font-medium text-red-400">
-                    {errors.adults?.message}
-                  </p>
-                )}
-              </div>
+                  </div>
 
-              <div className="flex items-center justify-between gap-2 py-4">
-                <Label className="flex flex-col">
-                  <p className="text-base font-bold">Meia</p>
-                  <p className="text-sm">(+60 anos e especiais)</p>
-                  <p className="text-sm">
-                    R$ {getElderlyVoucherPrice().toFixed(2).replace(".", ",")}
-                  </p>
-                </Label>
-                <div className="w-fit">
-                  <Controller
-                    name="elderly"
-                    control={control}
-                    render={({ field }) => (
-                      <NumberInput
-                        id="elderly"
-                        minValue={0}
-                        maxValue={20}
-                        defaultValue={0}
-                        selectedValue={field.value}
-                        onChange={field.onChange}
-                        className="rounded-xl text-bg-blue"
-                        placeholder="Quantidade de idosos"
+                  <div className="flex items-center justify-between gap-2 py-4">
+                    <Label className="flex flex-col">
+                      <p className="text-base font-bold">Meia</p>
+                      <p className="text-sm">(+60 anos e especiais)</p>
+                      <p className="text-sm">
+                        R${" "}
+                        {getElderlyVoucherPrice().toFixed(2).replace(".", ",")}
+                      </p>
+                    </Label>
+                    <div className="w-fit">
+                      <Controller
+                        name="elderly"
+                        control={control}
+                        render={({ field }) => (
+                          <NumberInput
+                            id="elderly"
+                            minValue={0}
+                            maxValue={20}
+                            defaultValue={0}
+                            selectedValue={field.value}
+                            onChange={field.onChange}
+                            className="rounded-xl text-bg-blue"
+                            placeholder="Quantidade de idosos"
+                          />
+                        )}
                       />
+                    </div>
+                    {errors.elderly && (
+                      <p className="text-base font-medium text-red-400">
+                        {errors.elderly?.message}
+                      </p>
                     )}
-                  />
-                </div>
-                {errors.elderly && (
-                  <p className="text-base font-medium text-red-400">
-                    {errors.elderly?.message}
-                  </p>
-                )}
-              </div>
+                  </div>
+                </>
+              )}
 
-              <div className="flex items-center justify-between gap-2 py-4">
-                <Label className="flex flex-col">
-                  <p className="text-base font-bold">Inteira (Piscina)</p>
-                  <p className="text-sm">(de 9 a 59 anos)</p>
-                  <p className="text-sm">
-                    R$ {getPoolVoucherPrice().toFixed(2).replace(".", ",")}
-                  </p>
-                </Label>
-                <div className="w-fit">
-                  <Controller
-                    name="adults_pool"
-                    control={control}
-                    render={({ field }) => (
-                      <NumberInput
-                        id="adults_pool"
-                        minValue={0}
-                        maxValue={20}
-                        defaultValue={0}
-                        selectedValue={field.value}
-                        onChange={field.onChange}
-                        className="rounded-xl text-bg-blue"
-                        placeholder="Quantidade de adultos"
+              {enablePoolVoucherBuy && (
+                <>
+                  <div className="flex items-center justify-between gap-2 py-4">
+                    <Label className="flex flex-col">
+                      <p className="text-base font-bold">Inteira (Piscina)</p>
+                      <p className="text-sm">(de 9 a 59 anos)</p>
+                      <p className="text-sm">
+                        R$ {getPoolVoucherPrice().toFixed(2).replace(".", ",")}
+                      </p>
+                    </Label>
+                    <div className="w-fit">
+                      <Controller
+                        name="adults_pool"
+                        control={control}
+                        render={({ field }) => (
+                          <NumberInput
+                            id="adults_pool"
+                            minValue={0}
+                            maxValue={20}
+                            defaultValue={0}
+                            selectedValue={field.value}
+                            onChange={field.onChange}
+                            className="rounded-xl text-bg-blue"
+                            placeholder="Quantidade de adultos"
+                          />
+                        )}
                       />
+                    </div>
+                    {errors.adults_pool && (
+                      <p className="text-base font-medium text-red-400">
+                        {errors.adults_pool?.message}
+                      </p>
                     )}
-                  />
-                </div>
-                {errors.adults_pool && (
-                  <p className="text-base font-medium text-red-400">
-                    {errors.adults_pool?.message}
-                  </p>
-                )}
-              </div>
+                  </div>
 
-              <div className="flex items-center justify-between gap-2 py-4">
-                <Label className="flex flex-col">
-                  <p className="text-base font-bold">Meia (Piscina)</p>
-                  <p className="text-sm">(+60 anos e especiais)</p>
-                  <p className="text-sm">
-                    R${" "}
-                    {getPoolElderlyVoucherPrice().toFixed(2).replace(".", ",")}
-                  </p>
-                </Label>
-                <div className="w-fit">
-                  <Controller
-                    name="elderly_pool"
-                    control={control}
-                    render={({ field }) => (
-                      <NumberInput
-                        id="elderly_pool"
-                        minValue={0}
-                        maxValue={20}
-                        defaultValue={0}
-                        selectedValue={field.value}
-                        onChange={field.onChange}
-                        className="rounded-xl text-bg-blue"
-                        placeholder="Quantidade de meias"
+                  <div className="flex items-center justify-between gap-2 py-4">
+                    <Label className="flex flex-col">
+                      <p className="text-base font-bold">Meia (Piscina)</p>
+                      <p className="text-sm">(+60 anos e especiais)</p>
+                      <p className="text-sm">
+                        R${" "}
+                        {getPoolElderlyVoucherPrice()
+                          .toFixed(2)
+                          .replace(".", ",")}
+                      </p>
+                    </Label>
+                    <div className="w-fit">
+                      <Controller
+                        name="elderly_pool"
+                        control={control}
+                        render={({ field }) => (
+                          <NumberInput
+                            id="elderly_pool"
+                            minValue={0}
+                            maxValue={20}
+                            defaultValue={0}
+                            selectedValue={field.value}
+                            onChange={field.onChange}
+                            className="rounded-xl text-bg-blue"
+                            placeholder="Quantidade de meias"
+                          />
+                        )}
                       />
+                    </div>
+                    {errors.elderly_pool && (
+                      <p className="text-base font-medium text-red-400">
+                        {errors.elderly_pool?.message}
+                      </p>
                     )}
-                  />
-                </div>
-                {errors.elderly_pool && (
-                  <p className="text-base font-medium text-red-400">
-                    {errors.elderly_pool?.message}
-                  </p>
-                )}
-              </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
