@@ -54,14 +54,12 @@ export default function TestVoucherForm() {
   // Get settings from database
   const disabledDaysQuery = api.settings.getDisabledDays.useQuery();
   const maxIntendedDaysQuery = api.settings.getMaxIntendedDays.useQuery();
-  const topMessageQuery = api.settings.getTopMessage.useQuery();
   const enableVoucherBuyQuery = api.settings.getEnableVoucherBuy.useQuery();
   const enablePoolVoucherBuyQuery =
     api.settings.getEnableVoucherPoolBuy.useQuery();
 
-  const disabledDays = disabledDaysQuery.data || [];
-  const maxIntendedDays = maxIntendedDaysQuery.data || 60;
-  const topMessage = topMessageQuery.data || "";
+  const disabledDays = disabledDaysQuery.data ?? [];
+  const maxIntendedDays = maxIntendedDaysQuery.data ?? 60;
   const enableVoucherBuy = enableVoucherBuyQuery.data ?? true;
   const enablePoolVoucherBuy = enablePoolVoucherBuyQuery.data ?? true;
 
