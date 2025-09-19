@@ -17,6 +17,11 @@ export const settingsRouter = createTRPCRouter({
     return topMessage ?? "";
   }),
 
+  getFormMessage: publicProcedure.query(async () => {
+    const formMessage = await getSetting("form.message");
+    return formMessage ?? "";
+  }),
+
   // Feature flags
   getEnableVoucherBuy: publicProcedure.query(async () => {
     const enabled = await getSetting("enable.voucher.buy");

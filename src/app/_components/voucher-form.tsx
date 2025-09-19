@@ -55,14 +55,14 @@ export default function VoucherForm() {
   // Get settings from database
   const disabledDaysQuery = api.settings.getDisabledDays.useQuery();
   const maxIntendedDaysQuery = api.settings.getMaxIntendedDays.useQuery();
-  const topMessageQuery = api.settings.getTopMessage.useQuery();
+  const formMessageQuery = api.settings.getFormMessage.useQuery();
   const enableVoucherBuyQuery = api.settings.getEnableVoucherBuy.useQuery();
   const enablePoolVoucherBuyQuery =
     api.settings.getEnableVoucherPoolBuy.useQuery();
 
   const disabledDays = disabledDaysQuery.data ?? [];
   const maxIntendedDays = maxIntendedDaysQuery.data ?? 60;
-  const topMessage = topMessageQuery.data ?? "";
+  const formMessage = formMessageQuery.data ?? "";
   const enableVoucherBuy = enableVoucherBuyQuery.data ?? true;
   const enablePoolVoucherBuy = enablePoolVoucherBuyQuery.data ?? true;
 
@@ -270,10 +270,10 @@ export default function VoucherForm() {
           onSubmit={handleSubmit(onSubmit)}
           className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-base [&_label]:leading-none"
         >
-          {topMessage && (
+          {formMessage && (
             <div className="flex flex-col gap-2 rounded-xl bg-orange-600 p-2">
               <h3 className="text-center text-sm font-bold uppercase text-white">
-                {topMessage}
+                {formMessage}
               </h3>
             </div>
           )}
