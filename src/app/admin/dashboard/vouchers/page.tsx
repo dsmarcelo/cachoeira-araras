@@ -117,9 +117,9 @@ export default function VouchersPage() {
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
-  // Calculate statistics
+  // Calculate statistics - only from paid vouchers
   const paidVouchers = filteredVouchers.filter((v) => v.payment_id !== null);
-  const totalSales = filteredVouchers.reduce((total, v) => total + v.price, 0);
+  const totalSales = paidVouchers.reduce((total, v) => total + v.price, 0);
   const totalAdults = paidVouchers.reduce(
     (total, v) => total + v.adults,
     0,
@@ -211,7 +211,7 @@ export default function VouchersPage() {
               {formatCurrency(totalSales)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {filteredVouchers.length} vouchers
+              {paidVouchers.length} vouchers pagos
             </p>
           </CardContent>
         </Card>
@@ -273,13 +273,13 @@ export default function VouchersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {filteredVouchers.length > 0
-                ? formatCurrency(totalSales / filteredVouchers.length)
+              {paidVouchers.length > 0
+                ? formatCurrency(totalSales / paidVouchers.length)
                 : formatCurrency(0)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {(filteredVouchers.length > 0
-                ? (totalAdults + totalElderly) / filteredVouchers.length
+              {(paidVouchers.length > 0
+                ? (totalAdults + totalElderly) / paidVouchers.length
                 : 0
               ).toFixed(1)}{" "}
               pessoas/voucher

@@ -7,6 +7,8 @@ await import("./src/env.js");
 /** @type {import("next").NextConfig} */
 const config = {
   images: {
+    // Disable Next.js image optimizer to avoid serverless/edge image requests on Vercel Free
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "http",

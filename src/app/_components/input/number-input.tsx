@@ -103,10 +103,9 @@ export default function NumberInput({
     "text-primary-50 bg-transparent hover:text-black flex aspect-square h-10 rounded-full items-center justify-center border-primary-300 shadow-sm bg-light text-sm transition-colors disabled:pointer-events-none disabled:opacity-50";
 
   return (
-    <div className="w-full">
-      <div className="*:not-first:mt-2">
-        <div className="focus-within:ring-ring flex gap-2 h-12 w-full items-center overflow-hidden rounded-xl text-sm transition-colors focus-within:ring-2">
-          <button
+    <div className="w-42">
+      <div className="flex gap-2 h-12 w-full items-center overflow-hidden rounded-xl text-sm transition-colors">
+        <button
             type="button"
             onClick={handleDecrement}
             disabled={selectedValue <= minValue}
@@ -123,7 +122,7 @@ export default function NumberInput({
             onBlur={handleInputBlur}
             min={minValue}
             max={maxValue}
-            className="bg-background text-base h-full w-12 px-1 py-2 text-center tabular-nums text-dark focus:outline-none rounded-xl"
+            className="bg-background text-base h-full w-16 px-4 py-2 text-center text-dark focus:outline-none rounded-xl"
             aria-label={label}
             {...inputProps}
           />
@@ -136,7 +135,6 @@ export default function NumberInput({
           >
             <PlusIcon size={16} aria-hidden="true" />
           </button>
-        </div>
       </div>
     </div>
   );

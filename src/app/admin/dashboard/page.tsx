@@ -74,17 +74,19 @@ export default function DashboardPage() {
     }))
     .filter((voucher: Voucher) => voucher.valid && voucher.payment_id !== null);
 
-  // Calculate metrics
+  // Calculate metrics - only count paid vouchers (payment_id !== null)
   const calculateTotalRevenue = (vouchers: Voucher[]): number => {
     if (!vouchers || vouchers.length === 0) return 0;
-    return vouchers.reduce((total, voucher) => total + voucher.price, 0);
+    // Only count vouchers with confirmed payment
+    const paidVouchers = vouchers.filter((voucher) => voucher.payment_id !== null);
+    return paidVouchers.reduce((total, voucher) => total + voucher.price, 0);
   };
 
   const calculateTotalVisitors = (vouchers: Voucher[]): number => {
     if (!vouchers || vouchers.length === 0) return 0;
     // Filter vouchers that are confirmed (valid) and paid (payment_id exists)
     const confirmedPaid = vouchers.filter(
-      (voucher) => voucher.valid && voucher.payment_id,
+      (voucher) => voucher.valid && voucher.payment_id !== null,
     );
     return confirmedPaid.reduce(
       (total, voucher) => total + voucher.adults + voucher.elderly,
@@ -154,7 +156,7 @@ export default function DashboardPage() {
                   {formatCurrency(calculateTotalRevenue(filteredTodayVouchers))}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {filteredTodayVouchers.length} vouchers vendidos
+                  {filteredTodayVouchers.filter((v: Voucher) => v.payment_id !== null).length} vouchers pagos
                 </p>
               </CardContent>
             </Card>
@@ -172,15 +174,13 @@ export default function DashboardPage() {
                   {calculateTotalVisitors(filteredTodayVouchers)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {filteredTodayVouchers.reduce(
-                    (total, v: Voucher) => total + v.adults,
-                    0,
-                  )}{" "}
+                  {filteredTodayVouchers
+                    .filter((v: Voucher) => v.payment_id !== null)
+                    .reduce((total, v: Voucher) => total + v.adults, 0)}{" "}
                   inteiras,{" "}
-                  {filteredTodayVouchers.reduce(
-                    (total, v: Voucher) => total + v.elderly,
-                    0,
-                  )}{" "}
+                  {filteredTodayVouchers
+                    .filter((v: Voucher) => v.payment_id !== null)
+                    .reduce((total, v: Voucher) => total + v.elderly, 0)}{" "}
                   meias
                 </p>
               </CardContent>
@@ -199,7 +199,7 @@ export default function DashboardPage() {
                   {calculateTotalVisitors(filteredTodayVouchers)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {filteredTodayVouchers.length} vouchers para hoje
+                  {filteredTodayVouchers.filter((v: Voucher) => v.payment_id !== null).length} vouchers pagos para hoje
                 </p>
               </CardContent>
             </Card>

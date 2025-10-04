@@ -7,6 +7,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { GoogleTagManager } from "@next/third-parties/google";
 import { Suspense } from "react";
 import FacebookPixel from "@/app/_components/FacebookPixel";
+import { env } from "@/env";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -32,7 +33,8 @@ export default function RootLayout({
       <body>
         <TRPCReactProvider>{children}</TRPCReactProvider>
         <Toaster />
-        <Analytics />
+        {/* Only enable Analytics if explicitly allowed to avoid Edge requests to /_vercel/insights */}
+        {env.NEXT_PUBLIC_ENABLE_ANALYTICS ? <Analytics /> : null}
         <Suspense fallback={null}>
           <FacebookPixel />
         </Suspense>

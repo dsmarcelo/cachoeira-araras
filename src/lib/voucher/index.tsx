@@ -62,16 +62,42 @@ export function formatVoucherStatusIcons(status: string) {
   }
 }
 
-export function formatQuantity({ adults, elderly }: { adults: number; elderly: number; }): string {
+export function formatQuantity({ adults, elderly, adults_pool, elderly_pool }: { adults: number; elderly: number; adults_pool: number; elderly_pool: number; }): string {
+  const parts: string[] = [];
+
+  // Format regular access entries
   const adultsText = adults === 1 ? '1 inteira' : `${adults} inteiras`;
   const elderlyText = elderly === 1 ? '1 meia' : `${elderly} meias`;
 
   if (adults > 0 && elderly > 0) {
-    return `${adultsText} e ${elderlyText}`;
+    parts.push(`${adultsText} e ${elderlyText}`);
   } else if (adults > 0) {
-    return adultsText;
+    parts.push(adultsText);
   } else if (elderly > 0) {
-    return elderlyText;
+    parts.push(elderlyText);
+  }
+
+  // Format pool access entries
+  const adultsPoolText = adults_pool === 1 ? '1 inteira (p)' : `${adults_pool} inteiras (p)`;
+  const elderlyPoolText = elderly_pool === 1 ? '1 meia (p)' : `${elderly_pool} meias (p)`;
+
+  if (adults_pool > 0 && elderly_pool > 0) {
+    parts.push(`${adultsPoolText} e ${elderlyPoolText}`);
+  } else if (adults_pool > 0) {
+    parts.push(adultsPoolText);
+  } else if (elderly_pool > 0) {
+    parts.push(elderlyPoolText);
+  }
+
+  // Join all parts with commas
+  if (parts.length > 0) {
+    if (parts.length === 1) {
+      return parts[0]!;
+    } else if (parts.length === 2) {
+      return `${parts[0]} + ${parts[1]}`;
+    } else {
+      return parts.join(', ');
+    }
   } else {
     return 'Nenhuma entrada';
   }

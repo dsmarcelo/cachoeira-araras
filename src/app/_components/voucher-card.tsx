@@ -10,13 +10,13 @@ import React from "react";
 import ShareCardBtn from "./shareCardBtn";
 
 export default function VoucherCard({ data }: { data: Voucher }) {
-  const { name, phone, adults, elderly, status, expires_at, code } = data;
+  const { name, phone, adults, elderly, price, adults_pool, elderly_pool, status, expires_at, code } = data;
   const formatedExpiredDate = expires_at
     ? formateDateDayMonthYear(expires_at)
     : "";
   const formatedName = truncateName(name);
   const formatedPhone = formatPhone(phone);
-  const formatedQuantity = formatQuantity({ adults, elderly });
+  const formatedQuantity = formatQuantity({ adults, elderly, adults_pool, elderly_pool });
 
   let url = "";
   if (process.env.NEXT_PUBLIC_VERCEL_URL) {
@@ -27,7 +27,7 @@ export default function VoucherCard({ data }: { data: Voucher }) {
     url = "http://localhost:3000";
   }
 
-  const queryParams = `?name=${encodeURIComponent(formatedName)}&phone=${encodeURIComponent(formatedPhone)}&quantity=${formatedQuantity}&expires_at=${encodeURIComponent(formatedExpiredDate)}&status=${status}&code=${code}`;
+  const queryParams = `?name=${encodeURIComponent(formatedName)}&phone=${encodeURIComponent(formatedPhone)}&quantity=${encodeURIComponent(formatedQuantity)}&price=${price}&expires_at=${encodeURIComponent(formatedExpiredDate)}&status=${status}&code=${code}`;
   const imgURL = `${url}/api/og${queryParams}`;
 
   return (
@@ -38,6 +38,8 @@ export default function VoucherCard({ data }: { data: Voucher }) {
           src={imgURL}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 40vw"
+          // Avoid Next.js Image Optimization serverless hop; fetch OG directly
+          unoptimized
           alt="Voucher"
         />
       </div>

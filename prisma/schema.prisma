@@ -61,7 +61,7 @@ model Voucher {
   name          String
   phone         String
   code          String    @unique
-  adults        Int       @default(1)
+  adults        Int       @default(0)
   elderly       Int       @default(0)
   adults_pool   Int       @default(0)
   elderly_pool  Int       @default(0)
@@ -86,4 +86,32 @@ model Referrer {
   url         String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+enum SettingType {
+  string
+  number
+  boolean
+  json
+}
+
+enum Environment {
+  prod
+  staging
+  dev
+}
+
+model SiteSetting {
+  id          Int         @id @default(autoincrement())
+  key         String
+  type        SettingType
+  stringValue String?
+  numberValue Float?
+  boolValue   Boolean?
+  jsonValue   Json?
+  updatedAt   DateTime    @updatedAt
+  updatedBy   String?
+
+  @@unique([key])
+  @@index([key])
 }

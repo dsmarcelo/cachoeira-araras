@@ -44,6 +44,11 @@ export const env = createEnv({
     NEXT_PUBLIC_MAX_INTENDED_DAYS: z.coerce.number().default(30),
     NEXT_PUBLIC_VOUCHER_PRICE: z.coerce.number().default(50),
     NEXT_PUBLIC_VOUCHER_POOL_PRICE: z.coerce.number().default(70),
+    NEXT_PUBLIC_ALERT_MESSAGE: z.string().optional(),
+    // Enables client-side data saver behavior to reduce requests on Vercel Free
+    NEXT_PUBLIC_DATA_SAVER: z.coerce.boolean().default(false),
+    // Toggle Vercel Analytics on/off at runtime (off reduces /_vercel/insights requests)
+    NEXT_PUBLIC_ENABLE_ANALYTICS: z.coerce.boolean().default(false),
   },
 
   /**
@@ -68,6 +73,9 @@ export const env = createEnv({
     NEXT_PUBLIC_MAX_INTENDED_DAYS: process.env.NEXT_PUBLIC_MAX_INTENDED_DAYS,
     NEXT_PUBLIC_VOUCHER_PRICE: process.env.NEXT_PUBLIC_VOUCHER_PRICE,
     NEXT_PUBLIC_VOUCHER_POOL_PRICE: process.env.NEXT_PUBLIC_VOUCHER_POOL_PRICE,
+    NEXT_PUBLIC_ALERT_MESSAGE: process.env.NEXT_PUBLIC_ALERT_MESSAGE,
+    NEXT_PUBLIC_DATA_SAVER: process.env.NEXT_PUBLIC_DATA_SAVER,
+    NEXT_PUBLIC_ENABLE_ANALYTICS: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
