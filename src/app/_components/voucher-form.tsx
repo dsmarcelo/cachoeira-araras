@@ -41,7 +41,11 @@ import { getBrazilianDate } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
 import { type Voucher } from "@/types/voucher";
 
-export default function VoucherForm() {
+export default function VoucherForm({
+  testMode = false,
+}: {
+  testMode?: boolean;
+}) {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -138,7 +142,7 @@ export default function VoucherForm() {
   } = useForm<FormSchema>({
     resolver: zodResolver(voucherFormSchema),
     defaultValues: {
-      name: "",
+      name: testMode ? "--TESTE--" : "",
       phone: "",
       adults: 0,
       elderly: 0,
@@ -174,12 +178,14 @@ export default function VoucherForm() {
       }),
       adults: data.adults,
       elderly: data.elderly,
-      unit_price: calculatePrice(
-        data.adults,
-        data.elderly,
-        data.adults_pool,
-        data.elderly_pool,
-      ),
+      unit_price: testMode
+        ? 0.01
+        : calculatePrice(
+            data.adults,
+            data.elderly,
+            data.adults_pool,
+            data.elderly_pool,
+          ),
       name: data.name.trim().split(" ")[0] ?? "",
       surname: data.name.trim().split(" ").slice(1).join(" ") ?? "",
       phone: data.phone,
@@ -233,6 +239,10 @@ export default function VoucherForm() {
         preference_id,
         code: rcode,
       });
+      // Override price for test mode
+      if (testMode) {
+        completeData.price = 0.01;
+      }
       const voucher = await addVoucher.mutateAsync(completeData);
       if (!voucher)
         return toast({
@@ -533,7 +543,7 @@ export default function VoucherForm() {
             )}
           </div>
 
-          <h1 className="font-bold">{`Valor: R$${calculatePrice(formValues.adults, formValues.elderly, formValues.adults_pool, formValues.elderly_pool).toFixed(2).replace(".", ",")}`}</h1>
+          <h1 className="font-bold">{`Valor: R$${(testMode ? 0.01 : calculatePrice(formValues.adults, formValues.elderly, formValues.adults_pool, formValues.elderly_pool)).toFixed(2).replace(".", ",")}`}</h1>
 
           <Button
             disabled={isSubmitting}

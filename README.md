@@ -21,6 +21,13 @@ Sistema de gerenciamento de vouchers para Cachoeira das Araras.
 - Integração com Mercado Pago
 - Sistema de referência
 
+### Test Mode
+
+- Acesse `/test__` para testar o fluxo de compra em modo de teste
+- Nome do comprador é preenchido automaticamente com "--TESTE--"
+- Preço fixo de R$ 0,01 independente da quantidade selecionada
+- Cria vouchers reais com preço de teste no Mercado Pago
+
 ---
 
 # Create T3 App
