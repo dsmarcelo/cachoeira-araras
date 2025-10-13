@@ -53,6 +53,16 @@ const SETTING_CONFIG = {
     description: "Permitir ou não a compra de vouchers com acesso à piscina",
     type: "boolean" as const,
   },
+  "enable.voucher.half-price.buy": {
+    label: "Habilitar Compra de Vouchers Meia Entrada",
+    description: "Permitir ou não a compra de vouchers com preço de meia entrada",
+    type: "boolean" as const,
+  },
+  "enable.voucher.half-price.pool.buy": {
+    label: "Habilitar Compra de Vouchers Meia Entrada Piscina",
+    description: "Permitir ou não a compra de vouchers com acesso à piscina e preço de meia entrada",
+    type: "boolean" as const,
+  },
   "top.message": {
     label: "Mensagem Superior",
     description: "Mensagem exibida no topo do site",

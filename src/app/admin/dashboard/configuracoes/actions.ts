@@ -22,6 +22,8 @@ export async function getAllSettings() {
     "disabled.days",
     "enable.voucher.buy",
     "enable.voucher.pool.buy",
+    "enable.voucher.half-price.buy",
+    "enable.voucher.half-price.pool.buy",
   ];
 
   const settings = await Promise.all(

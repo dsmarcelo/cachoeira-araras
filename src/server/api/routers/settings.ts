@@ -32,4 +32,14 @@ export const settingsRouter = createTRPCRouter({
     const enabled = await getSetting("enable.voucher.pool.buy");
     return enabled ?? true;
   }),
+
+  getEnableVoucherHalfPriceBuy: publicProcedure.query(async () => {
+    const enabled = await getSetting("enable.voucher.half-price.buy");
+    return enabled ?? true;
+  }),
+
+  getEnableVoucherHalfPricePoolBuy: publicProcedure.query(async () => {
+    const enabled = await getSetting("enable.voucher.half-price.pool.buy");
+    return enabled ?? true;
+  }),
 });

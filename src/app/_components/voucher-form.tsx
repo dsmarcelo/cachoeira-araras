@@ -63,12 +63,16 @@ export default function VoucherForm({
   const enableVoucherBuyQuery = api.settings.getEnableVoucherBuy.useQuery();
   const enablePoolVoucherBuyQuery =
     api.settings.getEnableVoucherPoolBuy.useQuery();
+  const enableHalfPriceVoucherBuyQuery = api.settings.getEnableVoucherHalfPriceBuy.useQuery();
+  const enableHalfPricePoolVoucherBuyQuery = api.settings.getEnableVoucherHalfPricePoolBuy.useQuery();
 
   const disabledDays = disabledDaysQuery.data ?? [];
   const maxIntendedDays = maxIntendedDaysQuery.data ?? 60;
   const formMessage = formMessageQuery.data ?? "";
   const enableVoucherBuy = enableVoucherBuyQuery.data ?? true;
   const enablePoolVoucherBuy = enablePoolVoucherBuyQuery.data ?? true;
+  const enableHalfPriceVoucherBuy = enableHalfPriceVoucherBuyQuery.data ?? true;
+  const enableHalfPricePoolVoucherBuy = enableHalfPricePoolVoucherBuyQuery.data ?? false;
 
   async function checkPaymentStatus(code: string) {
     const voucher = (await utils.voucher.findByCode.fetch({ code })) as Voucher;
@@ -214,6 +218,18 @@ export default function VoucherForm({
       return toast({
         title: "Indisponível",
         description: "Compra de voucher com piscina está desativada",
+      });
+    }
+    if (!enableHalfPriceVoucherBuy && data.elderly > 0) {
+      return toast({
+        title: "Indisponível",
+        description: "Compra de voucher meia entrada está desativada",
+      });
+    }
+    if (!enableHalfPricePoolVoucherBuy && data.elderly_pool > 0) {
+      return toast({
+        title: "Indisponível",
+        description: "Compra de voucher meia entrada com piscina está desativada",
       });
     }
     if (
@@ -371,37 +387,39 @@ export default function VoucherForm({
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 py-4">
-                    <Label className="flex flex-col">
-                      <p className="text-base font-bold">Meia</p>
-                      <p className="text-sm">(+60 anos e especiais)</p>
-                      <p className="text-sm">
-                        R${" "}
-                        {getElderlyVoucherPrice().toFixed(2).replace(".", ",")}
-                      </p>
-                    </Label>
-                    <div className="w-fit">
-                      <Controller
-                        name="elderly"
-                        control={control}
-                        render={({ field }) => (
-                          <NumberInput
-                            id="elderly"
-                            minValue={0}
-                            maxValue={20}
-                            defaultValue={0}
-                            selectedValue={field.value}
-                            onChange={field.onChange}
-                          />
-                        )}
-                      />
+                  {enableHalfPriceVoucherBuy && (
+                    <div className="flex items-center justify-between gap-2 py-4">
+                      <Label className="flex flex-col">
+                        <p className="text-base font-bold">Meia</p>
+                        <p className="text-sm">(+60 anos e especiais)</p>
+                        <p className="text-sm">
+                          R${" "}
+                          {getElderlyVoucherPrice().toFixed(2).replace(".", ",")}
+                        </p>
+                      </Label>
+                      <div className="w-fit">
+                        <Controller
+                          name="elderly"
+                          control={control}
+                          render={({ field }) => (
+                            <NumberInput
+                              id="elderly"
+                              minValue={0}
+                              maxValue={20}
+                              defaultValue={0}
+                              selectedValue={field.value}
+                              onChange={field.onChange}
+                            />
+                          )}
+                        />
+                      </div>
+                      {errors.elderly && (
+                        <p className="text-base font-medium text-red-400">
+                          {errors.elderly?.message}
+                        </p>
+                      )}
                     </div>
-                    {errors.elderly && (
-                      <p className="text-base font-medium text-red-400">
-                        {errors.elderly?.message}
-                      </p>
-                    )}
-                  </div>
+                  )}
                 </>
               )}
 
@@ -409,8 +427,7 @@ export default function VoucherForm({
                 <>
                   <div className="flex items-center justify-between gap-2 py-4">
                     <Label className="flex flex-col">
-                      <p className="text-base font-bold">Inteira (Piscina)</p>
-                      <p className="text-sm">(de 9 a 59 anos)</p>
+                      <p className="text-base font-bold">Área da Piscina</p>
                       <p className="text-sm">
                         R$ {getPoolVoucherPrice().toFixed(2).replace(".", ",")}
                       </p>
@@ -438,39 +455,41 @@ export default function VoucherForm({
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 py-4">
-                    <Label className="flex flex-col">
-                      <p className="text-base font-bold">Meia (Piscina)</p>
-                      <p className="text-sm">(+60 anos e especiais)</p>
-                      <p className="text-sm">
-                        R${" "}
-                        {getPoolElderlyVoucherPrice()
-                          .toFixed(2)
-                          .replace(".", ",")}
-                      </p>
-                    </Label>
-                    <div className="w-fit">
-                      <Controller
-                        name="elderly_pool"
-                        control={control}
-                        render={({ field }) => (
-                          <NumberInput
-                            id="elderly_pool"
-                            minValue={0}
-                            maxValue={20}
-                            defaultValue={0}
-                            selectedValue={field.value}
-                            onChange={field.onChange}
-                          />
-                        )}
-                      />
+                  {enableHalfPricePoolVoucherBuy && (
+                    <div className="flex items-center justify-between gap-2 py-4">
+                      <Label className="flex flex-col">
+                        <p className="text-base font-bold">Meia (Piscina)</p>
+                        <p className="text-sm">(+60 anos e especiais)</p>
+                        <p className="text-sm">
+                          R${" "}
+                          {getPoolElderlyVoucherPrice()
+                            .toFixed(2)
+                            .replace(".", ",")}
+                        </p>
+                      </Label>
+                      <div className="w-fit">
+                        <Controller
+                          name="elderly_pool"
+                          control={control}
+                          render={({ field }) => (
+                            <NumberInput
+                              id="elderly_pool"
+                              minValue={0}
+                              maxValue={20}
+                              defaultValue={0}
+                              selectedValue={field.value}
+                              onChange={field.onChange}
+                            />
+                          )}
+                        />
+                      </div>
+                      {errors.elderly_pool && (
+                        <p className="text-base font-medium text-red-400">
+                          {errors.elderly_pool?.message}
+                        </p>
+                      )}
                     </div>
-                    {errors.elderly_pool && (
-                      <p className="text-base font-medium text-red-400">
-                        {errors.elderly_pool?.message}
-                      </p>
-                    )}
-                  </div>
+                  )}
                 </>
               )}
             </div>

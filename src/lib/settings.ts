@@ -15,7 +15,9 @@ export type SettingKey =
   | "max.intended.days"
   | "disabled.days"
   | "enable.voucher.buy"
-  | "enable.voucher.pool.buy";
+  | "enable.voucher.pool.buy"
+  | "enable.voucher.half-price.buy"
+  | "enable.voucher.half-price.pool.buy";
 
 // Map each key to its expected value type for compile-time safety
 interface SettingValueMap {
@@ -31,6 +33,8 @@ interface SettingValueMap {
   "disabled.days": string[]; // Array of ISO 8601 dates
   "enable.voucher.buy": boolean;
   "enable.voucher.pool.buy": boolean;
+  "enable.voucher.half-price.buy": boolean;
+  "enable.voucher.half-price.pool.buy": boolean;
 }
 
 type SettingTypeLiteral = "string" | "number" | "boolean" | "json";
@@ -102,6 +106,8 @@ export async function getSetting<K extends SettingKey>(
       "disabled.days": [],
       "enable.voucher.buy": true,
       "enable.voucher.pool.buy": true,
+      "enable.voucher.half-price.buy": true,
+      "enable.voucher.half-price.pool.buy": true,
     };
     return (defaults[key] as SettingValueMap[K]) ?? null;
   }
