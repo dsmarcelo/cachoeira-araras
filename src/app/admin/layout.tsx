@@ -20,17 +20,15 @@ export default async function AdminLayout({
     );
   }
   return (
-    <>
-      <SidebarProvider>
-        <DashboardSidebar />
-        <div className="flex min-h-screen w-full flex-col">
-          <AdminHeader>
-            <SidebarTrigger className="" />
-          </AdminHeader>
-          <main className="flex-grow">{children}</main>
-          <AdminFooter />
-        </div>
-      </SidebarProvider>
-    </>
+    <SidebarProvider>
+      <DashboardSidebar />
+      <div className="flex min-h-screen w-full flex-col">
+        <AdminHeader>
+          <SidebarTrigger className="" />
+        </AdminHeader>
+        <main className="flex-grow">{children}</main>
+        <AdminFooter />
+      </div>
+    </SidebarProvider>
   );
 }

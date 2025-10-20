@@ -23,21 +23,6 @@ const sidebarItems = [
     href: "/admin",
   },
   {
-    name: "Vouchers de hoje",
-    icon: <Calendar className="h-5 w-5" />,
-    href: "/admin/hoje",
-  },
-  {
-    name: "Detalhes de hoje",
-    icon: <CalendarDays className="h-5 w-5" />,
-    href: "/admin/dashboard",
-  },
-  {
-    name: "Vendas",
-    icon: <DollarSign className="h-5 w-5" />,
-    href: "/admin/dashboard/vendas",
-  },
-  {
     name: "Visão Geral",
     icon: <Ticket className="h-5 w-5" />,
     href: "/admin/dashboard/vouchers",
@@ -61,7 +46,7 @@ export default function DashboardSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="flex items-center justify-center">
+      <SidebarHeader className="flex items-center justify-center bg-background py-4">
         <Image
           src="/logo_nome.png"
           className="brightness-75 invert"
@@ -71,7 +56,7 @@ export default function DashboardSidebar() {
           unoptimized
         />
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="bg-background">
         <SidebarGroup>
           <SidebarMenu>
             {sidebarItems.map((item) => {
