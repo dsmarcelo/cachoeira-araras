@@ -32,6 +32,8 @@ export const env = createEnv({
     FACEBOOK_PIXEL_ID: z.string().optional(),
     GOOGLE_ANALYTICS_API_SECRET: z.string().optional(),
     GOOGLE_ANALYTICS_MEASUREMENT_ID: z.string().optional(),
+    SELLER_ID: z.string().optional(),
+    PAYMENT_PLATFORM: z.enum(["mp", "getnet"]).default("getnet"),
   },
 
   /**
@@ -76,6 +78,8 @@ export const env = createEnv({
     NEXT_PUBLIC_ALERT_MESSAGE: process.env.NEXT_PUBLIC_ALERT_MESSAGE,
     NEXT_PUBLIC_DATA_SAVER: process.env.NEXT_PUBLIC_DATA_SAVER,
     NEXT_PUBLIC_ENABLE_ANALYTICS: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS,
+    SELLER_ID: process.env.SELLER_ID,
+    PAYMENT_PLATFORM: process.env.PAYMENT_PLATFORM,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
