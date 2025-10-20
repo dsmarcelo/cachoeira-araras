@@ -270,6 +270,21 @@ export default function TestVoucherForm() {
     );
   }
 
+  // Check if all voucher purchase options are disabled
+  if (!enableVoucherBuy && !enablePoolVoucherBuy && !enableHalfPriceVoucherBuy && !enableHalfPricePoolVoucherBuy) {
+    return (
+      <div className="mx-auto w-full bg-dark-blue">
+        <div className="border-none bg-dark-blue p-4 text-primary-50">
+          <div className="flex flex-col items-center justify-center gap-4 py-12">
+            <p className="text-center text-lg font-bold text-orange-600">
+              Compra de voucher temporariamente indisponível pelo site
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto w-full bg-dark-blue">
       <div className="border-none bg-dark-blue p-4 text-primary-50">
