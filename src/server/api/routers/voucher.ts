@@ -113,6 +113,24 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
+  findByPayment: publicProcedure
+    .input(
+      z.object({
+        payment_id: z.string().min(1).optional(),
+        code: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      return await ctx.db.voucher.findFirst({
+        where: {
+          OR: [
+            input.payment_id ? { payment_id: input.payment_id } : undefined,
+            input.code ? { code: input.code } : undefined,
+          ].filter(Boolean),
+        },
+      });
+    }),
+
   getTodayVouchers: publicProcedure.query(async ({ ctx }) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);

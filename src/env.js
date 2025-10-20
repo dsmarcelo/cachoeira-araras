@@ -33,6 +33,12 @@ export const env = createEnv({
     GOOGLE_ANALYTICS_API_SECRET: z.string().optional(),
     GOOGLE_ANALYTICS_MEASUREMENT_ID: z.string().optional(),
     SELLER_ID: z.string().optional(),
+    GETNET_SELLER_ID: z.string().optional(),
+    GETNET_CLIENT_ID: z.string().optional(),
+    GETNET_CLIENT_SECRET: z.string().optional(),
+    GETNET_BASE_URL: z
+      .string()
+      .default("https://api.getnet.com.br"),
     PAYMENT_PLATFORM: z.enum(["mp", "getnet"]).default("getnet"),
   },
 
@@ -79,6 +85,10 @@ export const env = createEnv({
     NEXT_PUBLIC_DATA_SAVER: process.env.NEXT_PUBLIC_DATA_SAVER,
     NEXT_PUBLIC_ENABLE_ANALYTICS: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS,
     SELLER_ID: process.env.SELLER_ID,
+    GETNET_SELLER_ID: process.env.GETNET_SELLER_ID,
+    GETNET_CLIENT_ID: process.env.GETNET_CLIENT_ID,
+    GETNET_CLIENT_SECRET: process.env.GETNET_CLIENT_SECRET,
+    GETNET_BASE_URL: process.env.GETNET_BASE_URL,
     PAYMENT_PLATFORM: process.env.PAYMENT_PLATFORM,
   },
   /**

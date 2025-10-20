@@ -18,7 +18,7 @@ import {
 } from "@/lib/utils/utils";
 import { useRouter } from "next/navigation";
 import { voucherFormSchema } from "@/lib/voucher/types";
-import { cn, formatPaymentUrl, formatPhone } from "@/lib/utils";
+import { cn, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import {
   addCookieVoucher,
@@ -39,6 +39,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { formatMercadoPagoDescription } from "@/lib/voucher";
 import { getBrazilianDate } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
+import { env } from "@/env.mjs";
 
 export default function TestVoucherForm() {
   const router = useRouter();
@@ -71,17 +72,16 @@ export default function TestVoucherForm() {
     const voucher = await utils.voucher.findByCode.fetch({ code });
     if (!voucher) return deleteCookieVoucher();
 
-    if (voucher.status !== "pending" && voucher.payment_id) {
-      const url = formatPaymentUrl(voucher.preference_id, voucher.payment_id);
-      setPaymentSuccessUrl(url);
+    if (voucher.payment_url) {
+      setInitPoint(voucher.payment_url);
     }
 
-    const preference = await utils.mercadopago.getPrefence.fetch({
-      preference_id: voucher.preference_id,
+    const status = await utils.payments.status.fetch({
+      reference: voucher.preference_id,
     });
 
-    if (preference.init_point) {
-      setInitPoint(preference.init_point);
+    if (status?.paymentId && status.status !== "pending") {
+      setPaymentSuccessUrl(`/voucher?code=${voucher.code}&pid=${status.paymentId}`);
     }
   }
 
@@ -123,11 +123,11 @@ export default function TestVoucherForm() {
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [utils.mercadopago.getPrefence, utils.voucher.findByCode]);
+  }, [utils.payments.status, utils.voucher.findByCode]);
 
   type FormSchema = z.infer<typeof voucherFormSchema>;
   const addVoucher = api.voucher.create.useMutation();
-  const mercadopago = api.mercadopago.create.useMutation();
+  const payments = api.payments.create.useMutation();
 
   const {
     register,
@@ -160,10 +160,9 @@ export default function TestVoucherForm() {
     data: FormSchema;
     code: string;
   }) {
-    const res = await mercadopago.mutateAsync({
+    const res = await payments.mutateAsync({
       code,
       title: `Voucher ${code}`,
-      id: code,
       description: formatMercadoPagoDescription({
         adults: data.adults,
         elderly: data.elderly,
@@ -172,16 +171,40 @@ export default function TestVoucherForm() {
         phone: data.phone,
         code,
       }),
-      adults: data.adults,
-      elderly: data.elderly,
-      unit_price: 0.01,
-      name: data.name.trim().split(" ")[0] ?? "",
-      surname: data.name.trim().split(" ").slice(1).join(" ") ?? "",
-      phone: data.phone,
+      unitPrice: 0.01,
+      quantity: 1,
+      buyer: {
+        name: data.name.trim().split(" ")[0] ?? "",
+        surname: data.name.trim().split(" ").slice(1).join(" ") ?? "",
+        phone: data.phone,
+      },
     });
 
-    if (!res) console.error("Failed to create preference");
-    return res;
+    if (!res?.preferenceId || !res?.paymentLink)
+      throw new Error("Falha ao criar preferencia");
+    await addCookieVoucher(rcode);
+    const preference_id = res.preferenceId;
+    const completeData = formatVoucher({
+      ...data,
+      preference_id,
+      code: rcode,
+    });
+    const voucher = await addVoucher.mutateAsync({
+      ...completeData,
+      payment_provider: env.PAYMENT_PLATFORM,
+      payment_url: res.paymentLink,
+    });
+    if (!voucher)
+      return toast({
+        title: "Erro",
+        description:
+          "Erro ao criar o voucher, por favor atualize a página e tente novamente",
+      });
+    setInitPoint(res.paymentLink);
+    if (referrerURL) {
+      await createReferrer(rcode, referrerURL);
+    }
+    setIsLoading(false);
   }
 
   function redirectToPayment() {
@@ -231,23 +254,27 @@ export default function TestVoucherForm() {
       const rcode = randomCode();
       setCode(rcode);
       const res = await buyVoucher({ data, code: rcode });
-      if (!res?.id || !res?.init_point)
+      if (!res?.preferenceId || !res?.paymentLink)
         throw new Error("Falha ao criar preferencia");
       await addCookieVoucher(rcode);
-      const preference_id = res.id;
+      const preference_id = res.preferenceId;
       const completeData = formatVoucher({
         ...data,
         preference_id,
         code: rcode,
       });
-      const voucher = await addVoucher.mutateAsync(completeData);
+      const voucher = await addVoucher.mutateAsync({
+        ...completeData,
+        payment_provider: env.PAYMENT_PLATFORM,
+        payment_url: res.paymentLink,
+      });
       if (!voucher)
         return toast({
           title: "Erro",
           description:
             "Erro ao criar o voucher, por favor atualize a página e tente novamente",
         });
-      setInitPoint(res.init_point);
+      setInitPoint(res.paymentLink);
       if (referrerURL) {
         await createReferrer(rcode, referrerURL);
       }

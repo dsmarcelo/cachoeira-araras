@@ -8,6 +8,7 @@ import { motion } from 'framer-motion'
 import DeleteVoucherCookieBtn from './delete-voucher-cookie-btn'
 import { RefreshCcw } from 'lucide-react'
 import { api } from '@/trpc/react'
+import { buildSuccessUrl } from '@/lib/payments/url'
 
 export default function VoucherCreatedCard(
   { code, init_point, redirectToPayment, setCode, payment_success_url }:
@@ -48,11 +49,27 @@ export default function VoucherCreatedCard(
   async function checkPaymentStatus() {
     const voucher = await utils.voucher.findByCode.fetch({ code });
     if (!voucher) return location.reload();
-    if (!voucher.payment_id) return redirectToPayment();
-    if (voucher?.status === 'pending') {
-      redirectToPayment()
+    if (!voucher.payment_id || voucher.status === 'pending') {
+      const status = await utils.payments.status.fetch({ reference: voucher.preference_id });
+
+      if (status?.paymentId && status.status !== 'pending') {
+        location.href = buildSuccessUrl(status.paymentId, voucher.code);
+        return
+      }
+
+      if (voucher.payment_url) {
+        redirectToPayment()
+        return
+      }
+
+      toast({
+        title: 'Pagamento pendente',
+        description: 'Não encontramos o pagamento. Tente novamente daqui a pouco.'
+      })
+      return
     }
-    location.href = payment_success_url
+
+    location.href = buildSuccessUrl(voucher.payment_id, voucher.code)
   }
 
   function AlreadyPayedButton() {

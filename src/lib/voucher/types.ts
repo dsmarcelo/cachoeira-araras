@@ -34,6 +34,8 @@ export const voucherSchema = z.object({
   status: z.string(),
   preference_id: z.string(),
   payment_id: z.string().optional().nullable(),
+  payment_provider: z.string().optional().nullable(),
+  payment_url: z.string().optional().nullable(),
   expires_at: z.union([z.date(), z.null()]).optional(),
 });
 
@@ -112,6 +114,8 @@ export const initialVoucherSchema = z.object({
   payment_id: z.string().optional(),
   code: z.string(),
   intendedDate: z.date(),
+  payment_provider: z.string().optional(),
+  payment_url: z.string().optional(),
 });
 
 export const referrerSchema = z.object({
@@ -136,6 +140,8 @@ export const completeVoucherSchema = z.object({
   status: z.string(),
   preference_id: z.string(),
   payment_id: z.string().optional(),
+  payment_provider: z.string().optional(),
+  payment_url: z.string().optional(),
   expires_at: z.union([z.date(), z.null()]).optional(),
   referrer: referrerSchema.optional(),
   createdAt: z.date(),

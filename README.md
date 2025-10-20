@@ -18,8 +18,40 @@ Sistema de gerenciamento de vouchers para Cachoeira das Araras.
 
 - Compra de vouchers com diferentes opções
 - Validação de vouchers
-- Integração com Mercado Pago
+- Integração com Mercado Pago e Getnet (Link de Pagamento)
 - Sistema de referência
+
+## Pagamentos
+
+O sistema suporta múltiplos provedores de pagamento através da variável `PAYMENT_PLATFORM` (`mp` ou `getnet`).
+
+### Variáveis de ambiente (arquivo `.env`)
+
+```env
+# Seleciona o provedor padrão
+PAYMENT_PLATFORM=getnet
+
+# Mercado Pago
+MERCADOPAGO_TOKEN=
+WEBHOOK_URL=
+
+# Getnet (Link de Pagamento)
+GETNET_SELLER_ID=
+GETNET_CLIENT_ID=
+GETNET_CLIENT_SECRET=
+GETNET_BASE_URL=https://api.getnet.com.br
+```
+
+- `GETNET_CLIENT_ID` e `GETNET_CLIENT_SECRET` são obrigatórios para solicitar o token OAuth.
+- Se `GETNET_SELLER_ID` não for informado, o sistema utiliza `SELLER_ID` como fallback.
+- `GETNET_BASE_URL` mantém o endpoint oficial informado pela Getnet (sem ambiente sandbox).
+
+### Fluxo interno
+
+- `src/server/payments` concentra a lógica de criação e consulta de pagamentos (Mercado Pago e Getnet).
+- `src/server/api/routers/payments.ts` expõe um endpoint único (`payments.create` e `payments.status`).
+- O formulário (`src/app/_components/voucher-form.tsx`) consome esse endpoint, armazenando `payment_provider`, `payment_id` e `payment_url` por voucher.
+- A página de voucher (`/voucher`) atende tanto Getnet quanto Mercado Pago.
 
 ### Test Mode
 

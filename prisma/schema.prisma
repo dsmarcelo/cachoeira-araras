@@ -70,6 +70,8 @@ model Voucher {
   status        String    @default("pending")
   preference_id String    @unique
   payment_id    String?   @unique
+  payment_provider String?
+  payment_url    String?
   expires_at    DateTime?
   Referrer      Referrer?
 
