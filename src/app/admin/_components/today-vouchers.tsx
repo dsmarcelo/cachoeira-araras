@@ -6,6 +6,8 @@ import { Loader2 } from "lucide-react";
 import { VoucherInfoCard } from "../voucher-info-card";
 import type { CompleteVoucherSchema } from "@/lib/voucher/types";
 import { formatQuantity } from "@/lib/voucher";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 function VoucherCard({
   voucher,
@@ -75,10 +77,10 @@ export default function TodayVouchers() {
   const pendingVouchers = vouchers.filter((v) => v.status === "pending");
 
   return (
-    <>
+    <div className="w-full border rounded-lg p-4">
       <div className="space-y-8">
         <h2 className="text-center text-xl font-semibold">
-          Vouchers para {today.toLocaleDateString()}
+          Vouchers para hoje: {format(today, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
         </h2>
 
         <div className="space-y-4">
@@ -127,6 +129,6 @@ export default function TodayVouchers() {
           onClose={() => setSelectedVoucher(null)}
         />
       )}
-    </>
+    </div>
   );
 }
