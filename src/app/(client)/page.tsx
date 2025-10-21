@@ -11,7 +11,7 @@ export default async function Home() {
     <div className="flex min-h-screen flex-col items-center bg-bg-blue lg:pt-8 text-primary-200">
       <ImageCarousel />
       <main className="flex flex-col items-center px-4 gap-12 md:gap-24 pb-8 z-10 -mt-6 lg:mt-0 md:py-8 md:px-8">
-        <div className="w-full max-w-5xl flex flex-col justify-center gap-6 lg:flex-row">
+        <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 justify-center gap-6">
           <VoucherBuy />
           <InfoCard />
         </div>
