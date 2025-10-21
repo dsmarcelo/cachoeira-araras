@@ -25,6 +25,7 @@ export const env = createEnv({
     URL: z.string(),
     MERCADOPAGO_TOKEN: z.string(),
     WEBHOOK_URL: z.string(),
+    WEBHOOK_SECRET: z.string().optional(),
     CRON_SECRET: z.string(),
     TWILIO_ACCOUNT_SID: z.string(),
     TWILIO_AUTH_TOKEN: z.string(),
@@ -36,6 +37,7 @@ export const env = createEnv({
     GETNET_SELLER_ID: z.string().optional(),
     GETNET_CLIENT_ID: z.string().optional(),
     GETNET_CLIENT_SECRET: z.string().optional(),
+    GETNET_WEBHOOK_SECRET: z.string().optional(),
     GETNET_BASE_URL: z
       .string()
       .default("https://api.getnet.com.br"),
@@ -71,6 +73,7 @@ export const env = createEnv({
     URL: process.env.URL,
     MERCADOPAGO_TOKEN: process.env.MERCADOPAGO_TOKEN,
     WEBHOOK_URL: process.env.WEBHOOK_URL,
+    WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
     TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
     TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
@@ -88,6 +91,7 @@ export const env = createEnv({
     GETNET_SELLER_ID: process.env.GETNET_SELLER_ID,
     GETNET_CLIENT_ID: process.env.GETNET_CLIENT_ID,
     GETNET_CLIENT_SECRET: process.env.GETNET_CLIENT_SECRET,
+    GETNET_WEBHOOK_SECRET: process.env.GETNET_WEBHOOK_SECRET,
     GETNET_BASE_URL: process.env.GETNET_BASE_URL,
     PAYMENT_PLATFORM: process.env.PAYMENT_PLATFORM,
   },

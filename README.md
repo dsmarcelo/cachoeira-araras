@@ -34,6 +34,7 @@ PAYMENT_PLATFORM=getnet
 # Mercado Pago
 MERCADOPAGO_TOKEN=
 WEBHOOK_URL=
+WEBHOOK_SECRET=
 
 # Getnet (Link de Pagamento)
 GETNET_SELLER_ID=
@@ -45,6 +46,12 @@ GETNET_BASE_URL=https://api.getnet.com.br
 - `GETNET_CLIENT_ID` e `GETNET_CLIENT_SECRET` são obrigatórios para solicitar o token OAuth.
 - Se `GETNET_SELLER_ID` não for informado, o sistema utiliza `SELLER_ID` como fallback.
 - `GETNET_BASE_URL` mantém o endpoint oficial informado pela Getnet (sem ambiente sandbox).
+
+### Webhooks
+
+- Defina `WEBHOOK_URL` no painel do Mercado Pago com o endpoint `/api/webhook` e configure `WEBHOOK_SECRET` para validar a assinatura.
+- Para Getnet, informe `GETNET_WEBHOOK_SECRET` (opcional, porém recomendado) e cadastre o endpoint `/api/webhook` na plataforma.
+- O serviço identifica o provedor automaticamente com base nos cabeçalhos enviados (`x-signature` para Mercado Pago e `x-gnet-signature` para Getnet).
 
 ### Fluxo interno
 
@@ -127,3 +134,8 @@ GOOGLE_ANALYTICS_API_SECRET=your_api_secret_here
 - `src/app/api/webhook/route.ts` - Webhook endpoint that triggers the conversion events
 - `src/env.js` - Environment variable configuration
 - `test-simple.js` - Test file for validating both integrations
+
+### Webhooks
+
+- Configure o endpoint de webhook em `WEBHOOK_URL` para receber notificações do Mercado Pago.
+- Para Getnet, defina o `GETNET_WEBHOOK_SECRET` e aponte o webhook da plataforma para `/api/webhook`.

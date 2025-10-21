@@ -40,6 +40,7 @@ import { formatMercadoPagoDescription } from "@/lib/voucher";
 import { getBrazilianDate } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
 import { type Voucher } from "@/types/voucher";
+import { env } from "@/env";
 
 export default function VoucherForm({
   testMode = false,
@@ -63,8 +64,10 @@ export default function VoucherForm({
   const enableVoucherBuyQuery = api.settings.getEnableVoucherBuy.useQuery();
   const enablePoolVoucherBuyQuery =
     api.settings.getEnableVoucherPoolBuy.useQuery();
-  const enableHalfPriceVoucherBuyQuery = api.settings.getEnableVoucherHalfPriceBuy.useQuery();
-  const enableHalfPricePoolVoucherBuyQuery = api.settings.getEnableVoucherHalfPricePoolBuy.useQuery();
+  const enableHalfPriceVoucherBuyQuery =
+    api.settings.getEnableVoucherHalfPriceBuy.useQuery();
+  const enableHalfPricePoolVoucherBuyQuery =
+    api.settings.getEnableVoucherHalfPricePoolBuy.useQuery();
 
   const disabledDays = disabledDaysQuery.data ?? [];
   const maxIntendedDays = maxIntendedDaysQuery.data ?? 60;
@@ -72,22 +75,28 @@ export default function VoucherForm({
   const enableVoucherBuy = enableVoucherBuyQuery.data ?? true;
   const enablePoolVoucherBuy = enablePoolVoucherBuyQuery.data ?? true;
   const enableHalfPriceVoucherBuy = enableHalfPriceVoucherBuyQuery.data ?? true;
-  const enableHalfPricePoolVoucherBuy = enableHalfPricePoolVoucherBuyQuery.data ?? false;
+  const enableHalfPricePoolVoucherBuy =
+    enableHalfPricePoolVoucherBuyQuery.data ?? false;
 
   async function checkPaymentStatus(code: string) {
-    const voucher = (await utils.voucher.findByCode.fetch({ code })) as Voucher;
+    const voucher = (await utils.voucher.findByCode.fetch({
+      code,
+    })) as Voucher | null;
     if (!voucher) return deleteCookieVoucher();
 
     if (voucher.payment_url) {
       setPaymentLink(voucher.payment_url);
     }
 
-    const status = await utils.payments.status.fetch({
+    const statusResult = await utils.payments.status.fetch({
       reference: voucher.preference_id,
     });
 
-    if (status?.paymentId && status.status !== "pending") {
-      setPaymentSuccessUrl(`/voucher?code=${voucher.code}&pid=${status.paymentId}`);
+    // Ensure statusResult is defined and has the expected properties before accessing them
+    if (statusResult?.paymentId && statusResult?.status !== "pending") {
+      setPaymentSuccessUrl(
+        `/voucher?code=${voucher.code}&pid=${statusResult.paymentId}`,
+      );
     }
   }
 
@@ -203,8 +212,11 @@ export default function VoucherForm({
       },
     });
 
-    if (!res) console.error("Failed to create payment preference");
-    return res;
+    if (!res) {
+      console.error("Failed to create payment preference");
+      return undefined;
+    }
+    return res as typeof res;
   }
 
   function redirectToPayment() {
@@ -237,7 +249,8 @@ export default function VoucherForm({
     if (!enableHalfPricePoolVoucherBuy && data.elderly_pool > 0) {
       return toast({
         title: "Indisponível",
-        description: "Compra de voucher meia entrada com piscina está desativada",
+        description:
+          "Compra de voucher meia entrada com piscina está desativada",
       });
     }
     if (
@@ -254,8 +267,10 @@ export default function VoucherForm({
       const rcode = randomCode();
       setCode(rcode);
       const res = await buyVoucher({ data, code: rcode });
-      if (!res?.preferenceId || !res?.paymentLink)
+      // Type guard: ensure res has the required properties before accessing them
+      if (!res?.preferenceId || !res?.paymentLink) {
         throw new Error("Falha ao criar preferencia");
+      }
       await addCookieVoucher(rcode);
       const preference_id = res.preferenceId;
       const completeData = formatVoucher({
@@ -278,13 +293,16 @@ export default function VoucherForm({
           description:
             "Erro ao criar o voucher, por favor atualize a página e tente novamente",
         });
-      setPaymentLink(res.paymentLink);
+      // Ensure res.paymentLink is a string before setting it
+      if (typeof res.paymentLink === "string") {
+        setPaymentLink(res.paymentLink);
+      }
       if (referrerURL) {
         await createReferrer(rcode, referrerURL);
       }
       setIsLoading(false);
     } catch (error) {
-      return console.error(error);
+      console.error(error);
       // TODO: send error to server and show error page
     }
   }
@@ -302,7 +320,12 @@ export default function VoucherForm({
   }
 
   // Check if all voucher purchase options are disabled
-  if (!enableVoucherBuy && !enablePoolVoucherBuy && !enableHalfPriceVoucherBuy && !enableHalfPricePoolVoucherBuy) {
+  if (
+    !enableVoucherBuy &&
+    !enablePoolVoucherBuy &&
+    !enableHalfPriceVoucherBuy &&
+    !enableHalfPricePoolVoucherBuy
+  ) {
     return (
       <div className="mx-auto w-full bg-dark-blue">
         <div className="border-none bg-dark-blue p-4 text-primary-50">
@@ -421,7 +444,9 @@ export default function VoucherForm({
                         <p className="text-sm">(+60 anos e especiais)</p>
                         <p className="text-sm">
                           R${" "}
-                          {getElderlyVoucherPrice().toFixed(2).replace(".", ",")}
+                          {getElderlyVoucherPrice()
+                            .toFixed(2)
+                            .replace(".", ",")}
                         </p>
                       </Label>
                       <div className="w-fit">
