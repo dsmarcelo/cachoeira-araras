@@ -106,6 +106,7 @@ export function ImageCarousel() {
                     src={image}
                     alt="Imagem"
                     fill
+                    quality={60}
                     className="object-cover"
                     // Only the first image is priority to avoid multiple eager image requests
                     priority={index === 0}

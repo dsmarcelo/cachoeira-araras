@@ -54,6 +54,7 @@ export function MiniImageCarousel() {
                     src={image}
                     alt="Imagem"
                     fill
+                    quality={60}
                     className="transition object-cover rounded-xl hover:scale-[98%]"
                     priority={index < 1}
                     loading={index < 1 ? 'eager' as const : 'lazy' as const}
