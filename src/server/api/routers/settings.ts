@@ -1,45 +1,10 @@
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
-import { getSetting } from "@/lib/settings";
+import { getAllSettings } from "@/lib/settings";
 
 export const settingsRouter = createTRPCRouter({
-  getDisabledDays: publicProcedure.query(async () => {
-    const disabledDays = await getSetting("disabled.days");
-    return disabledDays ?? [];
-  }),
-
-  getMaxIntendedDays: publicProcedure.query(async () => {
-    const maxDays = await getSetting("max.intended.days");
-    return maxDays ?? 60;
-  }),
-
-  getTopMessage: publicProcedure.query(async () => {
-    const topMessage = await getSetting("top.message");
-    return topMessage ?? "";
-  }),
-
-  getFormMessage: publicProcedure.query(async () => {
-    const formMessage = await getSetting("form.message");
-    return formMessage ?? "";
-  }),
-
-  // Feature flags
-  getEnableVoucherBuy: publicProcedure.query(async () => {
-    const enabled = await getSetting("enable.voucher.buy");
-    return enabled ?? true;
-  }),
-
-  getEnableVoucherPoolBuy: publicProcedure.query(async () => {
-    const enabled = await getSetting("enable.voucher.pool.buy");
-    return enabled ?? true;
-  }),
-
-  getEnableVoucherHalfPriceBuy: publicProcedure.query(async () => {
-    const enabled = await getSetting("enable.voucher.half-price.buy");
-    return enabled ?? true;
-  }),
-
-  getEnableVoucherHalfPricePoolBuy: publicProcedure.query(async () => {
-    const enabled = await getSetting("enable.voucher.half-price.pool.buy");
-    return enabled ?? true;
+  // Single query to fetch all settings at once
+  // Returns an object with all app settings using defaults for missing values
+  getAll: publicProcedure.query(async () => {
+    return await getAllSettings();
   }),
 });

@@ -143,6 +143,41 @@ export async function setSetting<K extends SettingKey>(
   });
 }
 
+/**
+ * Retrieves all application settings at once.
+ * This is the main DAL function for accessing settings.
+ * Returns all settings with their default values if not yet stored.
+ */
+export async function getAllSettings(): Promise<SettingValueMap> {
+  const keys: SettingKey[] = [
+    "voucher.price",
+    "voucher.pool.price",
+    "voucher.max.quantity.adults",
+    "voucher.max.quantity.elderly",
+    "voucher.max.quantity.adults.pool",
+    "voucher.max.quantity.elderly.pool",
+    "top.message",
+    "form.message",
+    "max.intended.days",
+    "disabled.days",
+    "enable.voucher.buy",
+    "enable.voucher.pool.buy",
+    "enable.voucher.half-price.buy",
+    "enable.voucher.half-price.pool.buy",
+  ];
+
+  const results = await Promise.all(
+    keys.map(async (key) => {
+      const value = await getSetting(key);
+      return [key, value] as const;
+    }),
+  );
+
+  // Build object with all settings
+  const settings = Object.fromEntries(results) as unknown as SettingValueMap;
+  return settings;
+}
+
 // Infer the storage column and SettingType from the provided value
 function inferSettingStorage(value: unknown): {
   type: SettingTypeLiteral;

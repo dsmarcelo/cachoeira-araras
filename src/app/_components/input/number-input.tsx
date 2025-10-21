@@ -11,7 +11,6 @@ interface NumberInputProps
   > {
   minValue: number;
   maxValue: number;
-  defaultValue: number;
   selectedValue: number;
   onChange: (value: number) => void;
   label?: string;

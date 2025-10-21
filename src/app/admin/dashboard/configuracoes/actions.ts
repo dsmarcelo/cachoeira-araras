@@ -1,14 +1,16 @@
 "use server";
 
-import { getSetting, setSetting, type SettingKey } from "@/lib/settings";
+import { getSetting, setSetting, type SettingKey, getAllSettings as getSettingsDAL } from "@/lib/settings";
 import { revalidatePath } from "next/cache";
 
 /**
  * Server action to get all current settings
+ * Uses the DAL (Data Access Layer) function to fetch all settings at once
  */
-
-// Change the order here
 export async function getAllSettings() {
+  const allSettings = await getSettingsDAL();
+  
+  // Convert SettingValueMap to array of key-value pairs for the page component
   const settingKeys: SettingKey[] = [
     "voucher.price",
     "voucher.pool.price",
@@ -26,14 +28,10 @@ export async function getAllSettings() {
     "enable.voucher.half-price.pool.buy",
   ];
 
-  const settings = await Promise.all(
-    settingKeys.map(async (key) => {
-      const value = await getSetting(key);
-      return { key, value };
-    }),
-  );
-
-  return settings;
+  return settingKeys.map((key) => ({
+    key,
+    value: allSettings[key],
+  }));
 }
 
 /**

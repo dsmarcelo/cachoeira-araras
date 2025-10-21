@@ -2,6 +2,40 @@
 
 Sistema de gerenciamento de vouchers para Cachoeira das Araras.
 
+## Arquitetura de Settings
+
+O sistema de configurações foi refatorado para usar uma arquitetura DAL (Data Access Layer) centralizada:
+
+### Estrutura
+
+1. **DAL (`src/lib/settings.ts`)**
+   - `getSetting(key)` - Busca um setting individual com tipo inferido
+   - `setSetting(key, value)` - Atualiza um setting com tipo seguro
+   - `getAllSettings()` - **Novo**: Busca todos os settings de uma vez (usado internamente pelo tRPC)
+
+2. **tRPC Router (`src/server/api/routers/settings.ts`)**
+   - `settings.getAll` - Única query tRPC que retorna todas as configurações como um objeto tipado
+   - Substituiu todas as queries individuais para melhor performance
+
+3. **Server Actions (`src/app/admin/dashboard/configuracoes/actions.ts`)**
+   - `getAllSettings()` - Usa a DAL para buscar todos os settings em formato de array
+   - `updateSetting()` - Atualiza um setting específico
+   - `getSettingValue()` - Busca um setting específico
+
+4. **Components**
+   - `voucher-form.tsx` - Usa `api.settings.getAll.useQuery()` para aplicar configurações dinâmicas
+   - `price-table.tsx` - Componente estático que exibe preços (usa env vars para display)
+   - `configuracoes/page.tsx` - Server component que exibe e gerencia settings
+   - `voucher-form-test.tsx` - Modo teste usa o mesmo padrão que form principal
+
+### Benefícios
+
+- ✅ Uma única query tRPC em vez de múltiplas queries paralelas
+- ✅ Melhor performance (menos round trips)
+- ✅ Código mais maintível com DAL centralizada
+- ✅ Type-safe end-to-end
+- ✅ Defaults aplicados automaticamente
+
 ## Funcionalidades
 
 ### Admin Dashboard

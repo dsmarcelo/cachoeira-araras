@@ -51,21 +51,18 @@ export default function TestVoucherForm() {
 
   const utils = api.useUtils();
 
-  // Get settings from database
-  const disabledDaysQuery = api.settings.getDisabledDays.useQuery();
-  const maxIntendedDaysQuery = api.settings.getMaxIntendedDays.useQuery();
-  const enableVoucherBuyQuery = api.settings.getEnableVoucherBuy.useQuery();
-  const enablePoolVoucherBuyQuery =
-    api.settings.getEnableVoucherPoolBuy.useQuery();
-  const enableHalfPriceVoucherBuyQuery = api.settings.getEnableVoucherHalfPriceBuy.useQuery();
-  const enableHalfPricePoolVoucherBuyQuery = api.settings.getEnableVoucherHalfPricePoolBuy.useQuery();
+  // Get all settings from database using a single query
+  const settingsQuery = api.settings.getAll.useQuery();
 
-  const disabledDays = disabledDaysQuery.data ?? [];
-  const maxIntendedDays = maxIntendedDaysQuery.data ?? 60;
-  const enableVoucherBuy = enableVoucherBuyQuery.data ?? true;
-  const enablePoolVoucherBuy = enablePoolVoucherBuyQuery.data ?? true;
-  const enableHalfPriceVoucherBuy = enableHalfPriceVoucherBuyQuery.data ?? true;
-  const enableHalfPricePoolVoucherBuy = enableHalfPricePoolVoucherBuyQuery.data ?? true;
+  // Destructure settings with defaults
+  const {
+    "disabled.days": disabledDays = [],
+    "max.intended.days": maxIntendedDays = 60,
+    "enable.voucher.buy": enableVoucherBuy = true,
+    "enable.voucher.pool.buy": enablePoolVoucherBuy = true,
+    "enable.voucher.half-price.buy": enableHalfPriceVoucherBuy = true,
+    "enable.voucher.half-price.pool.buy": enableHalfPricePoolVoucherBuy = true,
+  } = settingsQuery.data ?? {};
 
   async function checkPaymentStatus(code: string) {
     const voucher = await utils.voucher.findByCode.fetch({ code });
@@ -123,7 +120,7 @@ export default function TestVoucherForm() {
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [utils.mercadopago.getPrefence, utils.voucher.findByCode]);
+  }, [settingsQuery]);
 
   type FormSchema = z.infer<typeof voucherFormSchema>;
   const addVoucher = api.voucher.create.useMutation();

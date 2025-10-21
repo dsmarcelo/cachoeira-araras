@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, CalendarDays, Cog, DollarSign, Ticket } from "lucide-react";
+import { Cog, Ticket } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
