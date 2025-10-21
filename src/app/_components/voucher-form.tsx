@@ -398,30 +398,37 @@ export default function VoucherForm({
                   </div>
 
                   {enableHalfPriceVoucherBuy && (
-                    <div className="flex items-center justify-between gap-2 py-4">
-                      <Label className="flex flex-col">
-                        <p className="text-base font-bold">Meia</p>
-                        <p className="text-sm">(+60 anos e especiais)</p>
-                        <p className="text-sm">
-                          R${" "}
-                          {getElderlyVoucherPrice().toFixed(2).replace(".", ",")}
-                        </p>
-                      </Label>
-                      <div className="w-fit">
-                        <Controller
-                          name="elderly"
-                          control={control}
-                          render={({ field }) => (
-                            <NumberInput
-                              id="elderly"
-                              minValue={0}
-                              maxValue={20}
-                              selectedValue={field.value}
-                              onChange={field.onChange}
-                            />
-                          )}
-                        />
+                    <div className="space-y-4 py-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="flex flex-col">
+                          <p className="text-base font-bold">Meia</p>
+                          <p className="text-sm">(+60 anos e especiais)</p>
+                          <p className="text-sm">
+                            R${" "}
+                            {getElderlyVoucherPrice().toFixed(2).replace(".", ",")}
+                          </p>
+                        </Label>
+                        <div className="w-fit">
+                          <Controller
+                            name="elderly"
+                            control={control}
+                            render={({ field }) => (
+                              <NumberInput
+                                id="elderly"
+                                minValue={0}
+                                maxValue={20}
+                                selectedValue={field.value}
+                                onChange={field.onChange}
+                              />
+                            )}
+                          />
+                        </div>
                       </div>
+                        {formValues.elderly > 0 && (
+                          <p className="text-base font-medium text-yellow-950 bg-yellow-50 rounded-md px-3 py-2">
+                            Necessário apresentar documento de identificação
+                          </p>
+                        )}
                       {errors.elderly && (
                         <p className="text-base font-medium text-red-400">
                           {errors.elderly?.message}
