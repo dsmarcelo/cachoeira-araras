@@ -9,15 +9,18 @@ O sistema de configurações foi refatorado para usar uma arquitetura DAL (Data 
 ### Estrutura
 
 1. **DAL (`src/lib/settings.ts`)**
+
    - `getSetting(key)` - Busca um setting individual com tipo inferido
    - `setSetting(key, value)` - Atualiza um setting com tipo seguro
    - `getAllSettings()` - **Novo**: Busca todos os settings de uma vez (usado internamente pelo tRPC)
 
 2. **tRPC Router (`src/server/api/routers/settings.ts`)**
+
    - `settings.getAll` - Única query tRPC que retorna todas as configurações como um objeto tipado
    - Substituiu todas as queries individuais para melhor performance
 
 3. **Server Actions (`src/app/admin/dashboard/configuracoes/actions.ts`)**
+
    - `getAllSettings()` - Usa a DAL para buscar todos os settings em formato de array
    - `updateSetting()` - Atualiza um setting específico
    - `getSettingValue()` - Busca um setting específico
@@ -129,3 +132,28 @@ GOOGLE_ANALYTICS_API_SECRET=your_api_secret_here
 - `src/app/api/webhook/route.ts` - Webhook endpoint that triggers the conversion events
 - `src/env.js` - Environment variable configuration
 - `test-simple.js` - Test file for validating both integrations
+
+## Mercado Pago Checkout Pro Integration
+
+This project implements Mercado Pago Checkout Pro following best practices and security guidelines.
+
+### Features
+
+- ✅ **Secure Credentials**: Access Token stored in environment variables
+- ✅ **HMAC Signature Validation**: Webhook security with SHA-256
+- ✅ **Proper Error Handling**: Comprehensive error handling with status codes
+- ✅ **Idempotency**: Prevents duplicate payment processing
+- ✅ **PCI DSS Compliance**: SAQ-A compliance with Checkout Pro
+- ✅ **Analytics Integration**: Non-blocking Facebook Pixel and Google Ads events
+
+### Implementation Files
+
+- `src/server/api/routers/mercadopago.ts` - Payment preference creation and management
+- `src/app/api/webhook/route.ts` - Webhook handler with signature validation
+- `docs/MERCADOPAGO_IMPLEMENTATION.md` - Complete implementation documentation
+
+### Documentation
+
+For detailed information about the Mercado Pago integration, see:
+
+- [Mercado Pago Implementation Guide](./docs/MERCADOPAGO_IMPLEMENTATION.md)
