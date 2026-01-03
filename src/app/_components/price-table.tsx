@@ -15,7 +15,9 @@ function PriceSummary({ label, price, description }: PriceSummaryProps) {
     <div className="flex w-full justify-between">
       <div className="flex flex-col gap-1">
         <p>{label}</p>
-        {description ? <p className="text-sm text-primary-100/80">{description}</p> : null}
+        {description ? (
+          <p className="text-sm text-primary-100/80">{description}</p>
+        ) : null}
       </div>
       <p>R${price.toFixed(2).replace(".", ",")}</p>
     </div>
@@ -33,7 +35,7 @@ export default function PriceTable() {
         <h3 className="h-12 py-2 text-xl font-bold text-primary-100">
           Adquira já seu voucher
         </h3>
-        <div className="bg-custom-secondary flex w-full items-center justify-center pb-2 pt-6 font-semibold text-primary-50">
+        <div className="flex w-full items-center justify-center bg-custom-secondary pb-2 pt-6 font-semibold text-primary-50">
           <p className="text-primary-100">Carregando preços...</p>
         </div>
       </div>
@@ -44,8 +46,10 @@ export default function PriceTable() {
   const poolVoucherPrice = data["voucher.pool.price"] ?? 0;
   const enableVoucherBuy = data["enable.voucher.buy"] ?? true;
   const enablePoolVoucherBuy = data["enable.voucher.pool.buy"] ?? true;
-  const enableHalfPriceVoucherBuy = data["enable.voucher.half-price.buy"] ?? true;
-  const enableHalfPricePoolVoucherBuy = data["enable.voucher.half-price.pool.buy"] ?? true;
+  const enableHalfPriceVoucherBuy =
+    data["enable.voucher.half-price.buy"] ?? true;
+  const enableHalfPricePoolVoucherBuy =
+    data["enable.voucher.half-price.pool.buy"] ?? true;
 
   const elderlyPrice = voucherPrice / 2;
   const poolElderlyPrice = poolVoucherPrice / 2;
@@ -56,14 +60,15 @@ export default function PriceTable() {
   const showPoolHalf = showPool && enableHalfPricePoolVoucherBuy;
 
   // Track whether at least one price is visible; useful to display fallback messaging.
-  const hasAnyPrice = showRegular || showRegularHalf || showPool || showPoolHalf;
+  const hasAnyPrice =
+    showRegular || showRegularHalf || showPool || showPoolHalf;
 
   return (
     <div className="flex w-full flex-col items-center justify-center">
       <h3 className="h-12 py-2 text-xl font-bold text-primary-100">
         Adquira já seu voucher
       </h3>
-      <div className="bg-custom-secondary flex w-full flex-col gap-2 pb-2 pt-1 font-semibold text-primary-50">
+      <div className="flex w-full flex-col gap-2 bg-custom-secondary pb-2 pt-1 font-semibold text-primary-50">
         <div className="flex h-10 w-full items-center justify-center bg-dark-blue">
           <p className="text-lg font-semibold text-primary-50">
             Day use (Cachoeira + Bar Pé de Serra)
@@ -77,9 +82,15 @@ export default function PriceTable() {
             />
           )}
 
-          {showRegularHalf && (
+          <PriceSummary
+            label="Meia (+60 e especiais)"
+            price={elderlyPrice}
+            description="Compra apenas na portaria, necessário apresentar documento."
+          />
+
+          {/* {showRegularHalf && (
             <PriceSummary label="Meia (+60 e especiais)" price={elderlyPrice} />
-          )}
+          )} */}
 
           <div className="flex w-full justify-between">
             <div className="flex gap-2">
@@ -88,40 +99,37 @@ export default function PriceTable() {
             Grátis
           </div>
         </div>
-        {showPool ?? showPoolHalf ? 
-        <>
-          <div className="flex h-10 w-full items-center justify-center bg-dark-blue">
-            <p className="text-lg font-semibold text-primary-50">
-              Day Use + Acesso a piscina
-            </p>
-          </div>
-          <div className="flex w-full flex-col gap-2 px-4">
-            {showPool && (
-              <PriceSummary
-                label="Acesso a piscina"
-                price={poolVoucherPrice}
-              />
-            )}
-  
-            {showPoolHalf && (
+        {(showPool ?? showPoolHalf) ? (
+          <>
+            <div className="flex h-10 w-full items-center justify-center bg-dark-blue">
+              <p className="text-lg font-semibold text-primary-50">
+                Day Use + Acesso a piscina
+              </p>
+            </div>
+            <div className="flex w-full flex-col gap-2 px-4">
+              {showPool && (
+                <PriceSummary
+                  label="Acesso a piscina"
+                  price={poolVoucherPrice}
+                />
+              )}
+
               <PriceSummary
                 label="Meia (+60 e especiais)"
                 price={poolElderlyPrice}
+                description="Compra apenas na portaria, necessário apresentar documento."
               />
-            )}
-  
-            <div className="flex w-full justify-between">
-              <div className="flex gap-2">
-                <p>Crianças até 8 anos</p>
+
+              <div className="flex w-full justify-between">
+                <div className="flex gap-2">
+                  <p>Crianças até 8 anos</p>
+                </div>
+                Grátis
               </div>
-              Grátis
             </div>
-          </div>
-        </> : null}
-        {!hasAnyPrice ? (
-          <>
           </>
         ) : null}
+        {!hasAnyPrice ? <></> : null}
       </div>
     </div>
   );
