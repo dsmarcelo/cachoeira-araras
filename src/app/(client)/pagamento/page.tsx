@@ -2,11 +2,11 @@ import React from "react";
 import { api } from "@/trpc/server";
 import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
-import { confirmVoucherPayment } from "@/lib/voucher/server-utils";
-import PendingPaymentCard from "./pendingPayment";
-import { redirect } from "next/navigation";
+import PaymentClientWrapper from "./payment-client-wrapper";
+import { ErrorBoundary } from "@/app/_components/error-boundary";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { HomeIcon } from "lucide-react";
 
 const fetchPreference = async (
   preference_id: string,
@@ -16,8 +16,8 @@ const fetchPreference = async (
     if (!res) return null;
     return res;
   } catch (error) {
-    console.error("Error fetching payment:", error);
-    throw error;
+    console.error("Error fetching preference:", error);
+    return null;
   }
 };
 
@@ -30,11 +30,11 @@ const fetchPayment = async (
     return res;
   } catch (error) {
     console.error("Error fetching payment:", error);
-    throw error;
+    return null;
   }
 };
 
-export default async function PaymentApprovedPage({
+export default async function PaymentPage({
   searchParams,
 }: {
   searchParams: Record<string, string | string[] | undefined>;
@@ -45,15 +45,19 @@ export default async function PaymentApprovedPage({
 
   if (!allStrings) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center">
-        <div className="text-center text-3xl">
-          Link inválido
+      <div className="flex min-h-screen w-full flex-col items-center justify-center bg-bg-blue px-4 py-8">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <h2 className="text-2xl font-bold text-primary-100">Link inválido</h2>
+          <p className="text-lg text-primary-200">
+            Os parâmetros da URL são inválidos. Por favor, verifique o link.
+          </p>
+          <Link href="/">
+            <Button variant="outline" className="h-12">
+              <HomeIcon className="mr-2 h-4 w-4" />
+              Voltar para a página inicial
+            </Button>
+          </Link>
         </div>
-        <Link href="/">
-          <Button>
-            Voltar para a página inicial
-          </Button>
-        </Link>
       </div>
     );
   }
@@ -64,87 +68,39 @@ export default async function PaymentApprovedPage({
     !payment_id ||
     typeof preference_id !== "string" ||
     typeof payment_id !== "string"
-  )
+  ) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center">
-        <div className="text-center text-3xl">
-          Link inválido
-        </div>
-        <Link href="/">
-          <Button>
-            Voltar para a página inicial
-          </Button>
-        </Link>
-      </div>
-    );
-
-  const preference = await fetchPreference(preference_id);
-  if (!preference)
-    return (
-      <div className="flex h-screen flex-col items-center justify-center">
-        <div className="text-center text-3xl">
-          Erro ao buscar preferência
-        </div>
-        <Link href="/">
-          <Button>
-            Voltar para a página inicial
-          </Button>
-        </Link>
-      </div>
-    );
-  const paymentURL = preference.init_point;
-
-  const payment = await fetchPayment(payment_id);
-
-  if (!payment)
-    return (
-      <div className="flex h-screen flex-col items-center justify-center">
-        <div className="text-center text-3xl">
-          Erro ao buscar pagamento
-        </div>
-        <Link href="/">
-          <Button>
-            Voltar para a página inicial
-          </Button>
-        </Link>
-      </div>
-    );
-
-  if (payment.status === "denied") {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center">
-        <div className="text-center text-3xl">
-          Pagamento não aprovado
-        </div>
-        <Link href="/">
-          <Button>
-            Voltar para a página inicial
-          </Button>
-        </Link>
-      </div>
-    );
-  }
-  if (payment.status === "pending" && paymentURL) {
-    return <PendingPaymentCard paymentURL={paymentURL} />;
-  }
-  if (payment.status === "approved") {
-    const voucher = await confirmVoucherPayment(preference_id, payment_id);
-    if (!voucher)
-      return (
-        <div className="flex h-screen flex-col items-center justify-center">
-          <div className="text-center text-3xl">
-            Não foi possível confirmar o pagamento
-          </div>
+      <div className="flex min-h-screen w-full flex-col items-center justify-center bg-bg-blue px-4 py-8">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <h2 className="text-2xl font-bold text-primary-100">Link inválido</h2>
+          <p className="text-lg text-primary-200">
+            ID da preferência ou ID do pagamento não fornecido.
+          </p>
           <Link href="/">
-            <Button>
+            <Button variant="outline" className="h-12">
+              <HomeIcon className="mr-2 h-4 w-4" />
               Voltar para a página inicial
             </Button>
           </Link>
         </div>
-      );
-
-    return redirect(
-      `/pagamento/aprovado?preference_id=${preference_id}&payment_id=${payment_id}`,
+      </div>
     );
   }
+
+  // Fetch initial data on server
+  const [payment, preference] = await Promise.all([
+    fetchPayment(payment_id),
+    fetchPreference(preference_id),
+  ]);
+
+  return (
+    <ErrorBoundary>
+      <PaymentClientWrapper
+        preferenceId={preference_id}
+        paymentId={payment_id}
+        initialPayment={payment}
+        initialPreference={preference}
+      />
+    </ErrorBoundary>
+  );
 }
