@@ -8,12 +8,17 @@ import { motion } from 'framer-motion'
 import DeleteVoucherCookieBtn from './delete-voucher-cookie-btn'
 import { RefreshCcw } from 'lucide-react'
 import { api } from '@/trpc/react'
+import { useTrpcErrorHandler } from '@/hooks/use-trpc-error-handler'
+import { useNetworkStatus } from '@/hooks/use-network-status'
 
 export default function VoucherCreatedCard(
   { code, init_point, redirectToPayment, setCode, payment_success_url }:
     { code: string, init_point: string, redirectToPayment: () => void, setCode: React.Dispatch<React.SetStateAction<string>>, payment_success_url: string }) {
 
   const utils = api.useUtils();
+  const { handleError, showErrorToast } = useTrpcErrorHandler();
+  const { isOnline } = useNetworkStatus();
+  const [isCheckingPayment, setIsCheckingPayment] = React.useState(false);
 
   async function handleClick(showToast = true) {
     setCode('')
@@ -46,13 +51,47 @@ export default function VoucherCreatedCard(
   }
 
   async function checkPaymentStatus() {
-    const voucher = await utils.voucher.findByCode.fetch({ code });
-    if (!voucher) return location.reload();
-    if (!voucher.payment_id) return redirectToPayment();
-    if (voucher?.status === 'pending') {
-      redirectToPayment()
+    if (!isOnline) {
+      return showErrorToast(
+        "Sem conexão",
+        "Você está offline. Verifique sua conexão com a internet e tente novamente."
+      );
     }
-    location.href = payment_success_url
+
+    setIsCheckingPayment(true);
+    try {
+      const voucher = await utils.voucher.findByCode.fetch({ code });
+      if (!voucher) {
+        toast({
+          title: "Voucher não encontrado",
+          description: "Não foi possível encontrar o voucher. Recarregando a página...",
+          variant: "destructive",
+        });
+        setTimeout(() => location.reload(), 2000);
+        return;
+      }
+      if (!voucher.payment_id) {
+        return redirectToPayment();
+      }
+      if (voucher?.status === 'pending') {
+        redirectToPayment();
+        return;
+      }
+      if (payment_success_url) {
+        location.href = payment_success_url;
+      } else {
+        toast({
+          title: "Erro",
+          description: "URL de sucesso não disponível. Recarregando a página...",
+          variant: "destructive",
+        });
+        setTimeout(() => location.reload(), 2000);
+      }
+    } catch (error) {
+      handleError(error, "Erro ao verificar o status do pagamento. Tente novamente.");
+    } finally {
+      setIsCheckingPayment(false);
+    }
   }
 
   function AlreadyPayedButton() {
@@ -84,9 +123,22 @@ export default function VoucherCreatedCard(
             <div className='w-12'><DeleteVoucherCookieBtn label='Voltar' refresh={true} message='Se você já pagou e ainda não está vendo o botão para visualizar o voucher, atualize a pagina e tente novamente.' /></div>
             <p className='text-primary-100 font-medium'>Voucher criado com sucesso! Guarde o codigo abaixo, finalize o pagamento clicando no botão abaixo e volte ao site para utiliza-lo:</p>
             <h2 className='text-7xl font-bold text-center text-primary-50'>{code}</h2>
-            <Button onClick={checkPaymentStatus} className='bg-positive-green rounded-xl text-center h-14 text-xl w-full flex justify-center items-center font-medium text-primary-50'>
-              <p className='translate-y-[-2px]'>Finalizar pagamento</p>
+            <Button
+              onClick={checkPaymentStatus}
+              disabled={isCheckingPayment || !isOnline}
+              className='bg-positive-green rounded-xl text-center h-14 text-xl w-full flex justify-center items-center font-medium text-primary-50 disabled:opacity-50 disabled:cursor-not-allowed'
+            >
+              {isCheckingPayment ? (
+                <p className='translate-y-[-2px]'>Verificando...</p>
+              ) : (
+                <p className='translate-y-[-2px]'>Finalizar pagamento</p>
+              )}
             </Button>
+            {!isOnline && (
+              <p className='text-center text-sm text-yellow-200'>
+                Você está offline. Verifique sua conexão com a internet.
+              </p>
+            )}
             <AlreadyPayedButton />
           </div>
         )}

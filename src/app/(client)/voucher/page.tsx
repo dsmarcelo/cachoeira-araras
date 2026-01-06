@@ -1,68 +1,106 @@
-import React from 'react'
+import React from "react";
 import { api } from "@/trpc/server";
-import PaymentCard from '@/app/_components/payment-card';
-import VoucherCard from '@/app/_components/voucher-card';
-import { type PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
-import { type PreferenceResponse } from 'mercadopago/dist/clients/preference/commonTypes';
-import DeleteVoucherCookieBtn from '@/app/_components/delete-voucher-cookie-btn';
+import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
+import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
+import VoucherClientWrapper from "./voucher-client-wrapper";
+import { ErrorBoundary } from "@/app/_components/error-boundary";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { HomeIcon } from "lucide-react";
 
-const fetchPreference = async (preference_id: string): Promise<PreferenceResponse | null> => {
+const fetchPreference = async (
+  preference_id: string,
+): Promise<PreferenceResponse | null> => {
   try {
     const res = await api.mercadopago.getPreference({ preference_id });
-    if (!res) return null
+    if (!res) return null;
     return res;
   } catch (error) {
-    console.error('Error fetching payment:', error);
-    throw error;
+    console.error("Error fetching preference:", error);
+    return null;
   }
 };
 
-const fetchPayment = async (payment_id: string): Promise<PaymentResponse | null> => {
+const fetchPayment = async (
+  payment_id: string,
+): Promise<PaymentResponse | null> => {
   try {
     const res = await api.mercadopago.getPayment({ payment_id });
-    if (!res) return null
+    if (!res) return null;
     return res;
   } catch (error) {
-    console.error('Error fetching payment:', error);
-    throw error;
+    console.error("Error fetching payment:", error);
+    return null;
   }
 };
 
 export default async function voucherPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>
+  searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const allStrings = Object.values(searchParams).every(value => typeof value === 'string');
+  const allStrings = Object.values(searchParams).every(
+    (value) => typeof value === "string",
+  );
 
   if (!allStrings) {
-    return <div className='text-center h-screen text-3xl'>Link inválido</div>
+    return (
+      <div className="flex min-h-screen w-full flex-col items-center justify-center bg-bg-blue px-4 py-8">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <h2 className="text-2xl font-bold text-primary-100">Link inválido</h2>
+          <p className="text-lg text-primary-200">
+            Os parâmetros da URL são inválidos. Por favor, verifique o link.
+          </p>
+          <Link href="/">
+            <Button variant="outline" className="h-12">
+              <HomeIcon className="mr-2 h-4 w-4" />
+              Voltar para a página inicial
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   const { code, pid } = searchParams;
-  if (!code || !pid) return <div className='text-center h-screen text-3xl'>Link inválido</div>
-
-  const payment = await fetchPayment(pid as string)
-  if (!payment) return <div className='text-center h-screen text-3xl'>Erro ao buscar pagamento</div>
-
-  if (payment.status === 'denied') {
-    return <div>Pagamento não aprovado</div>
+  if (!code || !pid) {
+    return (
+      <div className="flex min-h-screen w-full flex-col items-center justify-center bg-bg-blue px-4 py-8">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <h2 className="text-2xl font-bold text-primary-100">Link inválido</h2>
+          <p className="text-lg text-primary-200">
+            Código do voucher ou ID do pagamento não fornecido.
+          </p>
+          <Link href="/">
+            <Button variant="outline" className="h-12">
+              <HomeIcon className="mr-2 h-4 w-4" />
+              Voltar para a página inicial
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
-  const voucher = await api.voucher.findByCode({ code: code as string });
+  // Fetch initial data on server
+  const [payment, voucher] = await Promise.all([
+    fetchPayment(pid as string),
+    api.voucher.findByCode({ code: code as string }).catch(() => null),
+  ]);
 
-  if (!voucher) return <div className='text-center h-screen text-3xl'>Não foi possível encontrar o voucher</div>
-
-  const preference = await fetchPreference(voucher.preference_id);
+  const preference = voucher?.preference_id
+    ? await fetchPreference(voucher.preference_id)
+    : null;
 
   return (
-    <div className="flex flex-col w-full pt-8 px-4 items-center pb-24 bg-bg-blue overflow-hidden">
-      <h1 className='text-center text-2xl font-bold text-primary-100 mb-8'>Obrigado por comprar seu voucher na Cachoeira das Araras!</h1>
-      <div className='w-full max-w-lg flex flex-col items-center gap-8'>
-        {preference && <PaymentCard data={preference} payment_id={pid as string} />}
-        <VoucherCard data={voucher} />
-        <DeleteVoucherCookieBtn />
-      </div>
-    </div>
-  )
+    <ErrorBoundary>
+      <VoucherClientWrapper
+        code={code as string}
+        paymentId={pid as string}
+        initialPayment={payment}
+        initialVoucher={voucher}
+        initialPreference={preference}
+      />
+    </ErrorBoundary>
+  );
 }

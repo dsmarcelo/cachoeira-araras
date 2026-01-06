@@ -26,6 +26,8 @@ import {
   getCookieVoucher,
   createReferrer,
 } from "../lib";
+import { useNetworkStatus } from "@/hooks/use-network-status";
+import { useTrpcErrorHandler } from "@/hooks/use-trpc-error-handler";
 import VoucherCreatedCard from "./voucher-created-card";
 import { CalendarIcon, ChevronRight, Loader2 } from "lucide-react";
 import { format } from "date-fns";
@@ -48,6 +50,9 @@ export default function VoucherForm({
 }) {
   const router = useRouter();
   const { toast } = useToast();
+  const { isOnline } = useNetworkStatus();
+  const { handleError, showErrorToast, showSuccessToast } =
+    useTrpcErrorHandler();
   const [isLoading, setIsLoading] = useState(false);
   const [code, setCode] = useState("");
   const [init_point, setInitPoint] = useState("");
@@ -57,9 +62,13 @@ export default function VoucherForm({
   const utils = api.useUtils();
 
   // Get all settings from database using a single query
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   const settingsQuery = api.settings.getAll.useQuery();
 
   // Destructure settings with defaults
+  // Safely access data property, handling potential errors
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+  const settingsData = settingsQuery.data;
   const {
     "disabled.days": disabledDays = [],
     "max.intended.days": maxIntendedDays = 60,
@@ -68,7 +77,15 @@ export default function VoucherForm({
     "enable.voucher.pool.buy": enablePoolVoucherBuy = true,
     "enable.voucher.half-price.buy": enableHalfPriceVoucherBuy = true,
     "enable.voucher.half-price.pool.buy": enableHalfPricePoolVoucherBuy = false,
-  } = settingsQuery.data ?? {};
+  } = (settingsData ?? {}) as {
+    "disabled.days"?: string[];
+    "max.intended.days"?: number;
+    "form.message"?: string;
+    "enable.voucher.buy"?: boolean;
+    "enable.voucher.pool.buy"?: boolean;
+    "enable.voucher.half-price.buy"?: boolean;
+    "enable.voucher.half-price.pool.buy"?: boolean;
+  };
 
   async function checkPaymentStatus(code: string) {
     const voucher = (await utils.voucher.findByCode.fetch({ code })) as Voucher;
@@ -130,8 +147,22 @@ export default function VoucherForm({
   }, [settingsQuery]);
 
   type FormSchema = z.infer<typeof voucherFormSchema>;
-  const addVoucher = api.voucher.create.useMutation();
-  const mercadopago = api.mercadopago.create.useMutation();
+  const addVoucher = api.voucher.create.useMutation({
+    onError: (error) => {
+      handleError(
+        error,
+        "Erro ao criar o voucher. Por favor, tente novamente.",
+      );
+    },
+  });
+  const mercadopago = api.mercadopago.create.useMutation({
+    onError: (error) => {
+      handleError(
+        error,
+        "Erro ao criar a preferência de pagamento. Por favor, tente novamente.",
+      );
+    },
+  });
 
   const {
     register,
@@ -200,6 +231,14 @@ export default function VoucherForm({
   }
 
   async function onSubmit(data: FormSchema) {
+    // Check network status before submitting
+    if (!isOnline) {
+      return showErrorToast(
+        "Sem conexão",
+        "Você está offline. Verifique sua conexão com a internet e tente novamente.",
+      );
+    }
+
     // Guard against disabled feature flags
     if (!enableVoucherBuy && (data.adults > 0 || data.elderly > 0)) {
       return toast({
@@ -225,7 +264,8 @@ export default function VoucherForm({
     if (!enableHalfPricePoolVoucherBuy && data.elderly_pool > 0) {
       return toast({
         title: "Indisponível",
-        description: "Compra de voucher meia entrada com piscina está desativada",
+        description:
+          "Compra de voucher meia entrada com piscina está desativada",
       });
     }
     if (
@@ -242,8 +282,9 @@ export default function VoucherForm({
       const rcode = randomCode();
       setCode(rcode);
       const res = await buyVoucher({ data, code: rcode });
-      if (!res?.id || !res?.init_point)
-        throw new Error("Falha ao criar preferencia");
+      if (!res?.id || !res?.init_point) {
+        throw new Error("Falha ao criar preferência de pagamento");
+      }
       await addCookieVoucher(rcode);
       const preference_id = res.id;
       const completeData = formatVoucher({
@@ -256,20 +297,33 @@ export default function VoucherForm({
         completeData.price = 0.01;
       }
       const voucher = await addVoucher.mutateAsync(completeData);
-      if (!voucher)
-        return toast({
-          title: "Erro",
-          description:
-            "Erro ao criar o voucher, por favor atualize a página e tente novamente",
-        });
+      if (!voucher) {
+        setIsLoading(false);
+        return handleError(
+          new Error("Failed to create voucher"),
+          "Erro ao criar o voucher. Por favor, atualize a página e tente novamente.",
+        );
+      }
       setInitPoint(res.init_point);
       if (referrerURL) {
-        await createReferrer(rcode, referrerURL);
+        try {
+          await createReferrer(rcode, referrerURL);
+        } catch (error) {
+          // Don't fail the whole process if referrer creation fails
+          console.error("Error creating referrer:", error);
+        }
       }
       setIsLoading(false);
+      showSuccessToast(
+        "Voucher criado com sucesso!",
+        "Redirecionando para o pagamento...",
+      );
     } catch (error) {
-      return console.error(error);
-      // TODO: send error to server and show error page
+      setIsLoading(false);
+      handleError(
+        error,
+        "Erro ao processar o voucher. Por favor, tente novamente.",
+      );
     }
   }
 
@@ -286,7 +340,12 @@ export default function VoucherForm({
   }
 
   // Check if all voucher purchase options are disabled
-  if (!enableVoucherBuy && !enablePoolVoucherBuy && !enableHalfPriceVoucherBuy && !enableHalfPricePoolVoucherBuy) {
+  if (
+    !enableVoucherBuy &&
+    !enablePoolVoucherBuy &&
+    !enableHalfPriceVoucherBuy &&
+    !enableHalfPricePoolVoucherBuy
+  ) {
     return (
       <div className="mx-auto w-full bg-dark-blue">
         <div className="border-none bg-dark-blue p-4 text-primary-50">
@@ -405,7 +464,9 @@ export default function VoucherForm({
                           <p className="text-sm">(+60 anos e especiais)</p>
                           <p className="text-sm">
                             R${" "}
-                            {getElderlyVoucherPrice().toFixed(2).replace(".", ",")}
+                            {getElderlyVoucherPrice()
+                              .toFixed(2)
+                              .replace(".", ",")}
                           </p>
                         </Label>
                         <div className="w-fit">
@@ -424,11 +485,11 @@ export default function VoucherForm({
                           />
                         </div>
                       </div>
-                        {formValues.elderly > 0 && (
-                          <p className="text-base font-medium text-yellow-950 bg-yellow-50 rounded-md px-3 py-2">
-                            Necessário apresentar documento de identificação
-                          </p>
-                        )}
+                      {formValues.elderly > 0 && (
+                        <p className="rounded-md bg-yellow-50 px-3 py-2 text-base font-medium text-yellow-950">
+                          Necessário apresentar documento de identificação
+                        </p>
+                      )}
                       {errors.elderly && (
                         <p className="text-base font-medium text-red-400">
                           {errors.elderly?.message}
@@ -551,7 +612,11 @@ export default function VoucherForm({
                           yesterday.setDate(today.getDate() - 1);
 
                           const maxDate = getBrazilianDate(new Date(today));
-                          maxDate.setDate(today.getDate() + maxIntendedDays);
+                          const maxDays =
+                            typeof maxIntendedDays === "number"
+                              ? maxIntendedDays
+                              : 60;
+                          maxDate.setDate(today.getDate() + maxDays);
 
                           // Check if date is in the past or beyond max date
                           if (date < yesterday || date > maxDate) {
@@ -560,7 +625,10 @@ export default function VoucherForm({
 
                           // Check if date is in the disabled days list
                           const dateStr = date.toISOString().slice(0, 10); // Format as YYYY-MM-DD
-                          return disabledDays.includes(dateStr);
+                          return (
+                            Array.isArray(disabledDays) &&
+                            disabledDays.includes(dateStr)
+                          );
                         }}
                         initialFocus
                       />
@@ -602,6 +670,11 @@ export default function VoucherForm({
             <Button onClick={() => location.reload()} className="h-20">
               Recarregar página
             </Button>
+          </div>
+        )}
+        {!isOnline && (
+          <div className="my-4 rounded-xl bg-yellow-500/20 p-4 text-center text-base font-medium text-yellow-200">
+            Você está offline. Verifique sua conexão com a internet.
           </div>
         )}
       </div>
