@@ -114,11 +114,11 @@ export default function PriceTable() {
                 />
               )}
 
-              <PriceSummary
+              /*<PriceSummary
                 label="Meia (+60 e especiais)"
                 price={poolElderlyPrice}
                 description="Compra apenas na portaria, necessário apresentar documento."
-              />
+              />*/
 
               <div className="flex w-full justify-between">
                 <div className="flex gap-2">
