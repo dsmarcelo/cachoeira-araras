@@ -2,6 +2,22 @@
 
 Documento prático para implementação individual. Cada item descreve **o que mudar**, **onde mudar** e **qual ganho esperado**.
 
+## Versao separada por item
+
+Os itens deste plano foram organizados em arquivos separados em `docs/to-do`:
+
+- `docs/to-do/README.md`
+- `docs/to-do/01-autenticacao-admin-segura.md`
+- `docs/to-do/02-endurecer-autorizacao-trpc.md`
+- `docs/to-do/03-webhook-robusto-idempotente.md`
+- `docs/to-do/04-paginacao-filtros-servidor-admin.md`
+- `docs/to-do/05-prisma-unificado-cron.md`
+- `docs/to-do/06-cache-invalidacao-settings.md`
+- `docs/to-do/07-reducao-rerender-listeners.md`
+- `docs/to-do/08-consolidar-dominio-pagamento.md`
+- `docs/to-do/09-estrategia-imagens-lcp.md`
+- `docs/to-do/10-gate-qualidade-release.md`
+
 ---
 
 ## Ordem de execução recomendada
