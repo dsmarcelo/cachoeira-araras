@@ -14,6 +14,8 @@ Esta pasta reúne uma documentação prática para **uma pessoa desenvolvedora**
    Modelo de dados (Prisma), status do voucher e sistema de configurações dinâmicas.
 5. [`05-maintenance-playbook.md`](./05-maintenance-playbook.md)  
    Guia de manutenção: tarefas comuns, checklists e pontos de atenção para mudanças futuras.
+6. [`06-optimization-implementation-plan.md`](./06-optimization-implementation-plan.md)  
+   Plano objetivo por item de otimização: o que mudar, onde mudar e ganho esperado.
 
 ## Objetivo desta documentação
 
