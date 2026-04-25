@@ -1,252 +1,188 @@
-# 06 — Plano de Implementação das Otimizações
+# 06 — Plano Atual de Otimizações
 
-Documento prático para implementação individual. Cada item descreve **o que mudar**, **onde mudar** e **qual ganho esperado**.
+Documento prático para implementação individual. Esta versão foi revisada contra a documentação e o código atual do app para manter apenas o que ainda compensa aplicar.
 
-## Versao separada por item
+## Estado atual
 
-Os itens deste plano foram organizados em arquivos separados em `docs/to-do`:
-
-- `docs/to-do/README.md`
-- `docs/to-do/01-autenticacao-admin-segura.md`
-- `docs/to-do/02-endurecer-autorizacao-trpc.md`
-- `docs/to-do/03-webhook-robusto-idempotente.md`
-- `docs/to-do/04-paginacao-filtros-servidor-admin.md`
-- `docs/to-do/05-prisma-unificado-cron.md`
-- `docs/to-do/06-cache-invalidacao-settings.md`
-- `docs/to-do/07-reducao-rerender-listeners.md`
-- `docs/to-do/08-consolidar-dominio-pagamento.md`
-- `docs/to-do/09-estrategia-imagens-lcp.md`
-- `docs/to-do/10-gate-qualidade-release.md`
+- A autenticação admin segura já existe com NextAuth, senha via hash em variável de ambiente e cookie de sessão seguro em produção.
+- A autorização tRPC já possui `protectedProcedure`, `staffProcedure` e `adminProcedure`; as operações sensíveis de voucher, pagamento admin e notificação já usam guards.
+- O script `type-check` já existe no `package.json`.
+- Os arquivos em `docs/to-do` espelham este plano atual em tarefas separadas por item.
 
 ---
 
-## Ordem de execução recomendada
+## O que ainda compensa fazer
 
-1. Segurança e integridade (itens 1–3)
-2. Escalabilidade backend (itens 4–6)
-3. Performance frontend e organização (itens 7–9)
-4. Qualidade de release/produção (item 10)
+### 1) Webhook robusto e idempotente
 
----
+**Prioridade:** alta.
 
-## 1) Autenticação admin segura
-
-**O que será modificado**
-- Substituir autenticação por cookie simples/senha hardcoded por sessão segura.
-
-**Arquivos principais**
-- `src/app/lib.ts`
-- `src/app/admin/layout.tsx`
-- `src/server/auth.ts`
-- (se necessário) middleware/guards para `/admin/*`
-
-**Implementação (resumo)**
-- Remover senha fixa e usar segredo em variável de ambiente (hash).
-- Exigir sessão válida para acesso admin.
-- Configurar cookie de sessão com `httpOnly`, `secure`, `sameSite`.
-
-**Melhora esperada**
-- Reduz risco de acesso indevido ao admin.
-- Maior segurança de produção e governança de acesso.
-
----
-
-## 2) Endurecer autorização de tRPC
-
-**O que será modificado**
-- Procedures sensíveis deixarão de ser públicas.
-
-**Arquivos principais**
-- `src/server/api/trpc.ts`
-- `src/server/api/routers/voucher.ts`
-- `src/server/api/routers/notification.ts`
-- `src/server/api/routers/settings.ts`
-
-**Implementação (resumo)**
-- Migrar mutações sensíveis para `protectedProcedure`.
-- Manter públicas apenas operações necessárias ao fluxo de compra.
-- Padronizar retorno de erro com `TRPCError`.
-
-**Melhora esperada**
-- Menor superfície de ataque.
-- Menor chance de alteração indevida de vouchers/settings.
-
----
-
-## 3) Webhook robusto e idempotente
-
-**O que será modificado**
-- Validação de webhook com regras estritas e sem fallback inseguro.
+**Por que ainda faz sentido**
+- O webhook ainda tem fallback de segredo (`your-secret-key`).
+- Headers e query params obrigatórios são lidos com `!`, o que transforma erro de entrada em erro 500.
+- O fluxo ainda pode repetir efeitos colaterais em reentregas do Mercado Pago se o mesmo pagamento chegar mais de uma vez.
 
 **Arquivos principais**
 - `src/app/api/webhook/route.ts`
-- `src/server/api/routers/voucher.ts` (suporte a idempotência se necessário)
+- `src/server/voucher.ts`
+- `src/server/mercadopago.ts`
 
-**Implementação (resumo)**
-- Remover fallback de segredo (`your-secret-key`).
-- Validar obrigatoriedade de headers e parâmetros.
-- Garantir processamento idempotente por `payment_id`/`code`.
-- Logar eventos e falhas de forma rastreável.
+**Implementação recomendada**
+- Remover fallback inseguro e exigir `WEBHOOK_SECRET` validado pelo schema de env.
+- Validar `x-signature`, `x-request-id` e `data.id` com retorno 400 quando ausentes.
+- Antes de atualizar voucher ou enviar eventos de conversão, verificar se `payment_id` já foi processado.
+- Centralizar a atualização do voucher aprovado em função server-only para manter idempotência e logs em um único lugar.
 
-**Melhora esperada**
-- Menor risco de fraude/processamento duplo.
-- Fluxo de pagamento mais estável em produção.
+**Ganho esperado**
+- Menor risco de fraude, processamento duplicado e falhas silenciosas no fluxo de pagamento.
 
 ---
 
-## 4) Paginação e filtros no servidor (admin)
+### 2) Paginação e filtros no servidor para telas admin
 
-**O que será modificado**
-- Listagens admin deixarão de carregar tudo no client.
+**Prioridade:** alta quando a base de vouchers crescer; média se o volume atual ainda for pequeno.
+
+**Por que ainda faz sentido**
+- `/admin/tabela`, `/admin/dashboard/vouchers` e `/admin/dashboard/vendas` ainda usam `api.voucher.findAll.useQuery()`.
+- A tabela pagina no navegador depois de baixar todos os vouchers.
 
 **Arquivos principais**
 - `src/server/api/routers/voucher.ts`
-- `src/app/admin/dashboard/vouchers/page.tsx`
 - `src/app/admin/tabela/data-table.tsx`
 - `src/app/admin/tabela/voucher-table.tsx`
+- `src/app/admin/dashboard/vouchers/page.tsx`
+- `src/app/admin/dashboard/vendas/page.tsx`
 
-**Implementação (resumo)**
-- Criar query paginada (`take/skip` ou cursor) com filtros (status, busca, período).
-- Retornar total e página atual.
-- Adaptar UI para paginação server-side.
+**Implementação recomendada**
+- Criar query admin paginada com `take`, `cursor` ou `skip`, mais filtros de status, busca e período.
+- Retornar `items`, `total`, `page`/`cursor` e `pageSize`.
+- Adaptar a tabela para paginação, busca e filtros server-side.
+- Manter `findAll` apenas se existir uso administrativo pequeno e claramente justificado; caso contrário, remover.
 
-**Melhora esperada**
-- Escala melhor com crescimento de dados.
-- Menor uso de memória e CPU no navegador.
+**Ganho esperado**
+- Menor consumo de memória no navegador e melhor previsibilidade conforme o histórico de vendas cresce.
 
 ---
 
-## 5) Prisma unificado no cron
+### 3) Reutilizar o Prisma singleton no cron
 
-**O que será modificado**
-- Cron deixará de instanciar `PrismaClient` localmente.
+**Prioridade:** média.
+
+**Por que ainda faz sentido**
+- `src/app/api/cron/route.ts` ainda instancia `new PrismaClient()` diretamente.
+- O projeto já possui `src/server/db.ts` para compartilhar o cliente Prisma.
 
 **Arquivos principais**
 - `src/app/api/cron/route.ts`
 - `src/server/db.ts`
 
-**Implementação (resumo)**
-- Reutilizar cliente Prisma singleton do projeto.
-- Registrar quantos vouchers foram atualizados/deletados em cada execução.
+**Implementação recomendada**
+- Trocar a instância local por `db`.
+- Retornar no JSON do cron quantos vouchers foram expirados e quantos pendentes foram marcados com soft delete.
+- Deixar erros importantes subirem para resposta 500; o cron deve falhar alto quando a manutenção automática não rodar.
 
-**Melhora esperada**
-- Menos risco de conexões excedentes.
-- Operação de cron mais previsível.
+**Ganho esperado**
+- Menor risco de excesso de conexões e operação mais fácil de auditar.
 
 ---
 
-## 6) Cache/invalidação para settings
+### 4) Otimizar leitura de settings sem cache customizado
 
-**O que será modificado**
-- Política explícita para reduzir leituras repetidas de configuração.
+**Prioridade:** média/baixa.
+
+**Por que ainda faz sentido**
+- `getAllSettings()` centraliza o acesso, mas internamente faz uma consulta por chave.
+- Como settings são usados no formulário público e na tabela de preços, reduzir consultas é mais simples e seguro do que criar cache com invalidação manual.
 
 **Arquivos principais**
 - `src/lib/settings.ts`
 - `src/server/api/routers/settings.ts`
 - `src/app/admin/dashboard/configuracoes/actions.ts`
 
-**Implementação (resumo)**
-- Adicionar cache curto para `getAllSettings`.
-- Invalidar cache após update de configuração.
-- Padronizar uso de settings no front.
+**Implementação recomendada**
+- Implementar `getAllSettings()` com uma única consulta `findMany`.
+- Mesclar o resultado com defaults tipados em memória.
+- Não adicionar cache agora; só considerar `unstable_cache`/tags se houver evidência de carga real no banco.
 
-**Melhora esperada**
-- Menor latência e menos carga no banco.
-- Atualização consistente de regras operacionais.
+**Ganho esperado**
+- Menos consultas por carregamento da home, sem aumentar complexidade de invalidação.
 
 ---
 
-## 7) Redução de re-render e listeners frágeis
+### 5) Corrigir listeners e efeitos frágeis no front
 
-**O que será modificado**
-- Ajustes em componentes com risco de re-render e listeners globais.
+**Prioridade:** baixa, mas vale fazer quando tocar nessas telas.
+
+**Por que ainda faz sentido**
+- `src/app/admin/tabela/voucher-table.tsx` ainda usa `window.onresize` fora de `useEffect`.
+- `src/app/_components/voucher-form.tsx` tem efeito dependente de `settingsQuery`, o que pode causar reexecuções desnecessárias.
 
 **Arquivos principais**
-- `src/app/_components/voucher-form.tsx`
 - `src/app/admin/tabela/voucher-table.tsx`
+- `src/app/_components/voucher-form.tsx`
+- `src/lib/utils.ts` ou novo hook reutilizável, se a extração realmente reduzir duplicação.
 
-**Implementação (resumo)**
-- Remover `window.onresize` global e usar `useEffect` com cleanup.
-- Estabilizar dependências de `useEffect` no formulário.
-- Extrair hooks utilitários reutilizáveis.
+**Implementação recomendada**
+- Substituir `window.onresize` por `addEventListener` dentro de `useEffect` com cleanup.
+- Mover hook de largura da janela para fora do componente ou reutilizar utilitário existente.
+- Ajustar dependências do efeito do formulário para executar apenas quando o fluxo de pagamento/referrer precisar.
 
-**Melhora esperada**
-- Menos bugs de UI e melhor fluidez.
-- Comportamento mais previsível em mobile/desktop.
+**Ganho esperado**
+- UI mais previsível em resize, menos re-render desnecessário e menos risco de listener global sobrescrito.
 
 ---
 
-## 8) Consolidar domínio de pagamento
+### 6) Consolidar Mercado Pago quando mexer no webhook ou no admin
 
-**O que será modificado**
-- Remover duplicidade e padronizar nomenclatura/fluxo.
+**Prioridade:** baixa isoladamente; média se for feito junto com o webhook.
+
+**Por que ainda faz sentido**
+- `src/server/api/routers/mercadopago.ts` ainda concentra chamadas HTTP diretas para preference/payment.
+- `src/app/api/webhook/route.ts` já usa serviço server-only para buscar pagamento.
+- A consolidação ajuda, mas não deve bloquear as correções críticas do webhook.
 
 **Arquivos principais**
 - `src/server/api/routers/mercadopago.ts`
-- `src/app/(client)/pagamento/page.tsx`
-- `src/app/(client)/pagamento/aprovado/page.tsx`
-- `src/app/(client)/voucher/page.tsx`
-- `src/lib/mercadopago/*`
+- `src/server/mercadopago.ts`
+- `src/app/api/webhook/route.ts`
 
-**Implementação (resumo)**
-- Corrigir typo `getPrefence` e eliminar duplicações.
-- Centralizar fetch e normalização de `payment/preference` em serviço único.
+**Implementação recomendada**
+- Manter procedures tRPC finas.
+- Mover fetch/normalização de Mercado Pago para `src/server/mercadopago.ts`.
+- Padronizar nomes como `getPreference`, `getPreferenceByExternalReference` e `getPayment`.
 
-**Melhora esperada**
-- Menor custo de manutenção.
-- Menos inconsistências entre páginas de pagamento.
+**Ganho esperado**
+- Menor duplicação e manutenção mais simples das integrações de pagamento.
 
 ---
 
-## 9) Estratégia de imagens e LCP
+## O que foi retirado do plano ativo
 
-**O que será modificado**
-- Revisar uso de `images.unoptimized` global e pipeline de assets.
-
-**Arquivos principais**
-- `next.config.js`
-- `src/app/_components/image_carousel.tsx`
-- `src/app/_components/swiper-carousel/mini-image-carousel.tsx`
-- `public/images/*`
-
-**Implementação (resumo)**
-- Avaliar otimização seletiva de imagens.
-- Padronizar dimensões, compressão e formatos modernos.
-- Manter prioridade apenas para imagens críticas.
-
-**Melhora esperada**
-- Melhor LCP e experiência inicial do usuário.
-- Uso de banda mais eficiente.
+- **Autenticação admin segura:** já implementada com NextAuth, hashes por env e roles.
+- **Endurecimento geral de tRPC:** a estrutura já existe e os principais routers sensíveis já usam `adminProcedure`/`staffProcedure`; manter apenas revisão pontual ao criar novas procedures.
+- **Cache/invalidação manual de settings:** não compensa agora; uma query única no DAL resolve o maior problema com menos risco.
+- **Revisão ampla de imagens/LCP:** `images.unoptimized` parece uma decisão consciente para evitar custos/requests de otimização na Vercel Free. Só reabrir se houver medição ruim de LCP.
+- **Gate de release:** `type-check` já existe. Se criar CI no futuro, usar `pnpm lint`, `pnpm type-check` e `pnpm build`, mas isso não é uma otimização urgente do app.
 
 ---
 
-## 10) Gate de qualidade para release
+## Ordem recomendada
 
-**O que será modificado**
-- Pipeline de validação para deploy previsível.
-
-**Arquivos principais**
-- `package.json`
-- (se existir) workflow de CI
-- `docs/05-maintenance-playbook.md`
-
-**Implementação (resumo)**
-- Criar script `type-check`.
-- Exigir `lint`, `type-check` e `build` antes de merge/deploy.
-- Incluir checklist de variáveis críticas de produção.
-
-**Melhora esperada**
-- Menos regressão em produção.
-- Processo de manutenção mais confiável para solo dev.
+1. Webhook robusto e idempotente.
+2. Paginação/filtros server-side nas telas admin.
+3. Prisma singleton no cron.
+4. `getAllSettings()` com consulta única.
+5. Listeners/effects frágeis no front.
+6. Consolidação Mercado Pago, preferencialmente junto do webhook.
 
 ---
 
-## Checklist de implementação por item
+## Checklist por item
 
-Para cada item acima, confirmar:
-- [ ] Mudança aplicada nos arquivos listados
+Para cada item aplicado:
+- [ ] Mudança limitada aos arquivos do fluxo afetado
+- [ ] Erros tratados na função e refletidos corretamente na UI quando houver UI envolvida
 - [ ] Teste funcional mínimo do fluxo afetado
-- [ ] `npm run lint` OK
-- [ ] `npm run type-check` OK
-- [ ] `npm run build` OK
-- [ ] Documentação atualizada quando necessário
+- [ ] `pnpm lint` OK
+- [ ] `pnpm type-check` OK
+- [ ] Documentação atualizada quando a estrutura mudar
