@@ -1,7 +1,8 @@
 import { type NextRequest } from "next/server";
 import * as crypto from "crypto";
-import { api } from "@/trpc/server";
 import { sendFacebookPixelEvent, sendGoogleAdsConversion } from "@/lib/utils/webhook-pixel";
+import { getMercadoPagoPayment } from "@/server/mercadopago";
+import { findVoucherByCode, updateVoucherByCode } from "@/server/voucher";
 // import { sendWhatsappMessage } from "@/app/lib";
 
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET ?? "your-secret-key";
@@ -37,7 +38,7 @@ function isValidSignature(
 }
 
 async function validadeVoucherPayment(payment_id: string) {
-  const payment = await api.mercadopago.getPayment({ payment_id });
+  const payment = await getMercadoPagoPayment(payment_id);
   if (!payment) return null;
 
   const code = payment.external_reference;
@@ -49,17 +50,14 @@ async function validadeVoucherPayment(payment_id: string) {
       },
     );
 
-  const voucher = await api.voucher.findByCode({ code });
+  const voucher = await findVoucherByCode(code);
   if (voucher?.status === "redeemed") return null;
 
   if (payment.status === "approved") {
-    const voucher = await api.voucher.update({
-      where: { code },
-      data: {
-        status: "valid",
-        valid: true,
-        payment_id: payment_id,
-      },
+    const voucher = await updateVoucherByCode(code, {
+      status: "valid",
+      valid: true,
+      payment_id: payment_id,
     });
 
     // Send Facebook Pixel conversion event for approved payments
@@ -94,11 +92,8 @@ async function validadeVoucherPayment(payment_id: string) {
     });
   } else {
     if (code) {
-      const voucher = await api.voucher.update({
-        where: { code },
-        data: {
-          payment_id: payment_id,
-        },
+      const voucher = await updateVoucherByCode(code, {
+        payment_id: payment_id,
       });
       return new Response(JSON.stringify({ voucher }), {
         status: 200,

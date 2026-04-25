@@ -1,4 +1,8 @@
-import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
+import {
+  adminProcedure,
+  createTRPCRouter,
+  publicProcedure,
+} from "@/server/api/trpc";
 import { z } from "zod";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
@@ -104,7 +108,7 @@ export const mercadopagoRouter = createTRPCRouter({
         throw new Error("Failed to create preference");
       }
     }),
-  getPreference: publicProcedure
+  getPreference: adminProcedure
     .input(z.object({ preference_id: z.string() }))
     .query<PreferenceResponse | undefined>(async ({ input }) => {
       const url = `https://api.mercadopago.com/checkout/preferences/${input.preference_id}`;
@@ -120,18 +124,29 @@ export const mercadopagoRouter = createTRPCRouter({
       const data = (await res.json()) as PreferenceResponse;
       return data;
     }),
-  getPrefence: publicProcedure
+  getPublicPreference: publicProcedure
     .input(z.object({ preference_id: z.string() }))
-    .query<PreferenceResponse>(async ({ input }) => {
+    .query<{ init_point: string | null }>(async ({ input }) => {
       const url = `https://api.mercadopago.com/checkout/preferences/${input.preference_id}`;
       const res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      return res.json();
+
+      if (!res.ok) {
+        return {
+          init_point: null,
+        };
+      }
+
+      const data = (await res.json()) as PreferenceResponse;
+
+      return {
+        init_point: data.init_point ?? null,
+      };
     }),
-  getPreferenceByEReference: publicProcedure
+  getPreferenceByEReference: adminProcedure
     .input(z.object({ external_reference: z.string().max(4) }))
     .query<PreferenceResponse | undefined>(async ({ input }) => {
       const url = `https://api.mercadopago.com/checkout/preferences/search?external_reference=${input.external_reference}`;
@@ -152,7 +167,7 @@ export const mercadopagoRouter = createTRPCRouter({
         throw new Error("Failed to fetch Preference");
       }
     }),
-  getPayment: publicProcedure
+  getPayment: adminProcedure
     .input(z.object({ payment_id: z.string() }))
     .query<PaymentResponse | undefined>(async ({ input }) => {
       const url = `https://api.mercadopago.com/v1/payments/${input.payment_id}`;

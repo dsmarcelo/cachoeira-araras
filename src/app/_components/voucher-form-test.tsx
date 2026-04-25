@@ -65,7 +65,7 @@ export default function TestVoucherForm() {
   } = settingsQuery.data ?? {};
 
   async function checkPaymentStatus(code: string) {
-    const voucher = await utils.voucher.findByCode.fetch({ code });
+    const voucher = await utils.voucher.getPublicStatusByCode.fetch({ code });
     if (!voucher) return deleteCookieVoucher();
 
     if (voucher.status !== "pending" && voucher.payment_id) {
@@ -73,7 +73,7 @@ export default function TestVoucherForm() {
       setPaymentSuccessUrl(url);
     }
 
-    const preference = await utils.mercadopago.getPrefence.fetch({
+    const preference = await utils.mercadopago.getPublicPreference.fetch({
       preference_id: voucher.preference_id,
     });
 

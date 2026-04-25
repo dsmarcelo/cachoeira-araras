@@ -1,4 +1,8 @@
-import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
+import {
+  adminProcedure,
+  createTRPCRouter,
+  publicProcedure,
+} from "@/server/api/trpc";
 import { referrerSchema } from "@/lib/voucher/types";
 import { z } from "zod";
 
@@ -16,10 +20,10 @@ export const referrerRouter = createTRPCRouter({
         },
       });
     }),
-  findAll: publicProcedure.query(async ({ ctx }) => {
+  findAll: adminProcedure.query(async ({ ctx }) => {
     return await ctx.db.referrer.findMany();
   }),
-  findByCode: publicProcedure
+  findByCode: adminProcedure
     .input(z.string().min(3).max(4))
     .query(async ({ ctx, input }) => {
       return await ctx.db.referrer.findFirst({
@@ -28,7 +32,7 @@ export const referrerRouter = createTRPCRouter({
         },
       });
     }),
-  findByReferrer: publicProcedure
+  findByReferrer: adminProcedure
     .input(referrerEnum)
     .query(async ({ ctx, input }) => {
       return await ctx.db.referrer.findMany({

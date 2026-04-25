@@ -46,7 +46,7 @@ export default function VoucherCreatedCard(
   }
 
   async function checkPaymentStatus() {
-    const voucher = await utils.voucher.findByCode.fetch({ code });
+    const voucher = await utils.voucher.getPublicStatusByCode.fetch({ code });
     if (!voucher) return location.reload();
     if (!voucher.payment_id) return redirectToPayment();
     if (voucher?.status === 'pending') {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Cog, Ticket } from "lucide-react";
+import { CalendarDays, Cog, Ticket } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -14,9 +14,9 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import Image from "next/image";
+import type { UserRole } from "@/server/auth";
 
-// Dashboard navigation items
-const sidebarItems = [
+const adminSidebarItems = [
   {
     name: "Validar Voucher",
     icon: <Ticket className="h-5 w-5" />,
@@ -34,9 +34,19 @@ const sidebarItems = [
   },
 ];
 
-export default function DashboardSidebar() {
+const employeeSidebarItems = [
+  {
+    name: "Hoje",
+    icon: <CalendarDays className="h-5 w-5" />,
+    href: "/admin/hoje",
+  },
+];
+
+export default function DashboardSidebar({ role }: { role: UserRole }) {
   const pathname = usePathname();
   const { setOpenMobile, isMobile } = useSidebar();
+  const sidebarItems =
+    role === "admin" ? adminSidebarItems : employeeSidebarItems;
 
   const handleMenuItemClick = () => {
     if (isMobile) {

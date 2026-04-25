@@ -1,5 +1,4 @@
 import React from "react";
-import { api } from "@/trpc/server";
 import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
 import { confirmVoucherPayment } from "@/lib/voucher/server-utils";
@@ -7,14 +6,16 @@ import PendingPaymentCard from "./pendingPayment";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import {
+  getMercadoPagoPayment,
+  getMercadoPagoPreference,
+} from "@/server/mercadopago";
 
 const fetchPreference = async (
   preference_id: string,
 ): Promise<PreferenceResponse | null> => {
   try {
-    const res = await api.mercadopago.getPreference({ preference_id });
-    if (!res) return null;
-    return res;
+    return await getMercadoPagoPreference(preference_id);
   } catch (error) {
     console.error("Error fetching payment:", error);
     throw error;
@@ -25,9 +26,7 @@ const fetchPayment = async (
   payment_id: string,
 ): Promise<PaymentResponse | null> => {
   try {
-    const res = await api.mercadopago.getPayment({ payment_id });
-    if (!res) return null;
-    return res;
+    return await getMercadoPagoPayment(payment_id);
   } catch (error) {
     console.error("Error fetching payment:", error);
     throw error;

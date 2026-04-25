@@ -1,10 +1,37 @@
-import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
+import { TRPCError } from "@trpc/server";
+import {
+  adminProcedure,
+  createTRPCRouter,
+  publicProcedure,
+  staffProcedure,
+} from "@/server/api/trpc";
 import { voucherSchema } from "@/lib/voucher/types";
 import { z } from "zod";
 
-const now = new Date(
-  new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
-);
+function getTodayRange() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  return { today, tomorrow };
+}
+
+function getTodayVoucherWhere() {
+  const { today, tomorrow } = getTodayRange();
+
+  return {
+    deletedAt: null,
+    expires_at: {
+      gte: today,
+      lt: tomorrow,
+    },
+    status: {
+      in: ["valid", "pending"],
+    },
+  };
+}
 
 export const voucherRouter = createTRPCRouter({
   create: publicProcedure
@@ -15,7 +42,23 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  findAll: publicProcedure.query(async ({ ctx }) => {
+  getPublicStatusByCode: publicProcedure
+    .input(z.object({ code: z.string().min(3).max(4) }))
+    .query(async ({ ctx, input }) => {
+      return await ctx.db.voucher.findFirst({
+        where: {
+          code: input.code,
+          deletedAt: null,
+        },
+        select: {
+          payment_id: true,
+          preference_id: true,
+          status: true,
+        },
+      });
+    }),
+
+  findAll: adminProcedure.query(async ({ ctx }) => {
     return await ctx.db.voucher.findMany({
       where: {
         deletedAt: null,
@@ -23,7 +66,7 @@ export const voucherRouter = createTRPCRouter({
     });
   }),
 
-  findAllDeleted: publicProcedure.query(async ({ ctx }) => {
+  findAllDeleted: adminProcedure.query(async ({ ctx }) => {
     return await ctx.db.voucher.findMany({
       where: {
         deletedAt: {
@@ -33,11 +76,11 @@ export const voucherRouter = createTRPCRouter({
     });
   }),
 
-  findAllEvenDeleted: publicProcedure.query(async ({ ctx }) => {
+  findAllEvenDeleted: adminProcedure.query(async ({ ctx }) => {
     return await ctx.db.voucher.findMany();
   }),
 
-  findById: publicProcedure
+  findById: adminProcedure
     .input(z.number().int())
     .query(async ({ ctx, input }) => {
       return await ctx.db.voucher.findFirst({
@@ -47,7 +90,7 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  findByCode: publicProcedure
+  findByCode: adminProcedure
     .input(z.object({ code: z.string().min(3).max(4) }))
     .query(async ({ ctx, input }) => {
       return await ctx.db.voucher.findFirst({
@@ -57,7 +100,7 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  findByPhone: publicProcedure
+  findByPhone: adminProcedure
     .input(z.string())
     .query(async ({ ctx, input }) => {
       return await ctx.db.voucher.findFirst({
@@ -67,25 +110,27 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  findBy: publicProcedure.input(voucherSchema).query(async ({ ctx, input }) => {
-    return await ctx.db.voucher.findFirst({
-      where: {
-        OR: [
-          {
-            name: input.name,
-          },
-          {
-            phone: input.phone,
-          },
-          {
-            code: input.code,
-          },
-        ],
-      },
-    });
-  }),
+  findBy: adminProcedure
+    .input(voucherSchema)
+    .query(async ({ ctx, input }) => {
+      return await ctx.db.voucher.findFirst({
+        where: {
+          OR: [
+            {
+              name: input.name,
+            },
+            {
+              phone: input.phone,
+            },
+            {
+              code: input.code,
+            },
+          ],
+        },
+      });
+    }),
 
-  findValid: publicProcedure.query(async ({ ctx }) => {
+  findValid: adminProcedure.query(async ({ ctx }) => {
     return await ctx.db.voucher.findMany({
       where: {
         status: "valid",
@@ -93,7 +138,7 @@ export const voucherRouter = createTRPCRouter({
     });
   }),
 
-  findByStatus: publicProcedure
+  findByStatus: adminProcedure
     .input(voucherSchema)
     .query(async ({ ctx, input }) => {
       return await ctx.db.voucher.findMany({
@@ -103,7 +148,7 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  findByPreferenceId: publicProcedure
+  findByPreferenceId: adminProcedure
     .input(z.object({ preference_id: z.string() }))
     .query(async ({ ctx, input }) => {
       return await ctx.db.voucher.findFirst({
@@ -113,31 +158,45 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  getTodayVouchers: publicProcedure.query(async ({ ctx }) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
+  getTodayVouchers: adminProcedure.query(async ({ ctx }) => {
     return await ctx.db.voucher.findMany({
-      where: {
-        expires_at: {
-          gte: today,
-          lt: tomorrow,
-        },
-        status: {
-          in: ["valid", "pending"],
-        },
-        deletedAt: null,
-      },
+      where: getTodayVoucherWhere(),
       orderBy: {
         status: "asc",
       },
     });
   }),
 
-  update: publicProcedure
+  getTodayOperationalVouchers: staffProcedure.query(async ({ ctx }) => {
+    return await ctx.db.voucher.findMany({
+      where: getTodayVoucherWhere(),
+      orderBy: [
+        {
+          status: "asc",
+        },
+        {
+          name: "asc",
+        },
+      ],
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        code: true,
+        adults: true,
+        elderly: true,
+        adults_pool: true,
+        elderly_pool: true,
+        valid: true,
+        status: true,
+        expires_at: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }),
+
+  update: adminProcedure
     .input(
       z.object({
         where: z.object({
@@ -162,7 +221,7 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  updateVoucherStatus: publicProcedure
+  updateVoucherStatus: adminProcedure
     .input(
       z.object({
         code: z.string(),
@@ -184,7 +243,81 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  updateByPreference_id: publicProcedure
+  redeemTodayVoucher: staffProcedure
+    .input(z.object({ code: z.string().min(3).max(4) }))
+    .mutation(async ({ ctx, input }) => {
+      const { today, tomorrow } = getTodayRange();
+      const voucher = await ctx.db.voucher.findFirst({
+        where: {
+          code: input.code,
+          deletedAt: null,
+          expires_at: {
+            gte: today,
+            lt: tomorrow,
+          },
+        },
+      });
+
+      if (!voucher) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Voucher fora do fluxo operacional de hoje.",
+        });
+      }
+
+      return await ctx.db.voucher.update({
+        where: {
+          code: input.code,
+        },
+        data: {
+          status: "redeemed",
+          valid: false,
+        },
+      });
+    }),
+
+  activateTodayVoucher: staffProcedure
+    .input(
+      z.object({
+        code: z.string().min(3).max(4),
+        refreshExpiry: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { today, tomorrow } = getTodayRange();
+      const voucher = await ctx.db.voucher.findFirst({
+        where: {
+          code: input.code,
+          deletedAt: null,
+          expires_at: {
+            gte: today,
+            lt: tomorrow,
+          },
+        },
+      });
+
+      if (!voucher) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Voucher fora do fluxo operacional de hoje.",
+        });
+      }
+
+      return await ctx.db.voucher.update({
+        where: {
+          code: input.code,
+        },
+        data: {
+          status: "valid",
+          valid: true,
+          ...(input.refreshExpiry && {
+            expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
+          }),
+        },
+      });
+    }),
+
+  updateByPreference_id: adminProcedure
     .input(
       z.object({
         preference_id: z.string(),
@@ -200,7 +333,7 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  hardDelete: publicProcedure
+  hardDelete: adminProcedure
     .input(z.object({ code: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return await ctx.db.voucher.delete({
@@ -210,7 +343,7 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  delete: publicProcedure
+  delete: adminProcedure
     .input(z.object({ code: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return await ctx.db.voucher.update({
@@ -218,7 +351,7 @@ export const voucherRouter = createTRPCRouter({
           code: input.code,
         },
         data: {
-          deletedAt: now,
+          deletedAt: new Date(),
         },
       });
     }),

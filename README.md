@@ -17,8 +17,19 @@ A documentação foi organizada em múltiplos arquivos na pasta [`docs/`](./docs
 ```bash
 pnpm install
 pnpm dev
-npm run lint
-npm run build
+pnpm lint
+pnpm type-check
+pnpm build
 ```
 
-> Observação: se não existir script `type-check` no `package.json`, rode `pnpm exec tsc --noEmit` como equivalente local.
+## Autenticacao do admin
+
+O acesso em `/admin` usa sessao do NextAuth com provider de credenciais.
+
+- Defina `ADMIN_PASSWORD_HASH` no `.env`.
+- O formato esperado e `scrypt$<salt>$<derived-key-hex>`.
+- Para gerar o hash localmente, use o comando abaixo em PowerShell ou Bash:
+
+```bash
+pnpm admin:hash -- "sua-senha-admin"
+```

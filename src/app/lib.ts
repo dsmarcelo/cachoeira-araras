@@ -5,26 +5,44 @@ import { api } from "@/trpc/server";
 import { type VoucherSchema } from "@/lib/voucher/types";
 import { formateDateDayMonthYear, formatPhone, formatToBRL } from "@/lib/utils";
 import { formatVoucherUrl } from "@/lib/utils/utils";
+import {
+  getCurrentUserRole as getCurrentSessionRole,
+  getServerAuthSession,
+  type UserRole,
+} from "@/server/auth";
+import { findVoucherByCode } from "@/server/voucher";
 
 export async function isLoggedIn(): Promise<boolean> {
-  const session = cookies().get("session")?.value;
-  if (session === "admin") {
-    return true;
-  }
-  return false;
+  const role = await getCurrentSessionRole();
+  return role !== null;
 }
 
-export async function logout() {
-  cookies().set("session", "", { expires: new Date(0) });
-  redirect("/");
+export async function getCurrentUserRole(): Promise<UserRole | null> {
+  return await getCurrentSessionRole();
 }
 
-export async function login(password: string) {
-  if (password === "Cachoeira.24") {
-    cookies().set("session", "admin");
-    redirect("/admin");
+export async function requireStaff() {
+  const session = await getServerAuthSession();
+
+  if (!session?.user) {
+    return null;
   }
-  return false;
+
+  return session.user;
+}
+
+export async function requireAdmin() {
+  const user = await requireStaff();
+
+  if (!user) {
+    return null;
+  }
+
+  if (user.role !== "admin") {
+    redirect("/admin/hoje");
+  }
+
+  return user;
 }
 
 export async function addCookieVoucher(code: string) {
@@ -53,18 +71,14 @@ export async function deleteVoucher(code: string) {
 
 export async function redeemVoucher(voucherCode: string) {
   if (!voucherCode) return console.error("Erro ao usar voucher");
-  const res = await api.voucher.updateVoucherStatus({
+  const res = await api.voucher.redeemTodayVoucher({
     code: voucherCode,
-    data: {
-      status: "redeemed",
-      valid: false,
-    },
   });
   return res;
 }
 
 export async function activateVoucher(code: string) {
-  const oldVoucher = await api.voucher.findByCode({ code });
+  const oldVoucher = await findVoucherByCode(code);
   if (!oldVoucher) return console.error("Voucher não encontrado");
 
   try {
@@ -75,15 +89,9 @@ export async function activateVoucher(code: string) {
     // Only update if expires_at is less than today or null
     const shouldUpdateExpiry = !currentExpiry || currentExpiry < today;
 
-    const voucher = await api.voucher.update({
-      where: { code },
-      data: {
-        status: "valid",
-        valid: true,
-        ...(shouldUpdateExpiry && {
-          expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 31),
-        }),
-      },
+    const voucher = await api.voucher.activateTodayVoucher({
+      code,
+      refreshExpiry: shouldUpdateExpiry,
     });
     if (!voucher) console.error("Failed to update voucher");
     return voucher;

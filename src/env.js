@@ -14,12 +14,20 @@ export const env = createEnv({
       process.env.NODE_ENV === "production"
         ? z.string()
         : z.string().optional(),
+    ADMIN_PASSWORD_HASH:
+      process.env.NODE_ENV === "production"
+        ? z.string()
+        : z.string().optional(),
+    EMPLOYEE_PASSWORD_HASH:
+      process.env.NODE_ENV === "production"
+        ? z.string().optional()
+        : z.string().optional(),
     NEXTAUTH_URL: z.preprocess(
       // This makes Vercel deployments not fail if you don't set NEXTAUTH_URL
       // Since NextAuth.js automatically uses the VERCEL_URL if present.
       (str) => process.env.VERCEL_URL ?? str,
       // VERCEL_URL doesn't include `https` so it cant be validated as a URL
-      process.env.VERCEL ? z.string() : z.string().url()
+      process.env.VERCEL ? z.string() : z.string().url(),
     ),
     DATABASE_URL: z.string(),
     URL: z.string(),
@@ -56,6 +64,8 @@ export const env = createEnv({
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+    ADMIN_PASSWORD_HASH: process.env.ADMIN_PASSWORD_HASH,
+    EMPLOYEE_PASSWORD_HASH: process.env.EMPLOYEE_PASSWORD_HASH,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     DATABASE_URL: process.env.DATABASE_URL,
     URL: process.env.URL,
@@ -65,7 +75,8 @@ export const env = createEnv({
     FACEBOOK_ACCESS_TOKEN: process.env.FACEBOOK_ACCESS_TOKEN,
     FACEBOOK_PIXEL_ID: process.env.FACEBOOK_PIXEL_ID,
     GOOGLE_ANALYTICS_API_SECRET: process.env.GOOGLE_ANALYTICS_API_SECRET,
-    GOOGLE_ANALYTICS_MEASUREMENT_ID: process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID,
+    GOOGLE_ANALYTICS_MEASUREMENT_ID:
+      process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID,
     NEXT_PUBLIC_MAX_INTENDED_DAYS: process.env.NEXT_PUBLIC_MAX_INTENDED_DAYS,
     NEXT_PUBLIC_VOUCHER_PRICE: process.env.NEXT_PUBLIC_VOUCHER_PRICE,
     NEXT_PUBLIC_VOUCHER_POOL_PRICE: process.env.NEXT_PUBLIC_VOUCHER_POOL_PRICE,

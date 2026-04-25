@@ -9,6 +9,9 @@
 - `src/app/lib.ts`
 - `src/app/admin/layout.tsx`
 - `src/server/auth.ts`
+- `src/app/_components/passwordLoginForm.tsx`
+- `src/app/admin/_components/header.tsx`
+- `scripts/generateAdminPasswordHash.ts`
 - (se necessario) middleware/guards para `/admin/*`
 
 ## Implementacao (resumo)
@@ -16,6 +19,7 @@
 - Remover senha fixa e usar segredo em variavel de ambiente (hash).
 - Exigir sessao valida para acesso admin.
 - Configurar cookie de sessao com `httpOnly`, `secure`, `sameSite`.
+- Gerar `ADMIN_PASSWORD_HASH` com `pnpm admin:hash -- "<senha>"` para evitar problemas de quoting entre PowerShell e Bash.
 
 ## Melhora esperada
 
@@ -24,9 +28,9 @@
 
 ## Checklist do item
 
-- [ ] Mudanca aplicada nos arquivos listados
+- [x] Mudanca aplicada nos arquivos listados
 - [ ] Teste funcional minimo do fluxo afetado
-- [ ] `pnpm lint` OK
-- [ ] `pnpm type-check` OK
-- [ ] `pnpm build` OK
-- [ ] Documentacao atualizada quando necessario
+- [x] `pnpm lint` OK
+- [x] `pnpm type-check` OK
+- [x] `pnpm build` OK
+- [x] Documentacao atualizada quando necessario

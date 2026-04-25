@@ -1,16 +1,18 @@
 import React from 'react'
-import { api } from "@/trpc/server";
 import PaymentCard from '@/app/_components/payment-card';
 import VoucherCard from '@/app/_components/voucher-card';
 import { type PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
 import { type PreferenceResponse } from 'mercadopago/dist/clients/preference/commonTypes';
 import DeleteVoucherCookieBtn from '@/app/_components/delete-voucher-cookie-btn';
+import {
+  getMercadoPagoPayment,
+  getMercadoPagoPreference,
+} from "@/server/mercadopago";
+import { findVoucherByCode } from "@/server/voucher";
 
 const fetchPreference = async (preference_id: string): Promise<PreferenceResponse | null> => {
   try {
-    const res = await api.mercadopago.getPreference({ preference_id });
-    if (!res) return null
-    return res;
+    return await getMercadoPagoPreference(preference_id);
   } catch (error) {
     console.error('Error fetching payment:', error);
     throw error;
@@ -19,9 +21,7 @@ const fetchPreference = async (preference_id: string): Promise<PreferenceRespons
 
 const fetchPayment = async (payment_id: string): Promise<PaymentResponse | null> => {
   try {
-    const res = await api.mercadopago.getPayment({ payment_id });
-    if (!res) return null
-    return res;
+    return await getMercadoPagoPayment(payment_id);
   } catch (error) {
     console.error('Error fetching payment:', error);
     throw error;
@@ -49,7 +49,7 @@ export default async function voucherPage({
     return <div>Pagamento não aprovado</div>
   }
 
-  const voucher = await api.voucher.findByCode({ code: code as string });
+  const voucher = await findVoucherByCode(code as string);
 
   if (!voucher) return <div className='text-center h-screen text-3xl'>Não foi possível encontrar o voucher</div>
 

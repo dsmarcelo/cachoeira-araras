@@ -1,4 +1,4 @@
-import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
+import { adminProcedure, createTRPCRouter } from "@/server/api/trpc";
 import { z } from "zod";
 
 import twilio from "twilio";
@@ -19,7 +19,7 @@ function removeExtra9(phoneNumber: string): string {
 }
 
 export const notificationRouter = createTRPCRouter({
-  sendWhatsAppMessage: publicProcedure
+  sendWhatsAppMessage: adminProcedure
     .input(
       z.object({
         body: z.string(),

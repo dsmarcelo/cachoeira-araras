@@ -2,12 +2,17 @@
 
 import { getSetting, setSetting, type SettingKey, getAllSettings as getSettingsDAL } from "@/lib/settings";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/app/lib";
 
 /**
  * Server action to get all current settings
  * Uses the DAL (Data Access Layer) function to fetch all settings at once
  */
 export async function getAllSettings() {
+  const user = await requireAdmin();
+  if (!user) {
+    throw new Error("UNAUTHORIZED");
+  }
   const allSettings = await getSettingsDAL();
   
   // Convert SettingValueMap to array of key-value pairs for the page component
@@ -43,6 +48,10 @@ export async function updateSetting(
   updatedBy?: string,
 ) {
   try {
+    const user = await requireAdmin();
+    if (!user) {
+      throw new Error("UNAUTHORIZED");
+    }
     await setSetting(key, value, { updatedBy });
     revalidatePath("/admin/dashboard/configuracoes");
     return { success: true, message: "Configuração atualizada com sucesso!" };
@@ -60,6 +69,10 @@ export async function updateSetting(
  */
 export async function getSettingValue(key: SettingKey) {
   try {
+    const user = await requireAdmin();
+    if (!user) {
+      throw new Error("UNAUTHORIZED");
+    }
     const value = await getSetting(key);
     return { success: true, value };
   } catch (error) {
