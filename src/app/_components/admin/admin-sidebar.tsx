@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Cog, Ticket } from "lucide-react";
+import { Cog, Ticket } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -36,9 +36,9 @@ const adminSidebarItems = [
 
 const employeeSidebarItems = [
   {
-    name: "Hoje",
-    icon: <CalendarDays className="h-5 w-5" />,
-    href: "/admin/hoje",
+    name: "Validar Voucher",
+    icon: <Ticket className="h-5 w-5" />,
+    href: "/admin",
   },
 ];
 

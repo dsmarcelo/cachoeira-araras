@@ -90,12 +90,48 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  findByCode: adminProcedure
+  findByCode: staffProcedure
     .input(z.object({ code: z.string().min(3).max(4) }))
     .query(async ({ ctx, input }) => {
       return await ctx.db.voucher.findFirst({
         where: {
           code: input.code,
+          deletedAt: null,
+        },
+      });
+    }),
+
+  redeemByCode: staffProcedure
+    .input(z.object({ code: z.string().min(3).max(4) }))
+    .mutation(async ({ ctx, input }) => {
+      const voucher = await ctx.db.voucher.findFirst({
+        where: {
+          code: input.code,
+          deletedAt: null,
+        },
+      });
+
+      if (!voucher) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Voucher não encontrado.",
+        });
+      }
+
+      if (!voucher.valid) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Este voucher não está disponível para uso.",
+        });
+      }
+
+      return await ctx.db.voucher.update({
+        where: {
+          code: input.code,
+        },
+        data: {
+          status: "redeemed",
+          valid: false,
         },
       });
     }),

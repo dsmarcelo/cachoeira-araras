@@ -39,7 +39,7 @@ export async function requireAdmin() {
   }
 
   if (user.role !== "admin") {
-    redirect("/admin/hoje");
+    redirect("/admin");
   }
 
   return user;
