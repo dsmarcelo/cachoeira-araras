@@ -17,4 +17,4 @@ if (!password) {
 const salt = randomBytes(16).toString("hex");
 const derivedKey = scryptSync(password, salt, 64).toString("hex");
 
-console.log(`scrypt$${salt}$${derivedKey}`);
+console.log(`scrypt:${salt}:${derivedKey}`);

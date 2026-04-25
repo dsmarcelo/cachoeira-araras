@@ -12,6 +12,11 @@ export const USER_ROLES = ["admin", "employee"] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
 
+interface ParsedPasswordHash {
+  derivedKeyHex: string;
+  salt: string;
+}
+
 declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
@@ -34,6 +39,17 @@ declare module "next-auth/jwt" {
   }
 }
 
+function parsePasswordHash(storedHash: string): ParsedPasswordHash | null {
+  const separator = storedHash.includes(":") ? ":" : "$";
+  const [algorithm, salt, derivedKeyHex] = storedHash.split(separator);
+
+  if (algorithm !== "scrypt" || !salt || !derivedKeyHex) {
+    return null;
+  }
+
+  return { derivedKeyHex, salt };
+}
+
 function verifyPasswordHash(
   password: string,
   storedHash: string | undefined,
@@ -43,20 +59,23 @@ function verifyPasswordHash(
     return false;
   }
 
-  const [algorithm, salt, derivedKeyHex] = storedHash.split("$");
+  const parsedHash = parsePasswordHash(storedHash);
 
-  if (algorithm !== "scrypt" || !salt || !derivedKeyHex) {
+  if (!parsedHash) {
+    console.error(
+      `Invalid ${envName} format. Generate it with: pnpm admin:hash -- "<password>"`,
+    );
     return false;
   }
 
   try {
-    const expectedKey = Buffer.from(derivedKeyHex, "hex");
+    const expectedKey = Buffer.from(parsedHash.derivedKeyHex, "hex");
 
     if (expectedKey.length === 0) {
       return false;
     }
 
-    const derivedKey = scryptSync(password, salt, expectedKey.length);
+    const derivedKey = scryptSync(password, parsedHash.salt, expectedKey.length);
 
     return timingSafeEqual(derivedKey, expectedKey);
   } catch (error) {

@@ -42,7 +42,7 @@ Crie um arquivo `.env` na raiz do projeto usando `.env.example` como base. O sch
 | Key | Uso |
 | --- | --- |
 | `NEXTAUTH_SECRET` | Segredo de sessao do NextAuth. Gere com `openssl rand -base64 32`. |
-| `ADMIN_PASSWORD_HASH` | Hash da senha do admin no formato `scrypt$<salt>$<derived-key-hex>`. |
+| `ADMIN_PASSWORD_HASH` | Hash da senha do admin no formato `scrypt:<salt>:<derived-key-hex>`. |
 
 ### Acesso interno opcional
 
@@ -87,7 +87,7 @@ Crie um arquivo `.env` na raiz do projeto usando `.env.example` como base. O sch
 O acesso em `/admin` usa sessao do NextAuth com provider de credenciais.
 
 - Defina `ADMIN_PASSWORD_HASH` no `.env`.
-- O formato esperado e `scrypt$<salt>$<derived-key-hex>`.
+- O formato esperado e `scrypt:<salt>:<derived-key-hex>`.
 - Para gerar o hash localmente, use o comando abaixo em PowerShell ou Bash:
 
 ```bash
