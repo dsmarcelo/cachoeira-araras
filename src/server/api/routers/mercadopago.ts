@@ -3,30 +3,39 @@ import {
   createTRPCRouter,
   publicProcedure,
 } from "@/server/api/trpc";
+import { env } from "@/env";
 import { z } from "zod";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
-const token = process.env.MERCADOPAGO_TOKEN;
-let url = "";
 
-if (process.env.URL) {
-  url = process.env.URL;
-} else if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-  url = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
-} else if (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
-  url = `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}`;
-} else {
-  url = "http://localhost:3000";
+/** Strip trailing slashes so `${base}/pagamento/` never doubles slashes. */
+function normalizePublicBaseUrl(base: string): string {
+  return base.replace(/\/+$/, "");
 }
-const webhookUrl = process.env.WEBHOOK_URL;
 
-if (!token) {
-  throw new Error("MERCADOPAGO_TOKEN is not set");
+/**
+ * Public origin for Mercado Pago `back_urls`. Prefer validated `env.URL`; if it is empty
+ * (e.g. `SKIP_ENV_VALIDATION` builds), keep the same fallbacks the router used before.
+ */
+function resolveSiteBaseForCheckout(): string {
+  const primary = (env.URL ?? "").trim();
+  if (primary) return normalizePublicBaseUrl(primary);
+  if (process.env.NEXT_PUBLIC_VERCEL_URL?.trim()) {
+    return normalizePublicBaseUrl(
+      `https://${process.env.NEXT_PUBLIC_VERCEL_URL.trim()}`,
+    );
+  }
+  if (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL?.trim()) {
+    return normalizePublicBaseUrl(
+      `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL.trim()}`,
+    );
+  }
+  return "http://localhost:3000";
 }
 
 const client = new MercadoPagoConfig({
-  accessToken: token,
+  accessToken: env.MERCADOPAGO_TOKEN,
   options: { timeout: 5000, idempotencyKey: "abc" },
 });
 
@@ -55,6 +64,8 @@ export const mercadopagoRouter = createTRPCRouter({
     )
     .mutation(async ({ input }) => {
       try {
+        const siteBase = resolveSiteBaseForCheckout();
+        const webhookBase = normalizePublicBaseUrl(env.WEBHOOK_URL);
         const preference = new Preference(client);
         const response = await preference.create({
           body: {
@@ -77,9 +88,9 @@ export const mercadopagoRouter = createTRPCRouter({
               },
             },
             back_urls: {
-              success: `${url}/pagamento/`,
-              failure: `${url}/pagamento/`,
-              pending: `${url}/pagamento/`,
+              success: `${siteBase}/pagamento/`,
+              failure: `${siteBase}/pagamento/`,
+              pending: `${siteBase}/pagamento/`,
             },
             external_reference: input.code,
             expires: true,
@@ -99,7 +110,7 @@ export const mercadopagoRouter = createTRPCRouter({
               ],
             },
             statement_descriptor: "Cachoeira das Araras",
-            notification_url: `${webhookUrl}/api/webhook`,
+            notification_url: `${webhookBase}/api/webhook`,
           },
         });
         return response;
@@ -114,7 +125,7 @@ export const mercadopagoRouter = createTRPCRouter({
       const url = `https://api.mercadopago.com/checkout/preferences/${input.preference_id}`;
       const res = await fetch(url, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${env.MERCADOPAGO_TOKEN}`,
         },
       });
 
@@ -130,7 +141,7 @@ export const mercadopagoRouter = createTRPCRouter({
       const url = `https://api.mercadopago.com/checkout/preferences/${input.preference_id}`;
       const res = await fetch(url, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${env.MERCADOPAGO_TOKEN}`,
         },
       });
 
@@ -153,7 +164,7 @@ export const mercadopagoRouter = createTRPCRouter({
       try {
         const res = await fetch(url, {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${env.MERCADOPAGO_TOKEN}`,
           },
         });
 
@@ -174,7 +185,7 @@ export const mercadopagoRouter = createTRPCRouter({
       // try {
       const res = await fetch(url, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${env.MERCADOPAGO_TOKEN}`,
         },
       });
 

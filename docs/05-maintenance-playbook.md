@@ -47,8 +47,8 @@ Antes de merge/deploy:
 ## Variáveis de ambiente críticas
 
 - Banco e app: `DATABASE_URL`, `URL`.
-- Auth e sessão: `NEXTAUTH_SECRET`, `NEXTAUTH_URL`.
-- Pagamento: `MERCADOPAGO_TOKEN`, `WEBHOOK_URL`.
+- Auth e sessão: `NEXTAUTH_SECRET`; a URL base vem de `URL` quando `NEXTAUTH_URL` nao estiver definida.
+- Pagamento: `MERCADOPAGO_TOKEN`, `URL`, `WEBHOOK_URL`.
 - Manutenção: `CRON_SECRET`.
 - Tracking opcional: Meta/Google Ads.
 
