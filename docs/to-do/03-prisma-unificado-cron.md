@@ -4,11 +4,15 @@
 
 Media.
 
-## Por que ainda faz sentido
+## Status
 
-- `src/app/api/cron/route.ts` ainda cria `new PrismaClient()` localmente.
+Aplicado.
+
+## Por que fazia sentido
+
+- `src/app/api/cron/route.ts` criava `new PrismaClient()` localmente.
 - O projeto ja possui `src/server/db.ts` para compartilhar o cliente Prisma.
-- O cron hoje retorna apenas sucesso generico, sem dizer quantos registros foram alterados.
+- O cron retornava apenas sucesso generico, sem dizer quantos registros foram alterados.
 
 ## Arquivos principais
 
@@ -28,10 +32,14 @@ Media.
 - Chamar com `CRON_SECRET` valido e confirmar JSON com contadores.
 - Confirmar que falhas no banco nao retornam sucesso falso.
 
+Observacao: a chamada com `CRON_SECRET` valido altera vouchers vencidos. Executar apenas com banco local ou descartavel.
+
+Validado sem mutacao: chamada sem token retornou 401 `Unauthorized`.
+
 ## Checklist
 
-- [ ] Mudanca aplicada nos arquivos listados
+- [x] Mudanca aplicada nos arquivos listados
 - [ ] Teste funcional minimo do fluxo afetado
-- [ ] `pnpm lint` OK
-- [ ] `pnpm type-check` OK
-- [ ] Documentacao atualizada quando necessario
+- [x] `pnpm lint` OK
+- [x] `pnpm type-check` OK
+- [x] Documentacao atualizada quando necessario

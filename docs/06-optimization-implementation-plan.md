@@ -64,29 +64,7 @@ Documento prático para implementação individual. Esta versão foi revisada co
 
 ---
 
-### 3) Reutilizar o Prisma singleton no cron
-
-**Prioridade:** média.
-
-**Por que ainda faz sentido**
-- `src/app/api/cron/route.ts` ainda instancia `new PrismaClient()` diretamente.
-- O projeto já possui `src/server/db.ts` para compartilhar o cliente Prisma.
-
-**Arquivos principais**
-- `src/app/api/cron/route.ts`
-- `src/server/db.ts`
-
-**Implementação recomendada**
-- Trocar a instância local por `db`.
-- Retornar no JSON do cron quantos vouchers foram expirados e quantos pendentes foram marcados com soft delete.
-- Deixar erros importantes subirem para resposta 500; o cron deve falhar alto quando a manutenção automática não rodar.
-
-**Ganho esperado**
-- Menor risco de excesso de conexões e operação mais fácil de auditar.
-
----
-
-### 4) Otimizar leitura de settings sem cache customizado
+### 3) Otimizar leitura de settings sem cache customizado
 
 **Prioridade:** média/baixa.
 
@@ -109,7 +87,7 @@ Documento prático para implementação individual. Esta versão foi revisada co
 
 ---
 
-### 5) Corrigir listeners e efeitos frágeis no front
+### 4) Corrigir listeners e efeitos frágeis no front
 
 **Prioridade:** baixa, mas vale fazer quando tocar nessas telas.
 
@@ -132,7 +110,7 @@ Documento prático para implementação individual. Esta versão foi revisada co
 
 ---
 
-### 6) Consolidar Mercado Pago quando mexer no webhook ou no admin
+### 5) Consolidar Mercado Pago quando mexer no webhook ou no admin
 
 **Prioridade:** baixa isoladamente; média se for feito junto com o webhook.
 
@@ -161,6 +139,7 @@ Documento prático para implementação individual. Esta versão foi revisada co
 - **Autenticação admin segura:** já implementada com NextAuth, hashes por env e roles.
 - **Endurecimento geral de tRPC:** a estrutura já existe e os principais routers sensíveis já usam `adminProcedure`/`staffProcedure`; manter apenas revisão pontual ao criar novas procedures.
 - **Cache/invalidação manual de settings:** não compensa agora; uma query única no DAL resolve o maior problema com menos risco.
+- **Prisma singleton no cron:** aplicado; `/api/cron` usa `src/server/db.ts`, retorna contadores e responde 500 em falha de manutenção.
 - **Revisão ampla de imagens/LCP:** `images.unoptimized` parece uma decisão consciente para evitar custos/requests de otimização na Vercel Free. Só reabrir se houver medição ruim de LCP.
 - **Gate de release:** `type-check` já existe. Se criar CI no futuro, usar `pnpm lint`, `pnpm type-check` e `pnpm build`, mas isso não é uma otimização urgente do app.
 
@@ -170,10 +149,9 @@ Documento prático para implementação individual. Esta versão foi revisada co
 
 1. Webhook robusto e idempotente.
 2. Paginação/filtros server-side nas telas admin.
-3. Prisma singleton no cron.
-4. `getAllSettings()` com consulta única.
-5. Listeners/effects frágeis no front.
-6. Consolidação Mercado Pago, preferencialmente junto do webhook.
+3. `getAllSettings()` com consulta única.
+4. Listeners/effects frágeis no front.
+5. Consolidação Mercado Pago, preferencialmente junto do webhook.
 
 ---
 
