@@ -1,0 +1,22 @@
+# Never upload local environment files or secrets in CLI deployments.
+.env
+.env.*
+.env*.local
+
+# Local dependency/build output directories.
+node_modules
+.next
+out
+build
+coverage
+
+# Local Vercel/Git/IDE metadata.
+.vercel
+.git
+.idea
+.cursor
+.pi-lens
+
+# Local logs and TypeScript cache.
+*.log
+*.tsbuildinfo
