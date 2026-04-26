@@ -36,7 +36,10 @@ export const env = createEnv({
     URL: z.string(),
     MERCADOPAGO_TOKEN: z.string(),
     WEBHOOK_URL: z.string(),
-    WEBHOOK_SECRET: z.string().optional(),
+    WEBHOOK_SECRET:
+      process.env.NODE_ENV === "production"
+        ? z.string()
+        : z.string().optional(),
     CRON_SECRET: z.string(),
     FACEBOOK_ACCESS_TOKEN: z.string().optional(),
     FACEBOOK_PIXEL_ID: z.string().optional(),

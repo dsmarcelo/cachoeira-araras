@@ -15,6 +15,7 @@
     "password:hash": "node --disable-warning=ExperimentalWarning scripts/generateAdminPasswordHash.ts",
     "postinstall": "prisma generate",
     "lint": "next lint",
+    "test:webhook": "node --import ts-node/register --test src/server/mercadopago-webhook.test.ts",
     "test:payments": "node scripts/payment-e2e/run-payment-e2e.mjs",
     "type-check": "tsc --noEmit",
     "start": "next start"

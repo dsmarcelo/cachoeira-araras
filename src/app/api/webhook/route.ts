@@ -1,73 +1,69 @@
 import { env } from "@/env";
 import { type NextRequest } from "next/server";
-import * as crypto from "crypto";
-import { sendFacebookPixelEvent, sendGoogleAdsConversion } from "@/lib/utils/webhook-pixel";
+import {
+  sendFacebookPixelEvent,
+  sendGoogleAdsConversion,
+} from "@/lib/utils/webhook-pixel";
+import { verifyMercadoPagoWebhookSignature } from "@/server/mercadopago-webhook";
 import { getMercadoPagoPayment } from "@/server/mercadopago";
-import { findVoucherByCode, updateVoucherByCode } from "@/server/voucher";
+import { processVoucherPaymentWebhook } from "@/server/voucher";
 // import { sendWhatsappMessage } from "@/app/lib";
-
-const WEBHOOK_SECRET = env.WEBHOOK_SECRET;
-if (!WEBHOOK_SECRET) {
-  throw new Error("WEBHOOK_SECRET is not set");
-}
 
 function isValidSignature(
   request_id: string,
   signature: string,
   dataID: string,
 ): boolean {
-  if (!WEBHOOK_SECRET) {
+  const webhookSecret = env.WEBHOOK_SECRET;
+  if (!webhookSecret) {
     throw new Error("WEBHOOK_SECRET is not set");
   }
 
-  const parts = signature.split(",");
-
-  let ts;
-  let hash;
-
-  parts.forEach((part) => {
-    const [key, value] = part.split("=");
-    if (key && value) {
-      const trimmedKey = key.trim();
-      const trimmedValue = value.trim();
-      if (trimmedKey === "ts") {
-        ts = trimmedValue;
-      } else if (trimmedKey === "v1") {
-        hash = trimmedValue;
-      }
-    }
+  return verifyMercadoPagoWebhookSignature({
+    dataId: dataID,
+    requestId: request_id,
+    secret: webhookSecret,
+    signature,
   });
-  const manifest = `id:${dataID};request-id:${request_id};ts:${ts};`;
-
-  const hmac = crypto.createHmac("sha256", WEBHOOK_SECRET);
-  hmac.update(manifest);
-  const digest = hmac.digest("hex");
-  return hash === digest;
 }
 
-async function validadeVoucherPayment(payment_id: string) {
+async function validateVoucherPayment(payment_id: string) {
   const payment = await getMercadoPagoPayment(payment_id);
-  if (!payment) return null;
+  if (!payment) {
+    return new Response(
+      JSON.stringify({ success: false, error: "Payment not found" }),
+      {
+        status: 404,
+      },
+    );
+  }
 
   const code = payment.external_reference;
-  if (!code || typeof code !== "string")
+  if (!code || typeof code !== "string") {
     return new Response(
       JSON.stringify({ success: false, error: "Voucher not found" }),
       {
         status: 404,
       },
     );
+  }
 
-  const voucher = await findVoucherByCode(code);
-  if (voucher?.status === "redeemed") return null;
+  const result = await processVoucherPaymentWebhook({
+    code,
+    paymentId: payment_id,
+    paymentStatus: payment.status,
+  });
 
-  if (payment.status === "approved") {
-    const voucher = await updateVoucherByCode(code, {
-      status: "valid",
-      valid: true,
-      payment_id: payment_id,
-    });
+  if (result.outcome === "not_found") {
+    return new Response(
+      JSON.stringify({ success: false, error: "Voucher not found" }),
+      {
+        status: 404,
+      },
+    );
+  }
 
+  if (result.shouldSendConversionEvents) {
     // Send Facebook Pixel conversion event for approved payments
     try {
       const pixelResult = await sendFacebookPixelEvent(payment);
@@ -93,32 +89,51 @@ async function validadeVoucherPayment(payment_id: string) {
       console.error('Error sending Google Ads conversion:', String(error));
       // Don't fail the webhook if Google Ads fails
     }
-
-    // await sendWhatsappMessage(voucher); // TODO: finish whatsapp integration
-    return new Response(JSON.stringify({ voucher }), {
-      status: 200,
-    });
-  } else {
-    if (code) {
-      const voucher = await updateVoucherByCode(code, {
-        payment_id: payment_id,
-      });
-      return new Response(JSON.stringify({ voucher }), {
-        status: 200,
-      });
-    }
   }
 
-  return null;
+  // await sendWhatsappMessage(result.voucher); // TODO: finish whatsapp integration
+  return new Response(
+    JSON.stringify({ success: true, outcome: result.outcome }),
+    {
+      status: 200,
+    },
+  );
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const signature = request.headers.get("x-signature")!;
-    const request_id = request.headers.get("x-request-id")!;
+    const signature = request.headers.get("x-signature");
+    const request_id = request.headers.get("x-request-id");
     const searchParams = request.nextUrl.searchParams;
+    const dataID = searchParams.get("data.id");
 
-    const dataID = searchParams.get("data.id")!;
+    if (!signature) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Missing x-signature header" }),
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (!request_id) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Missing x-request-id header" }),
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (!dataID) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Missing data.id query param" }),
+        {
+          status: 400,
+        },
+      );
+    }
+
     const payment_id = dataID;
 
     if (!isValidSignature(request_id, signature, dataID)) {
@@ -130,15 +145,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const res = await validadeVoucherPayment(payment_id);
-    if (!res)
-      return new Response(JSON.stringify({ success: false }), {
-        status: 404,
-      });
-
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-    });
+    return await validateVoucherPayment(payment_id);
   } catch (error: unknown) {
     console.error("Error processing webhook:", String(error));
     return new Response(
