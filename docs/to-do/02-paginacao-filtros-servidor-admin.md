@@ -34,8 +34,8 @@ Alta quando a base de vouchers crescer; media enquanto o volume atual for pequen
 
 ## Checklist
 
-- [ ] Mudanca aplicada nos arquivos listados
+- [x] Mudanca aplicada nos arquivos listados
 - [ ] Teste funcional minimo do fluxo afetado
-- [ ] `pnpm lint` OK
-- [ ] `pnpm type-check` OK
-- [ ] Documentacao atualizada quando necessario
+- [x] `pnpm lint` OK
+- [x] `pnpm type-check` OK
+- [x] Documentacao atualizada quando necessario

@@ -6,6 +6,7 @@ import {
   staffProcedure,
 } from "@/server/api/trpc";
 import { voucherSchema } from "@/lib/voucher/types";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 function getTodayRange() {
@@ -30,6 +31,63 @@ function getTodayVoucherWhere() {
     status: {
       in: ["valid", "pending"],
     },
+  };
+}
+
+const adminVoucherListInput = z.object({
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(10),
+  status: z.string().optional(),
+  search: z.string().trim().optional(),
+  from: z.date().optional(),
+  to: z.date().optional(),
+  sortBy: z.enum(["id", "createdAt", "expires_at", "status", "name"]).default("id"),
+  sortDirection: z.enum(["asc", "desc"]).default("desc"),
+});
+
+const adminVoucherSummaryInput = adminVoucherListInput.omit({
+  page: true,
+  pageSize: true,
+  sortBy: true,
+  sortDirection: true,
+});
+
+const adminSalesSummaryInput = z.object({
+  from: z.date().optional(),
+  to: z.date().optional(),
+});
+
+function getEndOfDay(date: Date) {
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
+function getAdminVoucherWhere(input: z.infer<typeof adminVoucherSummaryInput>): Prisma.VoucherWhereInput {
+  const search = input.search?.trim();
+
+  return {
+    deletedAt: null,
+    ...(input.status && input.status !== "all"
+      ? { status: input.status }
+      : {}),
+    ...(input.from !== undefined || input.to !== undefined
+      ? {
+          createdAt: {
+            ...(input.from ? { gte: input.from } : {}),
+            ...(input.to ? { lte: getEndOfDay(input.to) } : {}),
+          },
+        }
+      : {}),
+    ...(search
+      ? {
+          OR: [
+            { code: { contains: search, mode: "insensitive" } },
+            { name: { contains: search, mode: "insensitive" } },
+            { phone: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      : {}),
   };
 }
 
@@ -58,13 +116,152 @@ export const voucherRouter = createTRPCRouter({
       });
     }),
 
-  findAll: adminProcedure.query(async ({ ctx }) => {
-    return await ctx.db.voucher.findMany({
-      where: {
-        deletedAt: null,
-      },
-    });
-  }),
+  findAdminPage: adminProcedure
+    .input(adminVoucherListInput)
+    .query(async ({ ctx, input }) => {
+      const where = getAdminVoucherWhere(input);
+      const skip = (input.page - 1) * input.pageSize;
+      const orderBy: Prisma.VoucherOrderByWithRelationInput = {
+        [input.sortBy]: input.sortDirection,
+      };
+
+      const [items, total] = await ctx.db.$transaction([
+        ctx.db.voucher.findMany({
+          where,
+          orderBy,
+          skip,
+          take: input.pageSize,
+        }),
+        ctx.db.voucher.count({ where }),
+      ]);
+
+      return {
+        items,
+        total,
+        page: input.page,
+        pageSize: input.pageSize,
+        pageCount: Math.max(Math.ceil(total / input.pageSize), 1),
+      };
+    }),
+
+  getAdminVoucherSummary: adminProcedure
+    .input(adminVoucherSummaryInput)
+    .query(async ({ ctx, input }) => {
+      const vouchers = await ctx.db.voucher.findMany({
+        where: getAdminVoucherWhere(input),
+        select: {
+          status: true,
+          payment_id: true,
+          price: true,
+          adults: true,
+          elderly: true,
+          adults_pool: true,
+          elderly_pool: true,
+        },
+      });
+
+      const paidVouchers = vouchers.filter((voucher) => voucher.payment_id !== null);
+      const totalSales = paidVouchers.reduce((total, voucher) => total + voucher.price, 0);
+      const totalAdults = paidVouchers.reduce((total, voucher) => total + voucher.adults, 0);
+      const totalElderly = paidVouchers.reduce((total, voucher) => total + voucher.elderly, 0);
+      const totalAdultsPool = paidVouchers.reduce((total, voucher) => total + voucher.adults_pool, 0);
+      const totalElderlyPool = paidVouchers.reduce((total, voucher) => total + voucher.elderly_pool, 0);
+
+      return {
+        total: vouchers.length,
+        paidCount: paidVouchers.length,
+        totalSales,
+        totalAdults,
+        totalElderly,
+        totalAdultsPool,
+        totalElderlyPool,
+        visitorsCount: totalAdults + totalElderly + totalAdultsPool + totalElderlyPool,
+        averageVoucherValue: paidVouchers.length > 0 ? totalSales / paidVouchers.length : 0,
+        averagePeoplePerVoucher:
+          paidVouchers.length > 0
+            ? (totalAdults + totalElderly) / paidVouchers.length
+            : 0,
+        statusCounts: {
+          valid: vouchers.filter((voucher) => voucher.status === "valid").length,
+          pending: vouchers.filter((voucher) => voucher.status === "pending").length,
+          redeemed: vouchers.filter(
+            (voucher) => voucher.status === "redeemed" || voucher.status === "used",
+          ).length,
+          expired: vouchers.filter((voucher) => voucher.status === "expired").length,
+        },
+      };
+    }),
+
+  getAdminSalesSummary: adminProcedure
+    .input(adminSalesSummaryInput)
+    .query(async ({ ctx, input }) => {
+      const vouchers = await ctx.db.voucher.findMany({
+        where: {
+          deletedAt: null,
+          payment_id: { not: null },
+          ...(input.from !== undefined || input.to !== undefined
+            ? {
+                createdAt: {
+                  ...(input.from ? { gte: input.from } : {}),
+                  ...(input.to ? { lte: getEndOfDay(input.to) } : {}),
+                },
+              }
+            : {}),
+        },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          createdAt: true,
+          price: true,
+          adults: true,
+          elderly: true,
+        },
+      });
+
+      const dailySales = vouchers.reduce(
+        (acc, voucher) => {
+          const day = voucher.createdAt.toISOString().slice(0, 10);
+          acc[day] ??= {
+            date: day,
+            revenue: 0,
+            vouchers: 0,
+            visitors: 0,
+            adults: 0,
+            elderly: 0,
+          };
+          acc[day].revenue += voucher.price;
+          acc[day].vouchers += 1;
+          acc[day].visitors += voucher.adults + voucher.elderly;
+          acc[day].adults += voucher.adults;
+          acc[day].elderly += voucher.elderly;
+          return acc;
+        },
+        {} as Record<
+          string,
+          {
+            date: string;
+            revenue: number;
+            vouchers: number;
+            visitors: number;
+            adults: number;
+            elderly: number;
+          }
+        >,
+      );
+
+      const totalRevenue = vouchers.reduce((total, voucher) => total + voucher.price, 0);
+      const totalInteiras = vouchers.reduce((total, voucher) => total + voucher.adults, 0);
+      const totalMeias = vouchers.reduce((total, voucher) => total + voucher.elderly, 0);
+
+      return {
+        totalRevenue,
+        paidCount: vouchers.length,
+        averageTicket: vouchers.length > 0 ? totalRevenue / vouchers.length : 0,
+        totalInteiras,
+        totalMeias,
+        dailySalesData: Object.values(dailySales),
+      };
+    }),
 
   findAllDeleted: adminProcedure.query(async ({ ctx }) => {
     return await ctx.db.voucher.findMany({

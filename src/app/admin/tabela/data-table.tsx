@@ -3,22 +3,53 @@ import React from 'react'
 import { VoucherTable } from './voucher-table'
 import { columns } from "./columns"
 import { api } from '@/trpc/react'
-import { type VoucherSchema } from '@/lib/voucher/types'
+import { type CompleteVoucherSchema } from '@/lib/voucher/types'
 
 export default function DataTable() {
-  const { data: vouchers, isLoading, isError } = api.voucher.findAll.useQuery()
+  const [page, setPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(10)
+  const [status, setStatus] = React.useState('all')
+  const [search, setSearch] = React.useState('')
 
-  if (isLoading) {
-    return <div className="text-center">Carregando...</div>
-  }
+  const { data, isLoading, isError, isFetching } = api.voucher.findAdminPage.useQuery({
+    page,
+    pageSize,
+    status,
+    search,
+    sortBy: 'id',
+    sortDirection: 'desc',
+  })
 
   if (isError) {
-    return <div className="text-center">Erro ao carregar os dados</div>
+    return <div className="text-center">Erro ao carregar os dados.</div>
   }
 
   return (
     <div className='w-full'>
-      <VoucherTable columns={columns} data={vouchers as VoucherSchema[]} />
+      <VoucherTable
+        columns={columns}
+        data={(data?.items ?? []) as CompleteVoucherSchema[]}
+        total={data?.total ?? 0}
+        page={data?.page ?? page}
+        pageSize={data?.pageSize ?? pageSize}
+        pageCount={data?.pageCount ?? 1}
+        status={status}
+        search={search}
+        isLoading={isLoading || isFetching}
+        onPageChange={setPage}
+        onPageSizeChange={(nextPageSize) => {
+          setPageSize(nextPageSize)
+          setPage(1)
+        }}
+        onStatusChange={(nextStatus) => {
+          setStatus(nextStatus)
+          setPage(1)
+        }}
+        onSearchChange={(nextSearch) => {
+          setSearch(nextSearch)
+          setPage(1)
+        }}
+      />
     </div>
   )
 }

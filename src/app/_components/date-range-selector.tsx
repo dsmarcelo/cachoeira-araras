@@ -9,7 +9,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Select,
   SelectContent,
@@ -21,45 +21,54 @@ import DateRangePicker from "../date-range-picker";
 
 function DateRangeSelector() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // State for selected month and year in the dropdowns
-  const currentYear = new Date().getFullYear();
-  const [selectedMonth, setSelectedMonth] = useState<string>("1");
+  const today = React.useMemo(() => new Date(), []);
+  const currentYear = today.getFullYear();
+  const [selectedMonth, setSelectedMonth] = useState<string>(
+    (today.getMonth() + 1).toString(),
+  );
   const [selectedYear, setSelectedYear] = useState<string>(
     currentYear.toString(),
   );
 
-  // Initialize from URL parameters
+  // Initialize from URL parameters; when missing, default to the current month.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchParams.toString());
     const fromParam = params.get("from");
+    const toParam = params.get("to");
 
-    if (fromParam) {
-      try {
-        const fromDate = new Date(fromParam);
-        if (!isNaN(fromDate.getTime())) {
-          // Set month and year based on from date
-          setSelectedMonth((fromDate.getMonth() + 1).toString());
-          setSelectedYear(fromDate.getFullYear().toString());
-        }
-      } catch (error) {
-        console.error("Error parsing date from URL:", error);
-      }
+    if (!fromParam || !toParam) {
+      const startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      params.set("preset", "mesAtual");
+      params.set("from", startDate.toISOString());
+      params.set("to", today.toISOString());
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      return;
     }
-  }, []);
+
+    try {
+      const fromDate = new Date(fromParam);
+      if (!isNaN(fromDate.getTime())) {
+        // Set month and year based on from date
+        setSelectedMonth((fromDate.getMonth() + 1).toString());
+        setSelectedYear(fromDate.getFullYear().toString());
+      }
+    } catch (error) {
+      console.error("Error parsing date from URL:", error);
+    }
+  }, [pathname, router, searchParams, today]);
 
   // This function updates the URL with start and end dates for month/year selection
   const updateUrl = (start: string, end: string) => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchParams.toString());
     params.set("preset", "month"); // Set preset to "month" to indicate a month selection
     params.set("from", start);
     params.set("to", end);
 
-    // Update the browser URL without adding a new history entry
-    window.history.replaceState({}, "", `?${params.toString()}`);
-
-    // Refresh the page data
-    router.refresh();
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   // Handler when month or year selection changes

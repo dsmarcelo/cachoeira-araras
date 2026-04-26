@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "@/trpc/react";
 import {
   Card,
@@ -39,49 +39,58 @@ import {
   X,
 } from "lucide-react";
 import { formatPhone } from "@/lib/utils/utils";
-import { type Voucher as PrismaVoucher } from "@prisma/client";
-
-// Extended voucher type that includes pool fields
-type VoucherWithType = PrismaVoucher & {
-  adults_pool: number;
-  elderly_pool: number;
-};
 import { useSearchParams } from "next/navigation";
 import { startOfMonth } from "date-fns";
 import DateRangeSelector from "@/app/_components/date-range-selector";
 
-// Status filter options with colors
 const statusOptions = [
-  { value: "all", label: "Todos os Status", color: "gray" },
-  { value: "valid", label: "Válidos", color: "green" },
-  { value: "pending", label: "Pendentes", color: "yellow" },
-  { value: "used", label: "Utilizados", color: "blue" },
-  { value: "expired", label: "Expirados", color: "red" },
+  { value: "all", label: "Todos os Status" },
+  { value: "valid", label: "Válidos" },
+  { value: "pending", label: "Pendentes" },
+  { value: "redeemed", label: "Utilizados" },
+  { value: "expired", label: "Expirados" },
 ];
 
 export default function VouchersPage() {
-  // State for search and filters
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  // Get URL params for date range
   const searchParams = useSearchParams();
   const fromParam = searchParams.get("from");
   const toParam = searchParams.get("to");
-  const dateRange =
-    fromParam && toParam
+  const dateRange = useMemo(() => {
+    const today = new Date();
+
+    return fromParam && toParam
       ? { from: new Date(fromParam), to: new Date(toParam) }
-      : { from: startOfMonth(new Date()), to: new Date() };
+      : { from: startOfMonth(today), to: today };
+  }, [fromParam, toParam]);
 
-  // Get all vouchers
-  const { data: allVouchers, isLoading } = api.voucher.findAll.useQuery();
+  const queryFilters = useMemo(() => ({
+    status: statusFilter,
+    search: searchQuery,
+    from: dateRange.from,
+    to: dateRange.to,
+  }), [dateRange.from, dateRange.to, searchQuery, statusFilter]);
 
-  // Format date for display
+  const { data: vouchersPage, isLoading: isLoadingVouchers } =
+    api.voucher.findAdminPage.useQuery({
+      ...queryFilters,
+      page,
+      pageSize,
+      sortBy: "createdAt",
+      sortDirection: "desc",
+    });
+
+  const { data: summary, isLoading: isLoadingSummary } =
+    api.voucher.getAdminVoucherSummary.useQuery(queryFilters);
+
   const formatDate = (date: Date) => {
     return format(new Date(date), "dd/MM/yyyy", { locale: ptBR });
   };
 
-  // Format currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -89,64 +98,21 @@ export default function VouchersPage() {
     }).format(amount);
   };
 
-  // Filter vouchers
-  const filteredVouchers: VoucherWithType[] = !allVouchers
-    ? []
-    : (allVouchers as VoucherWithType[]).filter((voucher) => {
-      // Status filter
-      const matchesStatus =
-        statusFilter === "all" ? true : voucher.status === statusFilter;
+  const handleStatusChange = (status: string) => {
+    setStatusFilter(status);
+    setPage(1);
+  };
 
-      // Date range filter
-      const voucherDate = new Date(voucher.createdAt);
-      const matchesDateRange =
-        voucherDate >= dateRange.from && voucherDate <= dateRange.to;
+  const handleSearchChange = (search: string) => {
+    setSearchQuery(search);
+    setPage(1);
+  };
 
-      // Search filter
-      const matchesSearch = !searchQuery
-        ? true
-        : voucher.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        voucher.phone.includes(searchQuery) ||
-        voucher.code.includes(searchQuery);
+  const vouchers = vouchersPage?.items ?? [];
+  const pageCount = vouchersPage?.pageCount ?? 1;
+  const canPreviousPage = page > 1;
+  const canNextPage = page < pageCount;
 
-      return matchesStatus && matchesDateRange && matchesSearch;
-    });
-
-  // Sort vouchers by createdAt in descending order (newest to oldest)
-  filteredVouchers.sort((a, b) => {
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
-
-  // Calculate statistics - only from paid vouchers
-  const paidVouchers = filteredVouchers.filter((v) => v.payment_id !== null);
-  const totalSales = paidVouchers.reduce((total, v) => total + v.price, 0);
-  const totalAdults = paidVouchers.reduce(
-    (total, v) => total + v.adults,
-    0,
-  );
-  const totalElderly = paidVouchers.reduce(
-    (total, v) => total + v.elderly,
-    0,
-  );
-  const totalAdults_pool = paidVouchers.reduce(
-    (total, v) => total + v.adults_pool,
-    0,
-  );
-  const totalElderly_pool = paidVouchers.reduce(
-    (total, v) => total + v.elderly_pool,
-    0,
-  );
-  const validCount = filteredVouchers.filter(
-    (v) => v.status === "valid",
-  ).length;
-  const pendingCount = filteredVouchers.filter(
-    (v) => v.status === "pending",
-  ).length;
-  const usedCount = filteredVouchers.filter((v) => v.status === "used").length;
-  const expiredCount = filteredVouchers.filter(
-    (v) => v.status === "expired",
-  ).length;
-  const visitorsCount = totalAdults + totalElderly + totalAdults_pool + totalElderly_pool;
   return (
     <div className="px-8 py-6">
       <div className="mb-6 flex items-center justify-between">
@@ -157,26 +123,22 @@ export default function VouchersPage() {
         </Button>
       </div>
 
-      {/* Replace the old Popover date range selector with the DateRangeSelector component */}
       <div className="mb-6">
         <DateRangeSelector />
       </div>
 
-      {/* Filters */}
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por nome, telefone ou código"
             className="pl-8"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(event) => handleSearchChange(event.target.value)}
           />
         </div>
 
-        {/* Status filter */}
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={handleStatusChange}>
           <SelectTrigger>
             <SelectValue placeholder="Filtrar por status" />
           </SelectTrigger>
@@ -184,12 +146,7 @@ export default function VouchersPage() {
             <SelectGroup>
               {statusOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  <div className="flex items-center">
-                    <span
-                      className={`mr-2 h-2 w-2 rounded-full bg-${option.color}-500`}
-                    ></span>
-                    {option.label}
-                  </div>
+                  {option.label}
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -197,30 +154,25 @@ export default function VouchersPage() {
         </Select>
       </div>
 
-      {/* Statistics Cards */}
       <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total de Receita
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Receita</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(totalSales)}
+              {isLoadingSummary ? "Carregando..." : formatCurrency(summary?.totalSales ?? 0)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {paidVouchers.length} vouchers pagos
+              {summary?.paidCount ?? 0} vouchers pagos
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Status dos Vouchers
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Status dos Vouchers</CardTitle>
             <Ticket className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -228,21 +180,21 @@ export default function VouchersPage() {
               <div className="space-y-1">
                 <div className="flex items-center">
                   <span className="mr-1 h-2 w-2 rounded-full bg-green-500"></span>
-                  <span className="text-xs">Válidos: {validCount}</span>
+                  <span className="text-xs">Válidos: {summary?.statusCounts.valid ?? 0}</span>
                 </div>
                 <div className="flex items-center">
                   <span className="mr-1 h-2 w-2 rounded-full bg-yellow-500"></span>
-                  <span className="text-xs">Pendentes: {pendingCount}</span>
+                  <span className="text-xs">Pendentes: {summary?.statusCounts.pending ?? 0}</span>
                 </div>
               </div>
               <div className="space-y-1">
                 <div className="flex items-center">
                   <span className="mr-1 h-2 w-2 rounded-full bg-blue-500"></span>
-                  <span className="text-xs">Utilizados: {usedCount}</span>
+                  <span className="text-xs">Utilizados: {summary?.statusCounts.redeemed ?? 0}</span>
                 </div>
                 <div className="flex items-center">
                   <span className="mr-1 h-2 w-2 rounded-full bg-red-500"></span>
-                  <span className="text-xs">Expirados: {expiredCount}</span>
+                  <span className="text-xs">Expirados: {summary?.statusCounts.expired ?? 0}</span>
                 </div>
               </div>
             </div>
@@ -255,46 +207,33 @@ export default function VouchersPage() {
             <Ticket className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {visitorsCount}
-            </div>
+            <div className="text-2xl font-bold">{summary?.visitorsCount ?? 0}</div>
             <p className="text-xs text-muted-foreground">
-              {totalAdults} inteiras, {totalElderly} meias, {totalAdults_pool} inteiras (piscina), {totalElderly_pool} meias (piscina)
+              {summary?.totalAdults ?? 0} inteiras, {summary?.totalElderly ?? 0} meias, {summary?.totalAdultsPool ?? 0} inteiras (piscina), {summary?.totalElderlyPool ?? 0} meias (piscina)
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Média por Voucher
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Média por Voucher</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {paidVouchers.length > 0
-                ? formatCurrency(totalSales / paidVouchers.length)
-                : formatCurrency(0)}
+              {formatCurrency(summary?.averageVoucherValue ?? 0)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {(paidVouchers.length > 0
-                ? (totalAdults + totalElderly) / paidVouchers.length
-                : 0
-              ).toFixed(1)}{" "}
-              pessoas/voucher
+              {(summary?.averagePeoplePerVoucher ?? 0).toFixed(1)} pessoas/voucher
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Vouchers Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Vouchers ({filteredVouchers.length})</CardTitle>
-          <CardDescription>
-            Gerencie todos os vouchers do sistema.
-          </CardDescription>
+          <CardTitle>Lista de Vouchers ({vouchersPage?.total ?? 0})</CardTitle>
+          <CardDescription>Gerencie todos os vouchers do sistema.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border">
@@ -316,24 +255,22 @@ export default function VouchersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isLoadingVouchers ? (
                   <TableRow>
                     <TableCell colSpan={12} className="h-24 text-center">
-                      Carregando...
+                      Carregando vouchers...
                     </TableCell>
                   </TableRow>
-                ) : filteredVouchers.length === 0 ? (
+                ) : vouchers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={12} className="h-24 text-center">
                       Nenhum voucher encontrado.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredVouchers.map((voucher) => (
+                  vouchers.map((voucher) => (
                     <TableRow key={voucher.id}>
-                      <TableCell className="font-medium">
-                        {voucher.code}
-                      </TableCell>
+                      <TableCell className="font-medium">{voucher.code}</TableCell>
                       <TableCell>{voucher.name}</TableCell>
                       <TableCell>{formatPhone(voucher.phone)}</TableCell>
                       <TableCell>
@@ -342,28 +279,20 @@ export default function VouchersPage() {
                             ? "bg-green-100 text-green-800"
                             : voucher.status === "pending"
                               ? "bg-yellow-100 text-yellow-800"
-                              : voucher.status === "used"
+                              : voucher.status === "redeemed" || voucher.status === "used"
                                 ? "bg-blue-100 text-blue-800"
                                 : "bg-red-100 text-red-800"
                             }`}
                         >
-                          {voucher.status === "valid" && (
-                            <Check className="mr-1 h-3 w-3" />
-                          )}
-                          {voucher.status === "pending" && (
-                            <Clock className="mr-1 h-3 w-3" />
-                          )}
-                          {voucher.status === "used" && (
-                            <Check className="mr-1 h-3 w-3" />
-                          )}
-                          {voucher.status === "expired" && (
-                            <X className="mr-1 h-3 w-3" />
-                          )}
+                          {voucher.status === "valid" && <Check className="mr-1 h-3 w-3" />}
+                          {voucher.status === "pending" && <Clock className="mr-1 h-3 w-3" />}
+                          {(voucher.status === "redeemed" || voucher.status === "used") && <Check className="mr-1 h-3 w-3" />}
+                          {voucher.status === "expired" && <X className="mr-1 h-3 w-3" />}
                           {voucher.status === "valid"
                             ? "Válido"
                             : voucher.status === "pending"
                               ? "Pendente"
-                              : voucher.status === "used"
+                              : voucher.status === "redeemed" || voucher.status === "used"
                                 ? "Utilizado"
                                 : "Expirado"}
                         </span>
@@ -374,11 +303,7 @@ export default function VouchersPage() {
                       <TableCell>{voucher.elderly_pool || 0}</TableCell>
                       <TableCell>{formatCurrency(voucher.price)}</TableCell>
                       <TableCell>{formatDate(voucher.createdAt)}</TableCell>
-                      <TableCell>
-                        {voucher.expires_at
-                          ? formatDate(voucher.expires_at)
-                          : "N/A"}
-                      </TableCell>
+                      <TableCell>{voucher.expires_at ? formatDate(voucher.expires_at) : "N/A"}</TableCell>
                       <TableCell>
                         {voucher.payment_id ? (
                           <span className="inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">
@@ -397,6 +322,39 @@ export default function VouchersPage() {
                 )}
               </TableBody>
             </Table>
+          </div>
+          <div className="mt-4 flex items-center justify-end gap-3">
+            <Select
+              value={`${pageSize}`}
+              onValueChange={(value) => {
+                setPageSize(Number(value));
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-8 w-[90px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 20, 30, 40, 50].map((size) => (
+                  <SelectItem key={size} value={`${size}`}>{size}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-muted-foreground">
+              Página {page} de {pageCount}
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={!canPreviousPage}>
+              Primeira
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={!canPreviousPage}>
+              Anterior
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPage(page + 1)} disabled={!canNextPage}>
+              Próxima
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPage(pageCount)} disabled={!canNextPage}>
+              Última
+            </Button>
           </div>
         </CardContent>
       </Card>
