@@ -20,7 +20,7 @@ export type SettingKey =
   | "enable.voucher.half-price.pool.buy";
 
 // Map each key to its expected value type for compile-time safety
-interface SettingValueMap {
+export interface SettingValueMap {
   "voucher.price": number;
   "voucher.pool.price": number;
   "voucher.max.quantity.adults": number;
@@ -37,10 +37,30 @@ interface SettingValueMap {
   "enable.voucher.half-price.pool.buy": boolean;
 }
 
+export const DEFAULT_SETTINGS: SettingValueMap = {
+  "voucher.price": 50,
+  "voucher.pool.price": 70,
+  "voucher.max.quantity.adults": 20,
+  "voucher.max.quantity.elderly": 20,
+  "voucher.max.quantity.adults.pool": 20,
+  "voucher.max.quantity.elderly.pool": 20,
+  "top.message": "",
+  "form.message": "",
+  "max.intended.days": 60,
+  "disabled.days": [],
+  "enable.voucher.buy": true,
+  "enable.voucher.pool.buy": true,
+  "enable.voucher.half-price.buy": true,
+  "enable.voucher.half-price.pool.buy": true,
+};
+
+export const SETTING_KEYS = Object.keys(DEFAULT_SETTINGS) as SettingKey[];
+
 type SettingTypeLiteral = "string" | "number" | "boolean" | "json";
 
 // Minimal structural types to satisfy strict lint rules without depending on generated Prisma types
 interface SiteSettingRow {
+  key?: string;
   type: SettingTypeLiteral;
   stringValue: string | null;
   numberValue: number | null;
@@ -52,8 +72,15 @@ type SimpleWhere = {
   key: string;
 };
 
+type FindManyWhere = {
+  key: {
+    in: SettingKey[];
+  };
+};
+
 interface SiteSettingDelegate {
   findUnique: (args: { where: SimpleWhere }) => Promise<SiteSettingRow | null>;
+  findMany: (args: { where: FindManyWhere }) => Promise<SiteSettingRow[]>;
   upsert: (args: {
     where: SimpleWhere;
     update: Partial<
@@ -86,42 +113,49 @@ function getSiteSettingDelegate(source: unknown): SiteSettingDelegate {
  */
 export async function getSetting<K extends SettingKey>(
   key: K,
-): Promise<SettingValueMap[K] | null> {
+): Promise<SettingValueMap[K]> {
   const siteSetting = getSiteSettingDelegate(db);
   const row = await siteSetting.findUnique({
     where: { key },
   });
   if (!row) {
-    // Provide sensible defaults when a setting is not yet stored
-    const defaults: Partial<SettingValueMap> = {
-      "voucher.price": 50,
-      "voucher.pool.price": 70,
-      "voucher.max.quantity.adults": 20,
-      "voucher.max.quantity.elderly": 20,
-      "voucher.max.quantity.adults.pool": 20,
-      "voucher.max.quantity.elderly.pool": 20,
-      "top.message": "",
-      "form.message": "",
-      "max.intended.days": 60,
-      "disabled.days": [],
-      "enable.voucher.buy": true,
-      "enable.voucher.pool.buy": true,
-      "enable.voucher.half-price.buy": true,
-      "enable.voucher.half-price.pool.buy": true,
-    };
-    return (defaults[key] as SettingValueMap[K]) ?? null;
+    return DEFAULT_SETTINGS[key];
   }
+  return readSettingValue(key, row);
+}
+
+function readSettingValue<K extends SettingKey>(
+  key: K,
+  row: SiteSettingRow,
+): SettingValueMap[K] {
+  let value: unknown;
+
   switch (row.type) {
     case "string":
-      return row.stringValue as SettingValueMap[K] | null;
+      value = row.stringValue;
+      break;
     case "number":
-      return row.numberValue as SettingValueMap[K] | null;
+      value = row.numberValue;
+      break;
     case "boolean":
-      return row.boolValue as SettingValueMap[K] | null;
+      value = row.boolValue;
+      break;
     case "json":
-      return row.jsonValue as SettingValueMap[K] | null;
+      value = row.jsonValue;
+      break;
     default:
-      return null;
+      value = undefined;
+  }
+
+  if (value === null || value === undefined) {
+    return DEFAULT_SETTINGS[key];
+  }
+
+  try {
+    return validateSettingValue(key, value);
+  } catch (error) {
+    console.error(`Invalid stored value for setting ${key}:`, error);
+    return DEFAULT_SETTINGS[key];
   }
 }
 
@@ -133,7 +167,8 @@ export async function setSetting<K extends SettingKey>(
   value: SettingValueMap[K] | Record<string, unknown>,
   { updatedBy }: { updatedBy?: string } = {},
 ): Promise<unknown> {
-  const { type, data } = inferSettingStorage(value);
+  const validValue = validateSettingValue(key, value);
+  const { type, data } = inferSettingStorage(validValue);
 
   const siteSetting = getSiteSettingDelegate(db);
   return siteSetting.upsert({
@@ -149,33 +184,76 @@ export async function setSetting<K extends SettingKey>(
  * Returns all settings with their default values if not yet stored.
  */
 export async function getAllSettings(): Promise<SettingValueMap> {
-  const keys: SettingKey[] = [
-    "voucher.price",
-    "voucher.pool.price",
-    "voucher.max.quantity.adults",
-    "voucher.max.quantity.elderly",
-    "voucher.max.quantity.adults.pool",
-    "voucher.max.quantity.elderly.pool",
-    "top.message",
-    "form.message",
-    "max.intended.days",
-    "disabled.days",
-    "enable.voucher.buy",
-    "enable.voucher.pool.buy",
-    "enable.voucher.half-price.buy",
-    "enable.voucher.half-price.pool.buy",
-  ];
+  const siteSetting = getSiteSettingDelegate(db);
+  const rows = await siteSetting.findMany({
+    where: {
+      key: {
+        in: SETTING_KEYS,
+      },
+    },
+  });
+  const storedSettings = rows.flatMap(
+    (row): Array<[SettingKey, SettingValueMap[SettingKey]]> => {
+      if (!row.key || !isSettingKey(row.key)) {
+        return [];
+      }
 
-  const results = await Promise.all(
-    keys.map(async (key) => {
-      const value = await getSetting(key);
-      return [key, value] as const;
-    }),
+      return [[row.key, readSettingValue(row.key, row)]];
+    },
   );
 
-  // Build object with all settings
-  const settings = Object.fromEntries(results) as unknown as SettingValueMap;
-  return settings;
+  return {
+    ...DEFAULT_SETTINGS,
+    ...Object.fromEntries(storedSettings),
+  } as SettingValueMap;
+}
+
+function isSettingKey(value: string): value is SettingKey {
+  return SETTING_KEYS.includes(value as SettingKey);
+}
+
+function validateSettingValue<K extends SettingKey>(
+  key: K,
+  value: unknown,
+): SettingValueMap[K] {
+  if (key === "top.message" || key === "form.message") {
+    if (typeof value !== "string") {
+      throw new Error(`Invalid value for setting ${key}`);
+    }
+    return value as SettingValueMap[K];
+  }
+
+  if (key === "disabled.days") {
+    if (
+      !Array.isArray(value) ||
+      !value.every((item) => typeof item === "string" && /^\d{4}-\d{2}-\d{2}$/.test(item))
+    ) {
+      throw new Error("Invalid value for setting disabled.days");
+    }
+    return value as SettingValueMap[K];
+  }
+
+  if (key.startsWith("enable.")) {
+    if (typeof value !== "boolean") {
+      throw new Error(`Invalid value for setting ${key}`);
+    }
+    return value as SettingValueMap[K];
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(`Invalid value for setting ${key}`);
+  }
+
+  if (
+    key.startsWith("voucher.max.quantity.") ||
+    key === "max.intended.days"
+  ) {
+    if (!Number.isInteger(value)) {
+      throw new Error(`Invalid integer value for setting ${key}`);
+    }
+  }
+
+  return value as SettingValueMap[K];
 }
 
 // Infer the storage column and SettingType from the provided value

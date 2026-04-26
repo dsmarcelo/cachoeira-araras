@@ -3,11 +3,14 @@ import {
   createTRPCRouter,
   publicProcedure,
 } from "@/server/api/trpc";
+import { TRPCError } from "@trpc/server";
 import { env } from "@/env";
 import { z } from "zod";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
+import { getAllSettings } from "@/lib/settings";
+import { validateVoucherPurchase } from "@/server/voucher-purchase";
 
 /** Strip trailing slashes so `${base}/pagamento/` never doubles slashes. */
 function normalizePublicBaseUrl(base: string): string {
@@ -54,14 +57,34 @@ export const mercadopagoRouter = createTRPCRouter({
         description: z.string(),
         adults: z.number(),
         elderly: z.number(),
-        unit_price: z.number(),
+        adults_pool: z.number(),
+        elderly_pool: z.number(),
+        intendedDate: z.date(),
+        testMode: z.boolean().optional().default(false),
         name: z.string(),
         surname: z.string(),
         phone: z.string().min(11),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       try {
+        const settings = await getAllSettings();
+        const validation = validateVoucherPurchase(
+          {
+            adults: input.adults,
+            elderly: input.elderly,
+            adults_pool: input.adults_pool,
+            elderly_pool: input.elderly_pool,
+            intendedDate: input.intendedDate,
+            testMode: input.testMode,
+          },
+          {
+            canUseTestMode:
+              ctx.session?.user.role === "admin" ||
+              ctx.session?.user.role === "employee",
+            settings,
+          },
+        );
         const siteBase = resolveSiteBaseForCheckout();
         const webhookBase = normalizePublicBaseUrl(env.WEBHOOK_URL);
         const preference = new Preference(client);
@@ -73,7 +96,7 @@ export const mercadopagoRouter = createTRPCRouter({
                 description: input.description,
                 title: input.title || "Voucher",
                 quantity: 1,
-                unit_price: input.unit_price,
+                unit_price: validation.price,
                 currency_id: "BRL",
               },
             ],
@@ -113,6 +136,9 @@ export const mercadopagoRouter = createTRPCRouter({
         });
         return response;
       } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
         console.error("Error creating preference:", error);
         throw new Error("Failed to create preference");
       }

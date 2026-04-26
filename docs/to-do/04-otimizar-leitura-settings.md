@@ -32,8 +32,8 @@ Media/baixa.
 
 ## Checklist
 
-- [ ] Mudanca aplicada nos arquivos listados
-- [ ] Teste funcional minimo do fluxo afetado
-- [ ] `pnpm lint` OK
-- [ ] `pnpm type-check` OK
-- [ ] Documentacao atualizada quando necessario
+- [x] Mudanca aplicada nos arquivos listados
+- [x] Teste funcional minimo do fluxo afetado
+- [x] `pnpm lint` OK
+- [x] `pnpm type-check` OK
+- [x] Documentacao atualizada quando necessario

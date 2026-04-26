@@ -171,7 +171,10 @@ export default function TestVoucherForm() {
       }),
       adults: data.adults,
       elderly: data.elderly,
-      unit_price: 0.01,
+      adults_pool: data.adults_pool,
+      elderly_pool: data.elderly_pool,
+      intendedDate: data.intendedDate,
+      testMode: true,
       name: data.name.trim().split(" ")[0] ?? "",
       surname: data.name.trim().split(" ").slice(1).join(" ") ?? "",
       phone: data.phone,
@@ -237,7 +240,10 @@ export default function TestVoucherForm() {
         preference_id,
         code: rcode,
       });
-      const voucher = await addVoucher.mutateAsync(completeData);
+      const voucher = await addVoucher.mutateAsync({
+        ...completeData,
+        testMode: true,
+      });
       if (!voucher)
         return toast({
           title: "Erro",

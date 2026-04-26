@@ -8,6 +8,8 @@ import {
 import { voucherSchema } from "@/lib/voucher/types";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { getAllSettings } from "@/lib/settings";
+import { validateVoucherPurchase } from "@/server/voucher-purchase";
 
 function getTodayRange() {
   const today = new Date();
@@ -56,6 +58,9 @@ const adminSalesSummaryInput = z.object({
   from: z.date().optional(),
   to: z.date().optional(),
 });
+const createVoucherInput = voucherSchema.extend({
+  testMode: z.boolean().optional().default(false),
+});
 
 function getEndOfDay(date: Date) {
   const end = new Date(date);
@@ -93,10 +98,32 @@ function getAdminVoucherWhere(input: z.infer<typeof adminVoucherSummaryInput>): 
 
 export const voucherRouter = createTRPCRouter({
   create: publicProcedure
-    .input(voucherSchema)
+    .input(createVoucherInput)
     .mutation(async ({ ctx, input }) => {
+      const { testMode, ...voucherData } = input;
+      const settings = await getAllSettings();
+      const validation = validateVoucherPurchase(
+        {
+          adults: input.adults,
+          elderly: input.elderly,
+          adults_pool: input.adults_pool,
+          elderly_pool: input.elderly_pool,
+          intendedDate: input.expires_at,
+          testMode,
+        },
+        {
+          canUseTestMode:
+            ctx.session?.user.role === "admin" ||
+            ctx.session?.user.role === "employee",
+          settings,
+        },
+      );
+
       return await ctx.db.voucher.create({
-        data: input,
+        data: {
+          ...voucherData,
+          price: validation.price,
+        },
       });
     }),
 
