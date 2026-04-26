@@ -1,5 +1,6 @@
 "use client";
 
+import { env } from "@/env";
 import { type z } from "zod";
 import {
   type VoucherSchema,
@@ -8,10 +9,8 @@ import {
 
 type initialVoucherSchema = z.infer<typeof initialVoucherSchema>;
 
-const voucherPrice = Number(process.env.NEXT_PUBLIC_VOUCHER_PRICE ?? 50);
-const poolVoucherPrice = Number(
-  process.env.NEXT_PUBLIC_POOL_VOUCHER_PRICE ?? 70,
-);
+const voucherPrice = env.NEXT_PUBLIC_VOUCHER_PRICE;
+const poolVoucherPrice = env.NEXT_PUBLIC_POOL_VOUCHER_PRICE;
 const elderlyVoucherPrice = voucherPrice / 2;
 const poolElderlyVoucherPrice = poolVoucherPrice / 2;
 
@@ -29,11 +28,11 @@ export function randomCode(): string {
  * @returns The current voucher price for adults
  */
 export function getVoucherPrice(): number {
-  return Number(process.env.NEXT_PUBLIC_VOUCHER_PRICE ?? 50);
+  return env.NEXT_PUBLIC_VOUCHER_PRICE;
 }
 
 export function getPoolVoucherPrice(): number {
-  return Number(process.env.NEXT_PUBLIC_POOL_VOUCHER_PRICE ?? 70);
+  return env.NEXT_PUBLIC_POOL_VOUCHER_PRICE;
 }
 
 /**
@@ -89,7 +88,7 @@ export function formatVoucher(data: initialVoucherSchema): VoucherSchema {
 }
 
 export function formatVoucherUrl(code: string, payment_id: string) {
-  return `${process.env.NEXT_PUBLIC_VERCEL_URL}/voucher?code=${code}&pid=${payment_id}`;
+  return `${env.NEXT_PUBLIC_VERCEL_URL ?? env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL ?? "http://localhost:3000"}/voucher?code=${code}&pid=${payment_id}`;
 }
 
 export function formatPhone(phone: string) {

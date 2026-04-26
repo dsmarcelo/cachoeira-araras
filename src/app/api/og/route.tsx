@@ -1,3 +1,4 @@
+import { env } from '@/env';
 import { ImageResponse } from 'next/og';
 import { type NextRequest } from 'next/server';
 import fs from 'fs/promises';
@@ -26,10 +27,10 @@ export async function GET(request: NextRequest) {
   const formatedStatus = formatVoucherStatusWithoutBg(status, expiration_date);
 
   let url = ''
-  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-    url = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-  } else if (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
-    url = `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}`
+  if (env.NEXT_PUBLIC_VERCEL_URL) {
+    url = `https://${env.NEXT_PUBLIC_VERCEL_URL}`
+  } else if (env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
+    url = `https://${env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}`
   } else {
     url = 'http://localhost:3000'
   }

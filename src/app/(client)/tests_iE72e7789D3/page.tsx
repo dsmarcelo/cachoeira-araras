@@ -9,9 +9,7 @@ export default function Test() {
   async function TestCronJobs() {
     return await fetch(`/api/cron`, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${process.env.CRON_SECRET}`,
-      },
+
     });
   }
 

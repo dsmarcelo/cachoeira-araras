@@ -6,10 +6,13 @@ export const env = createEnv({
    * Specify your server-side environment variables schema here. This way you can ensure the app
    * isn't built with invalid env vars.
    */
-  server: {
+  shared: {
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
+  },
+
+  server: {
     NEXTAUTH_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string()
@@ -41,6 +44,8 @@ export const env = createEnv({
     GOOGLE_ANALYTICS_MEASUREMENT_ID: z.string().optional(),
     TWILIO_ACCOUNT_SID: z.string().optional(),
     TWILIO_AUTH_TOKEN: z.string().optional(),
+    VERCEL_URL: z.string().optional(),
+    PORT: z.string().optional(),
   },
 
   /**
@@ -59,6 +64,8 @@ export const env = createEnv({
     NEXT_PUBLIC_DATA_SAVER: z.coerce.boolean().default(false),
     // Toggle Vercel Analytics on/off at runtime (off reduces /_vercel/insights requests)
     NEXT_PUBLIC_ENABLE_ANALYTICS: z.coerce.boolean().default(false),
+    NEXT_PUBLIC_VERCEL_URL: z.string().optional(),
+    NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
   },
 
   /**
@@ -84,6 +91,8 @@ export const env = createEnv({
       process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID,
     TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
     TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+    VERCEL_URL: process.env.VERCEL_URL,
+    PORT: process.env.PORT,
     NEXT_PUBLIC_MAX_INTENDED_DAYS: process.env.NEXT_PUBLIC_MAX_INTENDED_DAYS,
     NEXT_PUBLIC_VOUCHER_PRICE: process.env.NEXT_PUBLIC_VOUCHER_PRICE,
     NEXT_PUBLIC_POOL_VOUCHER_PRICE: process.env.NEXT_PUBLIC_POOL_VOUCHER_PRICE,
@@ -91,6 +100,9 @@ export const env = createEnv({
     NEXT_PUBLIC_ALERT_MESSAGE: process.env.NEXT_PUBLIC_ALERT_MESSAGE,
     NEXT_PUBLIC_DATA_SAVER: process.env.NEXT_PUBLIC_DATA_SAVER,
     NEXT_PUBLIC_ENABLE_ANALYTICS: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS,
+    NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
+    NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL:
+      process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

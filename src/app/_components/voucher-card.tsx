@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import {
   formateDateDayMonthYear,
   formatPhone,
@@ -19,10 +20,10 @@ export default function VoucherCard({ data }: { data: Voucher }) {
   const formatedQuantity = formatQuantity({ adults, elderly, adults_pool, elderly_pool });
 
   let url = "";
-  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-    url = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
-  } else if (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
-    url = `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (env.NEXT_PUBLIC_VERCEL_URL) {
+    url = `https://${env.NEXT_PUBLIC_VERCEL_URL}`;
+  } else if (env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
+    url = `https://${env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}`;
   } else {
     url = "http://localhost:3000";
   }

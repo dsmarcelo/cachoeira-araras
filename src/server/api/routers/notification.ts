@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import { adminProcedure, createTRPCRouter } from "@/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -16,8 +17,8 @@ function removeExtra9(phoneNumber: string): string {
 }
 
 function getTwilioClient() {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const accountSid = env.TWILIO_ACCOUNT_SID;
+  const authToken = env.TWILIO_AUTH_TOKEN;
 
   if (!accountSid?.startsWith("AC") || !authToken) {
     console.warn("Twilio is not configured. Skipping WhatsApp notification.");

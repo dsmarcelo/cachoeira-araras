@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { env } from "@/env";
 import { PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
 
@@ -54,7 +55,7 @@ async function deleteExpiredPendingVouchers() {
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${env.CRON_SECRET}`) {
     return new Response("Unauthorized", {
       status: 401,
     });

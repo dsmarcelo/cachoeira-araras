@@ -1,10 +1,7 @@
 // Test for Facebook Pixel webhook functionality with real API call
 // Run with: node test-simple.js
 
-
-// Mock environment variables for testing
-process.env.FACEBOOK_PIXEL_ID = '1471941854234147';
-process.env.FACEBOOK_ACCESS_TOKEN = 'EAAUrVB9G96sBPOhN5jsdU6h1qDBhtlDegA3xCO7zdJZBXitfsJsCMwPbQnMLwDgtZBGfmut9pzxPvcuxhzH2cQMGA0IXIhUgU0WnS4WQglcx8ygZAge6KqGWrFz4Yr8FlIruZAhZBRrvfzYFwgcugs3Kop7O7KdtM78iu03nqPzQTTTqfisvzFgX0vyOFTl2ldAZDZD';
+import { env } from "./src/env.js";
 
 
 console.log('🧪 Testing Facebook Pixel webhook functionality...');
@@ -24,14 +21,14 @@ console.log('💰 Amount:', mockPayment.transaction_amount);
 console.log('🆔 Payment ID:', mockPayment.id);
 
 // Check if environment variables are set
-if (!process.env.FACEBOOK_PIXEL_ID || !process.env.FACEBOOK_ACCESS_TOKEN) {
+if (!env.FACEBOOK_PIXEL_ID || !env.FACEBOOK_ACCESS_TOKEN) {
   console.log('❌ Environment variables not set');
   console.log('💡 Set these environment variables:');
   console.log('   FACEBOOK_PIXEL_ID=your_pixel_id');
   console.log('   FACEBOOK_ACCESS_TOKEN=your_access_token');
 } else {
   console.log('✅ Environment variables found');
-  console.log('📡 Would send to Facebook Pixel ID:', process.env.FACEBOOK_PIXEL_ID);
+  console.log('📡 Would send to Facebook Pixel ID:', env.FACEBOOK_PIXEL_ID);
 }
 
 // Simulate the email hashing
@@ -76,7 +73,7 @@ interface Payment {
 async function sendFacebookPixelEvent(payment: Payment) {
   try {
     // Validate environment variables
-    if (!process.env.FACEBOOK_PIXEL_ID || !process.env.FACEBOOK_ACCESS_TOKEN) {
+    if (!env.FACEBOOK_PIXEL_ID || !env.FACEBOOK_ACCESS_TOKEN) {
       console.error('Facebook Pixel configuration missing: PIXEL_ID or ACCESS_TOKEN not set');
       return false;
     }
@@ -109,7 +106,7 @@ async function sendFacebookPixelEvent(payment: Payment) {
 
     // Send the event to Facebook Conversions API
     const response = await fetch(
-      `https://graph.facebook.com/v18.0/${process.env.FACEBOOK_PIXEL_ID}/events?access_token=${process.env.FACEBOOK_ACCESS_TOKEN}`,
+      `https://graph.facebook.com/v18.0/${env.FACEBOOK_PIXEL_ID}/events?access_token=${env.FACEBOOK_ACCESS_TOKEN}`,
       {
         method: 'POST',
         headers: {
@@ -157,10 +154,10 @@ async function sendGoogleAdsConversion(payment: Payment) {
     }
 
     // Google Analytics configuration (mock for testing)
-    const measurementId = process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID ?? 'G-XXXXXXXXXX';
-    const apiSecret = process.env.GOOGLE_ANALYTICS_API_SECRET ?? 'mock_secret_for_testing';
+    const measurementId = env.GOOGLE_ANALYTICS_MEASUREMENT_ID ?? 'G-XXXXXXXXXX';
+    const apiSecret = env.GOOGLE_ANALYTICS_API_SECRET ?? 'mock_secret_for_testing';
 
-    if (!process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID || !process.env.GOOGLE_ANALYTICS_API_SECRET) {
+    if (!env.GOOGLE_ANALYTICS_MEASUREMENT_ID || !env.GOOGLE_ANALYTICS_API_SECRET) {
       console.log('📊 Google Analytics configuration missing, using mock values for testing');
     }
 

@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import { type NextRequest } from "next/server";
 import * as crypto from "crypto";
 import { sendFacebookPixelEvent, sendGoogleAdsConversion } from "@/lib/utils/webhook-pixel";
@@ -5,13 +6,20 @@ import { getMercadoPagoPayment } from "@/server/mercadopago";
 import { findVoucherByCode, updateVoucherByCode } from "@/server/voucher";
 // import { sendWhatsappMessage } from "@/app/lib";
 
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET ?? "your-secret-key";
+const WEBHOOK_SECRET = env.WEBHOOK_SECRET;
+if (!WEBHOOK_SECRET) {
+  throw new Error("WEBHOOK_SECRET is not set");
+}
 
 function isValidSignature(
   request_id: string,
   signature: string,
   dataID: string,
 ): boolean {
+  if (!WEBHOOK_SECRET) {
+    throw new Error("WEBHOOK_SECRET is not set");
+  }
+
   const parts = signature.split(",");
 
   let ts;

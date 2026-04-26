@@ -21,14 +21,12 @@ function normalizePublicBaseUrl(base: string): string {
 function resolveSiteBaseForCheckout(): string {
   const primary = (env.URL ?? "").trim();
   if (primary) return normalizePublicBaseUrl(primary);
-  if (process.env.NEXT_PUBLIC_VERCEL_URL?.trim()) {
-    return normalizePublicBaseUrl(
-      `https://${process.env.NEXT_PUBLIC_VERCEL_URL.trim()}`,
-    );
+  if (env.NEXT_PUBLIC_VERCEL_URL?.trim()) {
+    return normalizePublicBaseUrl(`https://${env.NEXT_PUBLIC_VERCEL_URL.trim()}`);
   }
-  if (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL?.trim()) {
+  if (env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL?.trim()) {
     return normalizePublicBaseUrl(
-      `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL.trim()}`,
+      `https://${env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL.trim()}`,
     );
   }
   return "http://localhost:3000";
