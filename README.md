@@ -27,25 +27,26 @@ pnpm build
 
 Crie um arquivo `.env` na raiz do projeto usando `.env.example` como base. O schema principal fica em `src/env.js`; variaveis vazias sao tratadas como ausentes.
 
-### Obrigatorias para rodar
+### Obrigatorias para rodar localmente
 
 | Key | Uso |
 | --- | --- |
 | `DATABASE_URL` | Conexao do Prisma com o banco de dados. Em desenvolvimento pode usar `file:./db.sqlite`. |
-| `URL` | URL publica/base **unica** (`src/env.js`): app inteiro, **incluindo `back_urls` do Checkout Pro** (retorno apos pagamento), links e fallback do NextAuth. |
+| `URL` | URL publica/base **unica** (`src/env.js`): app inteiro, **incluindo `back_urls` do Checkout Pro** (retorno apos pagamento) e links. Na Vercel, a `VERCEL_URL` da plataforma e usada automaticamente; localmente ou com tunel, defina a URL publica desejada aqui. |
 | `MERCADOPAGO_TOKEN` | Access token do Mercado Pago usado para criar preferencias e consultar pagamentos. |
 | `WEBHOOK_URL` | URL publica que o Mercado Pago chama no webhook, sem o path final. Exemplo: `https://seudominio.com`. |
 | `CRON_SECRET` | Segredo usado no header `Authorization: Bearer <CRON_SECRET>` da rota `/api/cron`. |
 
-**Producao vs tunel local (mesma chave `URL`):** no Vercel, defina `URL` como o site de producao. Para testar checkout com tunel (ngrok, Cloudflare Tunnel, etc.), no `.env` **local** use a origem HTTPS do tunel em `URL` e em `WEBHOOK_URL` (mesma base publica), rode `pnpm dev` e crie a preferencia por esse backend — o Mercado Pago passa a redirecionar para o tunel. Nao e necessaria segunda variavel de ambiente para isso.
+**Producao vs tunel local (mesma chave `URL`):** no Vercel, a plataforma fornece `VERCEL_URL` automaticamente e o app usa essa origem como prioridade. Para testar checkout com tunel (ngrok, Cloudflare Tunnel, etc.), no `.env` **local** use a origem HTTPS do tunel em `URL` e em `WEBHOOK_URL` (mesma base publica), rode `pnpm dev` e crie a preferencia por esse backend — o Mercado Pago passa a redirecionar para o tunel. Nao e necessaria segunda variavel de ambiente para isso.
 
 ### Obrigatorias em producao
 
 | Key | Uso |
 | --- | --- |
 | `NEXTAUTH_SECRET` | Segredo de sessao do NextAuth. Gere com `openssl rand -base64 32`. |
-| `NEXTAUTH_URL` | URL explicita do NextAuth. Opcional quando `URL` ja aponta para a base publica correta. |
 | `ADMIN_PASSWORD_HASH` | Hash da senha do admin no formato `scrypt:<salt>:<derived-key-hex>`. |
+
+Em deploy na Vercel, `URL` nao precisa ser definida manualmente porque a origem publica vem de `VERCEL_URL`. O app so exige `URL` no ambiente local ou em qualquer deploy fora da Vercel.
 
 ### Acesso interno opcional
 

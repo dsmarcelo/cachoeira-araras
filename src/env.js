@@ -1,6 +1,30 @@
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
+/** @param {string} base */
+function normalizePublicBaseUrl(base) {
+  return base.replace(/\/+$/, "");
+}
+
+/** @param {unknown} value */
+function resolvePublicBaseUrl(value) {
+  const vercelUrl = process.env.VERCEL_URL?.trim();
+  if (vercelUrl) {
+    const normalizedVercelUrl = vercelUrl.startsWith("http://") ||
+      vercelUrl.startsWith("https://")
+      ? vercelUrl
+      : `https://${vercelUrl}`;
+
+    return normalizePublicBaseUrl(normalizedVercelUrl);
+  }
+
+  if (typeof value === "string") {
+    return normalizePublicBaseUrl(value.trim());
+  }
+
+  return value;
+}
+
 export const env = createEnv({
   /**
    * Specify your server-side environment variables schema here. This way you can ensure the app
@@ -25,15 +49,8 @@ export const env = createEnv({
       process.env.NODE_ENV === "production"
         ? z.string().optional()
         : z.string().optional(),
-    NEXTAUTH_URL: z.preprocess(
-      // Prefer Vercel's URL, then an explicit NextAuth URL, then the app URL.
-      // This keeps local .env files with a single site URL when possible.
-      (str) => process.env.VERCEL_URL ?? str ?? process.env.URL,
-      // VERCEL_URL doesn't include `https` so it cant be validated as a URL
-      process.env.VERCEL ? z.string() : z.string().url(),
-    ),
+    URL: z.preprocess(resolvePublicBaseUrl, z.string().url()),
     DATABASE_URL: z.string(),
-    URL: z.string(),
     MERCADOPAGO_TOKEN: z.string(),
     WEBHOOK_URL: z.string(),
     WEBHOOK_SECRET:
@@ -80,7 +97,6 @@ export const env = createEnv({
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     ADMIN_PASSWORD_HASH: process.env.ADMIN_PASSWORD_HASH,
     EMPLOYEE_PASSWORD_HASH: process.env.EMPLOYEE_PASSWORD_HASH,
-    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     DATABASE_URL: process.env.DATABASE_URL,
     URL: process.env.URL,
     MERCADOPAGO_TOKEN: process.env.MERCADOPAGO_TOKEN,
