@@ -7,6 +7,7 @@ import {
 import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
 import {
   processMercadoPagoPaymentWebhook,
+  resolveMercadoPagoWebhookData,
   verifyMercadoPagoWebhookSignature,
 } from "@/server/mercadopago-webhook";
 import { getMercadoPagoPayment } from "@/server/mercadopago";
@@ -14,7 +15,7 @@ import { processVoucherPaymentWebhook } from "@/server/voucher";
 // import { sendWhatsappMessage } from "@/app/lib";
 
 function isValidSignature(
-  request_id: string,
+  request_id: string | null,
   signature: string,
   dataID: string,
 ): boolean {
@@ -40,11 +41,44 @@ function jsonResponse(payload: unknown, status: number) {
   });
 }
 
-function badRequest(error: string) {
+function badRequest(error: string, context: WebhookRequestLogContext) {
+  logBadRequest(error, context);
   return jsonResponse({ success: false, error }, 400);
 }
 
-async function sendPaymentConversionEvents(payment: unknown, payment_id: string) {
+type WebhookRequestLogContext = {
+  hasSignature: boolean;
+  hasRequestId: boolean;
+  hasDataId: boolean;
+  type: string | null;
+  sourceNews: string | null;
+  path: string;
+};
+
+async function readWebhookBody(request: NextRequest): Promise<unknown> {
+  try {
+    return (await request.json()) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function logBadRequest(error: string, context: WebhookRequestLogContext) {
+  console.warn("Mercado Pago webhook rejected", {
+    error,
+    hasSignature: context.hasSignature,
+    hasRequestId: context.hasRequestId,
+    hasDataId: context.hasDataId,
+    type: context.type,
+    sourceNews: context.sourceNews,
+    path: context.path,
+  });
+}
+
+async function sendPaymentConversionEvents(
+  payment: unknown,
+  payment_id: string,
+) {
   if (!payment || typeof payment !== "object") {
     return;
   }
@@ -55,7 +89,9 @@ async function sendPaymentConversionEvents(payment: unknown, payment_id: string)
   try {
     const pixelResult = await sendFacebookPixelEvent(paymentPayload);
     if (pixelResult) {
-      console.log(`Facebook Pixel event sent successfully for payment ${payment_id}`);
+      console.log(
+        `Facebook Pixel event sent successfully for payment ${payment_id}`,
+      );
     } else {
       console.log(`Facebook Pixel event skipped for payment ${payment_id}`);
     }
@@ -66,9 +102,12 @@ async function sendPaymentConversionEvents(payment: unknown, payment_id: string)
 
   // Send Google Ads conversion event for approved payments
   try {
-    const googleAdsResult: boolean = await sendGoogleAdsConversion(paymentPayload);
+    const googleAdsResult: boolean =
+      await sendGoogleAdsConversion(paymentPayload);
     if (googleAdsResult) {
-      console.log(`Google Ads conversion sent successfully for payment ${payment_id}`);
+      console.log(
+        `Google Ads conversion sent successfully for payment ${payment_id}`,
+      );
     } else {
       console.log(`Google Ads conversion skipped for payment ${payment_id}`);
     }
@@ -83,23 +122,31 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get("x-signature");
     const request_id = request.headers.get("x-request-id");
     const searchParams = request.nextUrl.searchParams;
-    const dataID = searchParams.get("data.id");
-    const type = searchParams.get("type");
+    const body = await readWebhookBody(request);
+    const { dataId: dataID, type } = resolveMercadoPagoWebhookData({
+      searchParams,
+      body,
+    });
+    const sourceNews = searchParams.get("source_news");
+    const requestLogContext: WebhookRequestLogContext = {
+      hasSignature: Boolean(signature),
+      hasRequestId: Boolean(request_id),
+      hasDataId: Boolean(dataID),
+      type,
+      sourceNews,
+      path: request.nextUrl.pathname,
+    };
 
     if (!signature) {
-      return badRequest("Missing x-signature header");
-    }
-
-    if (!request_id) {
-      return badRequest("Missing x-request-id header");
+      return badRequest("Missing x-signature header", requestLogContext);
     }
 
     if (!dataID) {
-      return badRequest("Missing data.id query param");
+      return badRequest("Missing data.id", requestLogContext);
     }
 
     if (!isValidSignature(request_id, signature, dataID)) {
-      return badRequest("Invalid signature");
+      return badRequest("Invalid signature", requestLogContext);
     }
 
     const result = await processMercadoPagoPaymentWebhook({
@@ -113,6 +160,9 @@ export async function POST(request: NextRequest) {
     return jsonResponse(result.body, result.status);
   } catch (error: unknown) {
     console.error("Error processing webhook:", String(error));
-    return jsonResponse({ success: false, error: "Internal Server Error" }, 500);
+    return jsonResponse(
+      { success: false, error: "Internal Server Error" },
+      500,
+    );
   }
 }

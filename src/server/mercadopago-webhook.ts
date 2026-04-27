@@ -7,7 +7,7 @@ type MercadoPagoSignatureParts = {
 
 type VerifyMercadoPagoWebhookSignatureInput = {
   dataId: string;
-  requestId: string;
+  requestId?: string | null;
   secret: string;
   signature: string;
 };
@@ -45,6 +45,16 @@ type ProcessMercadoPagoPaymentWebhookInput = {
   logger?: Pick<Console, "warn">;
 };
 
+type ResolveMercadoPagoWebhookDataInput = {
+  searchParams: URLSearchParams;
+  body?: unknown;
+};
+
+export type ResolvedMercadoPagoWebhookData = {
+  dataId: string | null;
+  type: string | null;
+};
+
 export type MercadoPagoPaymentWebhookOutcome =
   | "ignored"
   | "payment_not_found"
@@ -69,16 +79,61 @@ export function verifyMercadoPagoWebhookSignature({
   secret,
   signature,
 }: VerifyMercadoPagoWebhookSignatureInput): boolean {
+  if (!dataId) return false;
+
   const signatureParts = parseMercadoPagoSignature(signature);
   if (!signatureParts) return false;
 
-  const manifest = `id:${dataId.toLowerCase()};request-id:${requestId};ts:${signatureParts.ts};`;
+  const manifest = buildMercadoPagoSignatureManifest({
+    dataId,
+    requestId,
+    ts: signatureParts.ts,
+  });
   const digest = crypto
     .createHmac("sha256", secret)
     .update(manifest)
     .digest("hex");
 
   return timingSafeEqualHex(digest, signatureParts.hash);
+}
+
+export function buildMercadoPagoSignatureManifest({
+  dataId,
+  requestId,
+  ts,
+}: {
+  dataId?: string | null;
+  requestId?: string | null;
+  ts?: string | null;
+}): string {
+  let manifest = "";
+
+  if (dataId) {
+    manifest += `id:${dataId.toLowerCase()};`;
+  }
+
+  if (requestId) {
+    manifest += `request-id:${requestId};`;
+  }
+
+  if (ts) {
+    manifest += `ts:${ts};`;
+  }
+
+  return manifest;
+}
+
+export function resolveMercadoPagoWebhookData({
+  searchParams,
+  body,
+}: ResolveMercadoPagoWebhookDataInput): ResolvedMercadoPagoWebhookData {
+  const webhookBody = isRecord(body) ? body : null;
+  const data = isRecord(webhookBody?.data) ? webhookBody.data : null;
+
+  return {
+    dataId: searchParams.get("data.id") ?? readString(data?.id),
+    type: searchParams.get("type") ?? readString(webhookBody?.type),
+  };
 }
 
 export function parseMercadoPagoSignature(
@@ -108,6 +163,15 @@ export function parseMercadoPagoSignature(
   return { ts, hash };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function readString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  return value.trim() || null;
+}
+
 export async function processMercadoPagoPaymentWebhook({
   dataId,
   type,
@@ -116,7 +180,7 @@ export async function processMercadoPagoPaymentWebhook({
   sendConversionEvents,
   logger = console,
 }: ProcessMercadoPagoPaymentWebhookInput): Promise<ProcessMercadoPagoPaymentWebhookResult> {
-  if (type !== "payment") {
+  if (normalizeWebhookType(type) !== "payment") {
     return {
       status: 200,
       body: {
@@ -180,13 +244,18 @@ export async function processMercadoPagoPaymentWebhook({
   };
 }
 
+function normalizeWebhookType(type: string | null): string | null {
+  if (!type) return null;
+  return type.trim().toLowerCase();
+}
+
 function timingSafeEqualHex(expected: string, received: string): boolean {
   const hexPattern = /^[a-f0-9]+$/i;
   if (!hexPattern.test(expected) || !hexPattern.test(received)) return false;
   if (expected.length !== received.length) return false;
 
   return crypto.timingSafeEqual(
-    Buffer.from(expected, "hex"),
-    Buffer.from(received, "hex"),
+    Uint8Array.from(Buffer.from(expected, "hex")),
+    Uint8Array.from(Buffer.from(received, "hex")),
   );
 }
