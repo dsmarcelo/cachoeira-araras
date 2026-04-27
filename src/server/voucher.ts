@@ -67,8 +67,19 @@ export async function processVoucherPaymentWebhook({
   paymentId,
   paymentStatus,
 }: ProcessVoucherPaymentInput): Promise<ProcessVoucherPaymentResult> {
-  const voucher = await findVoucherByCode(code);
+  return await confirmVoucherPaymentByCode({
+    code,
+    paymentId,
+    paymentStatus,
+  });
+}
 
+export async function confirmVoucherPaymentByCode({
+  code,
+  paymentId,
+  paymentStatus,
+}: ProcessVoucherPaymentInput): Promise<ProcessVoucherPaymentResult> {
+  const voucher = await findVoucherByCode(code);
   if (!voucher) {
     return {
       outcome: "not_found",
@@ -97,7 +108,6 @@ export async function processVoucherPaymentWebhook({
     const updatedVoucher = await updateVoucherByCode(code, {
       payment_id: paymentId,
     });
-
     return {
       outcome: "updated",
       shouldSendConversionEvents: false,
@@ -108,9 +118,8 @@ export async function processVoucherPaymentWebhook({
   const updateResult = await db.voucher.updateMany({
     where: {
       code,
-      status: {
-        not: "valid",
-      },
+      status: "pending",
+      payment_id: null,
     },
     data: {
       status: "valid",

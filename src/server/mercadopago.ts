@@ -5,9 +5,16 @@ import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTyp
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
 
 const token = env.MERCADOPAGO_TOKEN;
+const mercadoPagoApiBase = "https://api.mercadopago.com";
+
+export interface MercadoPagoPaymentSearchResult {
+  id: string;
+  status: string | null;
+  externalReference: string | null;
+}
 
 async function fetchMercadoPagoJson<T>(path: string): Promise<T | null> {
-  const response = await fetch(`https://api.mercadopago.com${path}`, {
+  const response = await fetch(`${mercadoPagoApiBase}${path}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -40,4 +47,53 @@ export async function getMercadoPagoPayment(
   paymentId: string,
 ): Promise<PaymentResponse | null> {
   return await fetchMercadoPagoJson<PaymentResponse>(`/v1/payments/${paymentId}`);
+}
+
+type MercadoPagoPaymentSearchResponse = {
+  results?: Array<{
+    id?: number | string;
+    status?: string | null;
+    external_reference?: string | null;
+  }>;
+};
+
+export async function searchMercadoPagoPaymentsByExternalReference(
+  externalReference: string,
+): Promise<MercadoPagoPaymentSearchResult[]> {
+  const normalizedReference = externalReference.trim();
+  if (!normalizedReference) {
+    return [];
+  }
+
+  const searchParams = new URLSearchParams({
+    external_reference: normalizedReference,
+    limit: "10",
+    sort: "date_created",
+    criteria: "desc",
+  });
+
+  const response = await fetchMercadoPagoJson<MercadoPagoPaymentSearchResponse>(
+    `/v1/payments/search?${searchParams.toString()}`,
+  );
+
+  const results = response?.results ?? [];
+  return results
+    .map((result) => {
+      const id =
+        typeof result.id === "number"
+          ? String(result.id)
+          : typeof result.id === "string"
+            ? result.id
+            : null;
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        status: result.status ?? null,
+        externalReference: result.external_reference ?? null,
+      } satisfies MercadoPagoPaymentSearchResult;
+    })
+    .filter((item): item is MercadoPagoPaymentSearchResult => item !== null);
 }

@@ -57,7 +57,26 @@ type WebhookRequestLogContext = {
 
 async function readWebhookBody(request: NextRequest): Promise<unknown> {
   try {
-    return (await request.json()) as unknown;
+    const rawBody = await request.text();
+    if (!rawBody) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(rawBody) as unknown;
+    } catch {
+      const params = new URLSearchParams(rawBody);
+      const dataId = params.get("data.id") ?? params.get("id");
+      const type = params.get("type") ?? params.get("topic");
+      if (!dataId && !type) {
+        return null;
+      }
+
+      return {
+        data: dataId ? { id: dataId } : undefined,
+        type,
+      } as unknown;
+    }
   } catch {
     return null;
   }

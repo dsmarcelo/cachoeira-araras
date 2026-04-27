@@ -74,9 +74,17 @@ export default function VoucherForm({
   const poolElderlyVoucherPrice = poolVoucherPrice / 2;
 
   async function checkPaymentStatus(code: string) {
-    const voucher = (await utils.voucher.getPublicStatusByCode.fetch({
+    const reconciliation = await utils.voucher.reconcilePublicPaymentStatus.fetch({
       code,
-    })) as Voucher;
+    });
+    if (reconciliation.status === "paid" && reconciliation.successUrl) {
+      setPaymentSuccessUrl(reconciliation.successUrl);
+      return;
+    }
+
+    const voucher = (await utils.voucher.getPublicStatusByCode.fetch({ code })) as
+      | Voucher
+      | null;
     if (!voucher) return deleteCookieVoucher();
 
     if (voucher.status !== "pending" && voucher.payment_id) {

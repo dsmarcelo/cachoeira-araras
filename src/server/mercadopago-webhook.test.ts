@@ -360,6 +360,35 @@ await test("sends conversion events only for newly processed vouchers", async ()
   });
 });
 
+await test("does not send conversion events for already processed vouchers", async () => {
+  let conversionCalls = 0;
+  const result = await processMercadoPagoPaymentWebhook({
+    dataId,
+    type: "payment",
+    getPayment: async () => ({
+      external_reference: "abcd",
+      status: "approved",
+    }),
+    processVoucherPayment: async () => ({
+      outcome: "already_processed",
+      shouldSendConversionEvents: false,
+    }),
+    sendConversionEvents: async () => {
+      conversionCalls += 1;
+    },
+    logger: silentLogger,
+  });
+
+  assert.equal(conversionCalls, 0);
+  assert.deepEqual(result, {
+    status: 200,
+    body: {
+      success: true,
+      outcome: "already_processed",
+    },
+  });
+});
+
 await test("plural webhook route reexports the singular handler", async () => {
   const routeFile = await readFile(
     new URL("../app/api/webhooks/route.ts", import.meta.url),

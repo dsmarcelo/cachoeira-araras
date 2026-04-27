@@ -46,13 +46,23 @@ export default function VoucherCreatedCard(
   }
 
   async function checkPaymentStatus() {
+    const reconciliation = await utils.voucher.reconcilePublicPaymentStatus.fetch({
+      code,
+    });
+
+    if (reconciliation.status === "paid" && reconciliation.successUrl) {
+      location.href = reconciliation.successUrl;
+      return;
+    }
+
     const voucher = await utils.voucher.getPublicStatusByCode.fetch({ code });
     if (!voucher) return location.reload();
-    if (!voucher.payment_id) return redirectToPayment();
-    if (voucher?.status === 'pending') {
-      redirectToPayment()
+    if (!voucher.payment_id || voucher.status === "pending") {
+      redirectToPayment();
+      return;
     }
-    location.href = payment_success_url
+
+    location.href = payment_success_url;
   }
 
   function AlreadyPayedButton() {

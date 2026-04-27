@@ -3,8 +3,8 @@
 import { type Voucher } from "@prisma/client";
 
 import {
+  confirmVoucherPaymentByCode,
   findVoucherByPreferenceId,
-  updateVoucherByPreferenceId,
 } from "@/server/voucher";
 
 export async function confirmVoucherPayment(
@@ -12,23 +12,21 @@ export async function confirmVoucherPayment(
   payment_id: string,
 ): Promise<Voucher | void> {
   const oldVoucher = await findVoucherByPreferenceId(preference_id);
-
-  if (!oldVoucher) return console.error("Voucher nÃ£o encontrado");
-  if (oldVoucher.status !== "pending") {
-    return oldVoucher;
+  if (!oldVoucher) {
+    console.error("Voucher não encontrado");
+    return;
   }
 
-  try {
-    const voucher = await updateVoucherByPreferenceId(preference_id, {
-      status: "valid",
-      valid: true,
-      payment_id,
-    });
+  const result = await confirmVoucherPaymentByCode({
+    code: oldVoucher.code,
+    paymentId: payment_id,
+    paymentStatus: "approved",
+  });
 
-    if (!voucher) console.error("Failed to update voucher");
-    return voucher;
-  } catch (error) {
-    console.error("Error updating voucher:", error);
-    throw error;
+  if (result.outcome === "not_found") {
+    console.error("Voucher não encontrado");
+    return;
   }
+
+  return result.voucher;
 }

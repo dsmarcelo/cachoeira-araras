@@ -10,6 +10,9 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { getAllSettings } from "@/lib/settings";
 import { validateVoucherPurchase } from "@/server/voucher-purchase";
+import { formatPaymentUrl } from "@/lib/utils";
+import { searchMercadoPagoPaymentsByExternalReference } from "@/server/mercadopago";
+import { confirmVoucherPaymentByCode } from "@/server/voucher";
 
 function getTodayRange() {
   const today = new Date();
@@ -141,6 +144,90 @@ export const voucherRouter = createTRPCRouter({
           status: true,
         },
       });
+    }),
+
+  reconcilePublicPaymentStatus: publicProcedure
+    .input(z.object({ code: z.string().min(3).max(4) }))
+    .query(async ({ ctx, input }) => {
+      const voucher = await ctx.db.voucher.findFirst({
+        where: {
+          code: input.code,
+          deletedAt: null,
+        },
+        select: {
+          code: true,
+          payment_id: true,
+          preference_id: true,
+          status: true,
+        },
+      });
+
+      if (!voucher) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Voucher não encontrado.",
+        });
+      }
+
+      if (voucher.status !== "pending" && voucher.payment_id) {
+        return {
+          checkoutUrl: null,
+          status: "paid" as const,
+          successUrl: formatPaymentUrl(voucher.preference_id, voucher.payment_id),
+        };
+      }
+
+      const payments =
+        await searchMercadoPagoPaymentsByExternalReference(voucher.code);
+      const approvedPayments = payments.filter(
+        (payment) => payment.status === "approved",
+      );
+
+      if (approvedPayments.length === 0) {
+        return {
+          checkoutUrl: null,
+          status: "pending" as const,
+          successUrl: null,
+        };
+      }
+
+      const [firstApprovedPayment, ...duplicateApprovedPayments] = approvedPayments;
+      if (!firstApprovedPayment) {
+        return {
+          checkoutUrl: null,
+          status: "pending" as const,
+          successUrl: null,
+        };
+      }
+
+      if (duplicateApprovedPayments.length > 0) {
+        console.warn("Multiple approved payments found for voucher", {
+          code: voucher.code,
+          paymentIds: approvedPayments.map((payment) => payment.id),
+        });
+      }
+
+      const result = await confirmVoucherPaymentByCode({
+        code: voucher.code,
+        paymentId: firstApprovedPayment.id,
+        paymentStatus: "approved",
+      });
+
+      if (result.outcome === "not_found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Voucher não encontrado.",
+        });
+      }
+
+      return {
+        checkoutUrl: null,
+        status: "paid" as const,
+        successUrl: formatPaymentUrl(
+          result.voucher.preference_id,
+          firstApprovedPayment.id,
+        ),
+      };
     }),
 
   findAdminPage: adminProcedure
