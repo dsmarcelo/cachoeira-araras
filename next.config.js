@@ -4,6 +4,20 @@
  */
 await import("./src/env.js");
 
+const apiCorsHeaders = [
+  { key: "Access-Control-Allow-Credentials", value: "true" },
+  { key: "Access-Control-Allow-Origin", value: "*" },
+  {
+    key: "Access-Control-Allow-Methods",
+    value: "GET,OPTIONS,PATCH,DELETE,POST,PUT",
+  },
+  {
+    key: "Access-Control-Allow-Headers",
+    value:
+      "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version",
+  },
+];
+
 /** @type {import("next").NextConfig} */
 const config = {
   images: {
@@ -28,36 +42,17 @@ const config = {
       {
         // matching og image API routes
         source: "/api/og",
-        headers: [
-          { key: "Access-Control-Allow-Credentials", value: "true" },
-          { key: "Access-Control-Allow-Origin", value: "*" },
-          {
-            key: "Access-Control-Allow-Methods",
-            value: "GET,OPTIONS,PATCH,DELETE,POST,PUT",
-          },
-          {
-            key: "Access-Control-Allow-Headers",
-            value:
-              "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version",
-          },
-        ],
+        headers: apiCorsHeaders,
       },
       {
-        // matching webhooks API routes
+        // matching Mercado Pago webhook API route
+        source: "/api/webhook",
+        headers: apiCorsHeaders,
+      },
+      {
+        // matching legacy/plural Mercado Pago webhook API route
         source: "/api/webhooks",
-        headers: [
-          { key: "Access-Control-Allow-Credentials", value: "true" },
-          { key: "Access-Control-Allow-Origin", value: "*" },
-          {
-            key: "Access-Control-Allow-Methods",
-            value: "GET,OPTIONS,PATCH,DELETE,POST,PUT",
-          },
-          {
-            key: "Access-Control-Allow-Headers",
-            value:
-              "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version",
-          },
-        ],
+        headers: apiCorsHeaders,
       },
     ];
   },

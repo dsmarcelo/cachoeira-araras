@@ -11,11 +11,11 @@ import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTyp
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
 import { getAllSettings } from "@/lib/settings";
 import { validateVoucherPurchase } from "@/server/voucher-purchase";
-
-/** Strip trailing slashes so `${base}/pagamento/` never doubles slashes. */
-function normalizePublicBaseUrl(base: string): string {
-  return base.replace(/\/+$/, "");
-}
+import {
+  buildMercadoPagoWebhookUrl,
+  normalizePublicBaseUrl,
+  resolveWebhookBaseForCheckout,
+} from "@/server/mercadopago-checkout";
 
 /**
  * Public origin for Mercado Pago `back_urls`. Prefer validated `env.URL`; if it is empty
@@ -86,7 +86,10 @@ export const mercadopagoRouter = createTRPCRouter({
           },
         );
         const siteBase = resolveSiteBaseForCheckout();
-        const webhookBase = normalizePublicBaseUrl(env.WEBHOOK_URL);
+        const webhookBase = resolveWebhookBaseForCheckout({
+          siteBaseUrl: siteBase,
+          webhookUrl: env.WEBHOOK_URL,
+        });
         const preference = new Preference(client);
         const response = await preference.create({
           body: {
@@ -131,7 +134,7 @@ export const mercadopagoRouter = createTRPCRouter({
               ],
             },
             statement_descriptor: "Cachoeira das Araras",
-            notification_url: `${webhookBase}/api/webhook`,
+            notification_url: buildMercadoPagoWebhookUrl(webhookBase),
           },
         });
         return response;

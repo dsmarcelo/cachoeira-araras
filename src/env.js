@@ -25,6 +25,20 @@ function resolvePublicBaseUrl(value) {
   return value;
 }
 
+/** @param {unknown} value */
+function resolveOptionalPublicBaseUrl(value) {
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) {
+      return undefined;
+    }
+
+    return normalizePublicBaseUrl(trimmedValue);
+  }
+
+  return value;
+}
+
 export const env = createEnv({
   /**
    * Specify your server-side environment variables schema here. This way you can ensure the app
@@ -52,7 +66,10 @@ export const env = createEnv({
     URL: z.preprocess(resolvePublicBaseUrl, z.string().url()),
     DATABASE_URL: z.string(),
     MERCADOPAGO_TOKEN: z.string(),
-    WEBHOOK_URL: z.string(),
+    WEBHOOK_URL: z.preprocess(
+      resolveOptionalPublicBaseUrl,
+      z.string().url().optional(),
+    ),
     WEBHOOK_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string()

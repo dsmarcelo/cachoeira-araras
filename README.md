@@ -34,10 +34,9 @@ Crie um arquivo `.env` na raiz do projeto usando `.env.example` como base. O sch
 | `DATABASE_URL` | Conexao do Prisma com o banco de dados. Em desenvolvimento pode usar `file:./db.sqlite`. |
 | `URL` | URL publica/base **unica** (`src/env.js`): app inteiro, **incluindo `back_urls` do Checkout Pro** (retorno apos pagamento) e links. Na Vercel, a `VERCEL_URL` da plataforma e usada automaticamente; localmente ou com tunel, defina a URL publica desejada aqui. |
 | `MERCADOPAGO_TOKEN` | Access token do Mercado Pago usado para criar preferencias e consultar pagamentos. |
-| `WEBHOOK_URL` | URL publica que o Mercado Pago chama no webhook, sem o path final. Exemplo: `https://seudominio.com`. |
 | `CRON_SECRET` | Segredo usado no header `Authorization: Bearer <CRON_SECRET>` da rota `/api/cron`. |
 
-**Producao vs tunel local (mesma chave `URL`):** no Vercel, a plataforma fornece `VERCEL_URL` automaticamente e o app usa essa origem como prioridade. Para testar checkout com tunel (ngrok, Cloudflare Tunnel, etc.), no `.env` **local** use a origem HTTPS do tunel em `URL` e em `WEBHOOK_URL` (mesma base publica), rode `pnpm dev` e crie a preferencia por esse backend — o Mercado Pago passa a redirecionar para o tunel. Nao e necessaria segunda variavel de ambiente para isso.
+**Producao vs tunel local (mesma chave `URL`):** no Vercel, a plataforma fornece `VERCEL_URL` automaticamente e o app usa essa origem como prioridade. Para testar checkout com tunel (ngrok, Cloudflare Tunnel, etc.), no `.env` **local** use a origem HTTPS do tunel em `URL`, rode `pnpm dev` e crie a preferencia por esse backend — o Mercado Pago passa a redirecionar e enviar webhooks para o tunel. Nao e necessario definir `WEBHOOK_URL` quando a base publica for a mesma.
 
 ### Obrigatorias em producao
 
@@ -59,6 +58,9 @@ Em deploy na Vercel, `URL` nao precisa ser definida manualmente porque a origem 
 | Key | Uso |
 | --- | --- |
 | `WEBHOOK_SECRET` | Segredo usado para validar a assinatura do webhook do Mercado Pago. Configure em producao para nao usar o fallback local. |
+| `WEBHOOK_URL` | Opcional. URL publica alternativa para o webhook, sem o path final. Se ausente, o app usa `URL`. |
+
+As preferencias do Mercado Pago sao criadas com `/api/webhook?source_news=webhooks`, forçando Webhooks assinados. IPN legado (`topic`/`id`) nao e aceito pelo handler.
 
 ### Teste automatico de pagamentos
 

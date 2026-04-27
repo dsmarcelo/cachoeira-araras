@@ -12,6 +12,57 @@ type VerifyMercadoPagoWebhookSignatureInput = {
   signature: string;
 };
 
+type VoucherPaymentWebhookResult =
+  | {
+      outcome: "not_found";
+      shouldSendConversionEvents: false;
+    }
+  | {
+      outcome: "already_processed" | "redeemed" | "updated";
+      shouldSendConversionEvents: boolean;
+    };
+
+type MercadoPagoPaymentWebhookPayload = {
+  external_reference?: unknown;
+  status?: string | null;
+};
+
+type ProcessMercadoPagoPaymentWebhookInput = {
+  dataId: string;
+  type: string | null;
+  getPayment: (
+    paymentId: string,
+  ) => Promise<MercadoPagoPaymentWebhookPayload | null>;
+  processVoucherPayment: (input: {
+    code: string;
+    paymentId: string;
+    paymentStatus: string | null | undefined;
+  }) => Promise<VoucherPaymentWebhookResult>;
+  sendConversionEvents?: (
+    payment: MercadoPagoPaymentWebhookPayload,
+    paymentId: string,
+  ) => Promise<void>;
+  logger?: Pick<Console, "warn">;
+};
+
+export type MercadoPagoPaymentWebhookOutcome =
+  | "ignored"
+  | "payment_not_found"
+  | "voucher_not_found"
+  | "already_processed"
+  | "redeemed"
+  | "updated";
+
+export type MercadoPagoPaymentWebhookResponse = {
+  success: boolean;
+  outcome: MercadoPagoPaymentWebhookOutcome;
+};
+
+export type ProcessMercadoPagoPaymentWebhookResult = {
+  status: 200;
+  body: MercadoPagoPaymentWebhookResponse;
+};
+
 export function verifyMercadoPagoWebhookSignature({
   dataId,
   requestId,
@@ -55,6 +106,78 @@ export function parseMercadoPagoSignature(
   if (!ts || !hash) return null;
 
   return { ts, hash };
+}
+
+export async function processMercadoPagoPaymentWebhook({
+  dataId,
+  type,
+  getPayment,
+  processVoucherPayment,
+  sendConversionEvents,
+  logger = console,
+}: ProcessMercadoPagoPaymentWebhookInput): Promise<ProcessMercadoPagoPaymentWebhookResult> {
+  if (type !== "payment") {
+    return {
+      status: 200,
+      body: {
+        success: true,
+        outcome: "ignored",
+      },
+    };
+  }
+
+  const payment = await getPayment(dataId);
+  if (!payment) {
+    logger.warn(`Mercado Pago webhook payment not found: ${dataId}`);
+    return {
+      status: 200,
+      body: {
+        success: false,
+        outcome: "payment_not_found",
+      },
+    };
+  }
+
+  const code = payment.external_reference;
+  if (!code || typeof code !== "string") {
+    logger.warn(`Mercado Pago webhook missing voucher reference: ${dataId}`);
+    return {
+      status: 200,
+      body: {
+        success: false,
+        outcome: "voucher_not_found",
+      },
+    };
+  }
+
+  const result = await processVoucherPayment({
+    code,
+    paymentId: dataId,
+    paymentStatus: payment.status,
+  });
+
+  if (result.outcome === "not_found") {
+    logger.warn(`Mercado Pago webhook voucher not found: ${code}`);
+    return {
+      status: 200,
+      body: {
+        success: false,
+        outcome: "voucher_not_found",
+      },
+    };
+  }
+
+  if (result.shouldSendConversionEvents) {
+    await sendConversionEvents?.(payment, dataId);
+  }
+
+  return {
+    status: 200,
+    body: {
+      success: true,
+      outcome: result.outcome,
+    },
+  };
 }
 
 function timingSafeEqualHex(expected: string, received: string): boolean {

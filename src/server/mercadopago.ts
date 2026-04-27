@@ -14,6 +14,14 @@ async function fetchMercadoPagoJson<T>(path: string): Promise<T | null> {
   });
 
   if (!response.ok) {
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (response.status >= 500) {
+      throw new Error(`Mercado Pago API failed with ${response.status}`);
+    }
+
     return null;
   }
 
