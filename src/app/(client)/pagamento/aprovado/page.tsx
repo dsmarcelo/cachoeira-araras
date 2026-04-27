@@ -51,13 +51,9 @@ export default async function Page({
   if (!preference_id || !payment_id)
     return (
       <div className="flex h-screen flex-col items-center justify-center">
-        <div className="text-center text-3xl">
-          Link inválido
-        </div>
+        <div className="text-center text-3xl">Link inválido</div>
         <Link href="/">
-          <Button>
-            Voltar para a página inicial
-          </Button>
+          <Button>Voltar para a página inicial</Button>
         </Link>
       </div>
     );
@@ -67,13 +63,9 @@ export default async function Page({
   if (!preference)
     return (
       <div className="flex h-screen flex-col items-center justify-center">
-        <div className="text-center text-3xl">
-          Erro ao buscar preferência
-        </div>
+        <div className="text-center text-3xl">Erro ao buscar preferência</div>
         <Link href="/">
-          <Button>
-            Voltar para a página inicial
-          </Button>
+          <Button>Voltar para a página inicial</Button>
         </Link>
       </div>
     );
@@ -83,29 +75,23 @@ export default async function Page({
   if (!payment)
     return (
       <div className="flex h-screen flex-col items-center justify-center">
-        <div className="text-center text-3xl">
-          Erro ao buscar pagamento
-        </div>
+        <div className="text-center text-3xl">Erro ao buscar pagamento</div>
         <Link href="/">
-          <Button>
-            Voltar para a página inicial
-          </Button>
+          <Button>Voltar para a página inicial</Button>
         </Link>
       </div>
     );
 
   if (!preference)
     return (
-  <div>
-      <div className="h-screen text-center text-3xl">
-        Erro ao buscar preferência
+      <div>
+        <div className="h-screen text-center text-3xl">
+          Erro ao buscar preferência
+        </div>
+        <Link href="/">
+          <Button>Voltar para a página inicial</Button>
+        </Link>
       </div>
-      <Link href="/">
-        <Button>
-          Voltar para a página inicial
-        </Button>
-      </Link>
-  </div>
     );
 
   if (payment.status === "approved") {
