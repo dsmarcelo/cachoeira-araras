@@ -3,6 +3,11 @@ import "server-only";
 import { env } from "@/env";
 import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
+import {
+  capturePaymentFlowException,
+  capturePaymentFlowMessage,
+  startPaymentFlowSpan,
+} from "@/lib/sentry/payment";
 
 const token = env.MERCADOPAGO_TOKEN;
 const mercadoPagoApiBase = "https://api.mercadopago.com";
@@ -14,25 +19,49 @@ export interface MercadoPagoPaymentSearchResult {
 }
 
 async function fetchMercadoPagoJson<T>(path: string): Promise<T | null> {
-  const response = await fetch(`${mercadoPagoApiBase}${path}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  const step = path.startsWith("/v1/payments/")
+    ? "fetch_payment"
+    : "fetch_preference";
 
-  if (!response.ok) {
-    if (response.status === 404) {
-      return null;
-    }
+  try {
+    return await startPaymentFlowSpan(
+      step,
+      `Fetch Mercado Pago API ${path.split("?")[0]}`,
+      { path: path.split("?")[0] },
+      async () => {
+        const response = await fetch(`${mercadoPagoApiBase}${path}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-    if (response.status >= 500) {
-      throw new Error(`Mercado Pago API failed with ${response.status}`);
-    }
+        if (!response.ok) {
+          if (response.status === 404) {
+            return null;
+          }
 
-    return null;
+          if (response.status >= 500) {
+            throw new Error(`Mercado Pago API failed with ${response.status}`);
+          }
+
+          capturePaymentFlowMessage(
+            "Mercado Pago API returned non-OK status",
+            step,
+            {
+              path: path.split("?")[0],
+              status: response.status,
+            },
+          );
+          return null;
+        }
+
+        return (await response.json()) as T;
+      },
+    );
+  } catch (error) {
+    capturePaymentFlowException(error, step, { path: path.split("?")[0] });
+    throw error;
   }
-
-  return (await response.json()) as T;
 }
 
 export async function getMercadoPagoPreference(
@@ -46,7 +75,9 @@ export async function getMercadoPagoPreference(
 export async function getMercadoPagoPayment(
   paymentId: string,
 ): Promise<PaymentResponse | null> {
-  return await fetchMercadoPagoJson<PaymentResponse>(`/v1/payments/${paymentId}`);
+  return await fetchMercadoPagoJson<PaymentResponse>(
+    `/v1/payments/${paymentId}`,
+  );
 }
 
 type MercadoPagoPaymentSearchResponse = {

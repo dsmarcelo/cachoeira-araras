@@ -16,6 +16,10 @@ import {
   normalizePublicBaseUrl,
   resolveWebhookBaseForCheckout,
 } from "@/server/mercadopago-checkout";
+import {
+  capturePaymentFlowException,
+  startPaymentFlowSpan,
+} from "@/lib/sentry/payment";
 
 /**
  * Public origin for Mercado Pago `back_urls`. Prefer validated `env.URL`; if it is empty
@@ -25,7 +29,9 @@ function resolveSiteBaseForCheckout(): string {
   const primary = (env.URL ?? "").trim();
   if (primary) return normalizePublicBaseUrl(primary);
   if (env.NEXT_PUBLIC_VERCEL_URL?.trim()) {
-    return normalizePublicBaseUrl(`https://${env.NEXT_PUBLIC_VERCEL_URL.trim()}`);
+    return normalizePublicBaseUrl(
+      `https://${env.NEXT_PUBLIC_VERCEL_URL.trim()}`,
+    );
   }
   if (env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL?.trim()) {
     return normalizePublicBaseUrl(
@@ -91,57 +97,81 @@ export const mercadopagoRouter = createTRPCRouter({
           webhookUrl: env.WEBHOOK_URL,
         });
         const preference = new Preference(client);
-        const response = await preference.create({
-          body: {
-            items: [
-              {
-                id: input.id,
-                description: input.description,
-                title: input.title || "Voucher",
-                quantity: 1,
-                unit_price: validation.price,
-                currency_id: "BRL",
-              },
-            ],
-            payer: {
-              name: input.name,
-              surname: input.surname,
-              phone: {
-                area_code: formatPhone(input.phone).area_code,
-                number: formatPhone(input.phone).number,
-              },
-            },
-            back_urls: {
-              success: `${siteBase}/pagamento/`,
-              failure: `${siteBase}/pagamento/`,
-              pending: `${siteBase}/pagamento/`,
-            },
-            external_reference: input.code,
-            expires: true,
-            auto_return: "approved",
-            expiration_date_from: new Date(Date.now()).toISOString(),
-            expiration_date_to: new Date(
-              Date.now() + 1000 * 60 * 60 * 24 * 10,
-            ).toISOString(),
-            payment_methods: {
-              excluded_payment_methods: [
-                {
-                  id: "bolbradesco",
-                },
-                {
-                  id: "pec",
-                },
-              ],
-            },
-            statement_descriptor: "Cachoeira das Araras",
-            notification_url: buildMercadoPagoWebhookUrl(webhookBase),
+        const response = await startPaymentFlowSpan(
+          "create_preference",
+          "Create Mercado Pago checkout preference",
+          {
+            voucherCode: input.code,
+            adults: input.adults,
+            elderly: input.elderly,
+            adults_pool: input.adults_pool,
+            elderly_pool: input.elderly_pool,
+            intendedDate: input.intendedDate,
+            testMode: input.testMode,
+            price: validation.price,
           },
-        });
+          () =>
+            preference.create({
+              body: {
+                items: [
+                  {
+                    id: input.id,
+                    description: input.description,
+                    title: input.title || "Voucher",
+                    quantity: 1,
+                    unit_price: validation.price,
+                    currency_id: "BRL",
+                  },
+                ],
+                payer: {
+                  name: input.name,
+                  surname: input.surname,
+                  phone: {
+                    area_code: formatPhone(input.phone).area_code,
+                    number: formatPhone(input.phone).number,
+                  },
+                },
+                back_urls: {
+                  success: `${siteBase}/pagamento/`,
+                  failure: `${siteBase}/pagamento/`,
+                  pending: `${siteBase}/pagamento/`,
+                },
+                external_reference: input.code,
+                expires: true,
+                auto_return: "approved",
+                expiration_date_from: new Date(Date.now()).toISOString(),
+                expiration_date_to: new Date(
+                  Date.now() + 1000 * 60 * 60 * 24 * 10,
+                ).toISOString(),
+                payment_methods: {
+                  excluded_payment_methods: [
+                    {
+                      id: "bolbradesco",
+                    },
+                    {
+                      id: "pec",
+                    },
+                  ],
+                },
+                statement_descriptor: "Cachoeira das Araras",
+                notification_url: buildMercadoPagoWebhookUrl(webhookBase),
+              },
+            }),
+        );
         return response;
       } catch (error) {
         if (error instanceof TRPCError) {
           throw error;
         }
+        capturePaymentFlowException(error, "create_preference", {
+          voucherCode: input.code,
+          adults: input.adults,
+          elderly: input.elderly,
+          adults_pool: input.adults_pool,
+          elderly_pool: input.elderly_pool,
+          intendedDate: input.intendedDate,
+          testMode: input.testMode,
+        });
         console.error("Error creating preference:", error);
         throw new Error("Failed to create preference");
       }
