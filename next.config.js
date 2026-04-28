@@ -22,6 +22,7 @@ const apiCorsHeaders = [
 
 /** @type {import("next").NextConfig} */
 const config = {
+  allowedDevOrigins: ["tough-totally-honeybee.ngrok-free.app"],
   images: {
     // Next.js 16 requires every <Image quality={...}> value to be allowlisted.
     // The gallery uses quality={60}; keep the default 75 available too.
