@@ -23,6 +23,9 @@ const apiCorsHeaders = [
 /** @type {import("next").NextConfig} */
 const config = {
   images: {
+    // Next.js 16 requires every <Image quality={...}> value to be allowlisted.
+    // The gallery uses quality={60}; keep the default 75 available too.
+    qualities: [60, 75],
     // Disable Next.js image optimizer to avoid serverless/edge image requests on Vercel Free
     unoptimized: true,
     remotePatterns: [

@@ -1,91 +1,62 @@
-import Link from 'next/link'
-import React from 'react'
-import {
-  Menu,
-} from "lucide-react"
+import Link from "next/link";
+import React from "react";
 import { FaFacebook, FaInstagram, FaWhatsapp } from "react-icons/fa";
-import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Button } from '@/components/ui/button'
-import Image from 'next/image';
+import Image from "next/image";
+import MobileHeader from "./mobile-header";
 
 export default function Header() {
   return (
-    <header className="top-0 max flex h-16 md:h-24 items-center gap-4 border-b-primary-500 bg-dark-blue text-primary-400 px-4 md:px-6">
-      <div className='flex items-center w-full mx-auto max-w-5xl'>
-        <nav className="hidden gap-1 text-lg font-medium md:flex md:flex-row md:items-center z-10">
-          <Link href="/" className='w-full flex flex-col mr-8'>
-            <Image src="/logo_nome.png" alt="logo" className='' width={100} height={80} />
+    <header className="top-0 max flex h-16 items-center gap-4 border-b-primary-500 bg-dark-blue px-4 text-primary-400 md:h-24 md:px-6">
+      <div className="mx-auto flex w-full max-w-5xl items-center">
+        <nav className="z-10 hidden gap-1 text-lg font-medium md:flex md:flex-row md:items-center">
+          <Link href="/" className="mr-8 flex w-full flex-col">
+            <Image
+              src="/logo_nome.png"
+              alt="logo"
+              width={100}
+              height={80}
+              priority
+              className="h-auto w-[100px]"
+            />
           </Link>
           <Link
             href="/"
-            className="flex items-center whitespace-nowrap gap-2 font-semibold md:text-base p-2 px-3 rounded-lg hover:bg-bg-blue/20"
+            className="flex items-center whitespace-nowrap gap-2 rounded-lg p-2 px-3 font-semibold hover:bg-bg-blue/20 md:text-base"
           >
             Inicio
           </Link>
           <Link
             href="/galeria"
-            className="flex items-center whitespace-nowrap gap-2 font-semibold md:text-base p-2 px-3 rounded-lg hover:bg-bg-blue/20"
+            className="flex items-center whitespace-nowrap gap-2 rounded-lg p-2 px-3 font-semibold hover:bg-bg-blue/20 md:text-base"
           >
             Fotos
           </Link>
         </nav>
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button
-              size="icon"
-              className="shrink-0 bg-transparent text-current hover:bg-bg-blue/20 md:hidden z-10"
-            >
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Abrir menu</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left">
-            <Link href="/" className='flex flex-col mb-8'>
-              <SheetClose>
-                <Image src="/logo_nome.png" alt="logo" className='' width={80} height={80} />
-              </SheetClose>
-            </Link>
-            <nav className="grid gap-6 text-lg font-medium">
-              <Link href="/" className="hover:text-foreground">
-                <SheetClose>
-                  Inicio
-                </SheetClose>
-              </Link>
-              <Link href="/galeria" className="hover:text-foreground">
-                <SheetClose>
-                  Fotos
-                </SheetClose>
-              </Link>
-            </nav>
-          </SheetContent>
-        </Sheet>
-        <div className='md:hidden w-24 h-10 md:h-16 relative'>
-          <Image src="/logo_nome.png" alt="logo" className='object-contain' sizes='' fill />
-        </div>
-        <nav className='ml-auto flex gap-1 items-center'>
+        <MobileHeader />
+        <nav className="ml-auto flex items-center gap-1">
           <Link
             href={"https://www.facebook.com/C.Araras/?locale=pt_BR"}
-            target='_blank'
-            className='w-12 h-12 flex items-center justify-center text-foreground transition-colors p-2 rounded-lg hover:bg-bg-blue/20'
+            target="_blank"
+            className="flex h-12 w-12 items-center justify-center rounded-lg p-2 text-foreground transition-colors hover:bg-bg-blue/20"
           >
-            <FaFacebook className='w-5 h-5' />
+            <FaFacebook className="h-5 w-5" />
           </Link>
           <Link
             href={"https://www.instagram.com/cachoeiradasararasoficial/"}
-            target='_blank'
-            className='w-12 h-12 flex items-center justify-center text-foreground transition-colors p-2 rounded-lg hover:bg-bg-blue/20'
+            target="_blank"
+            className="flex h-12 w-12 items-center justify-center rounded-lg p-2 text-foreground transition-colors hover:bg-bg-blue/20"
           >
-            <FaInstagram className='w-5 h-5' />
+            <FaInstagram className="h-5 w-5" />
           </Link>
           <Link
             href="https://wa.me/556299251040?"
-            target='_blank'
-            className="w-12 h-12 flex items-center justify-center text-foreground transition-colors p-2 rounded-lg hover:bg-bg-blue/20"
+            target="_blank"
+            className="flex h-12 w-12 items-center justify-center rounded-lg p-2 text-foreground transition-colors hover:bg-bg-blue/20"
           >
-            <FaWhatsapp className="w-5 h-5" />
+            <FaWhatsapp className="h-5 w-5" />
           </Link>
         </nav>
       </div>
     </header>
-  )
+  );
 }

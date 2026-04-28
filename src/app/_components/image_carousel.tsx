@@ -108,10 +108,13 @@ export function ImageCarousel() {
                     fill
                     quality={60}
                     className="object-cover"
-                    // Only the first image is priority to avoid multiple eager image requests
-                    priority={index === 0}
+                    // The first two slides can become the homepage LCP during
+                    // autoplay/fast hydration. Load them eagerly to satisfy
+                    // Next.js 16's LCP guidance without eagerly loading the
+                    // entire carousel.
+                    priority={index < 2}
                     loading={
-                      index === 0 ? ("eager" as const) : ("lazy" as const)
+                      index < 2 ? ("eager" as const) : ("lazy" as const)
                     }
                     sizes="(max-width: 768px) 100vw, 75vw"
                     // Disable server image optimizer to avoid additional server invocations for static assets
