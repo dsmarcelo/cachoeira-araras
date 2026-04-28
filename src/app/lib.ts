@@ -46,13 +46,20 @@ export async function requireAdmin() {
 }
 
 export async function addCookieVoucher(code: string) {
-  cookies().set("voucher", code, {
+  // Next.js 16 exposes request cookies asynchronously. Resolve the store once
+  // per server action so future cookie option changes stay centralized here.
+  const cookieStore = await cookies();
+
+  cookieStore.set("voucher", code, {
     expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 40),
   });
 }
 
 export async function getCookieVoucher(): Promise<string | null> {
-  const code = cookies().get("voucher")?.value;
+  // Awaiting `cookies()` is required in Next.js 16 and keeps this helper safe
+  // to call from Server Components, Server Actions, and Route Handlers.
+  const cookieStore = await cookies();
+  const code = cookieStore.get("voucher")?.value;
   if (code) {
     return code;
   }
@@ -60,7 +67,8 @@ export async function getCookieVoucher(): Promise<string | null> {
 }
 
 export async function deleteCookieVoucher() {
-  cookies().delete("voucher");
+  const cookieStore = await cookies();
+  cookieStore.delete("voucher");
 }
 
 export async function deleteVoucher(code: string) {
@@ -102,7 +110,10 @@ export async function activateVoucher(code: string) {
 }
 
 export async function getReferrer() {
-  const referrer = cookies().get("referrer")?.value;
+  // Resolve the async cookie store before reading the marketing attribution
+  // cookie; synchronous access was removed in Next.js 16.
+  const cookieStore = await cookies();
+  const referrer = cookieStore.get("referrer")?.value;
   if (referrer) {
     return referrer;
   }

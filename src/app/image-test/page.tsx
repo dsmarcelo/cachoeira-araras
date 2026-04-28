@@ -1,5 +1,6 @@
 import { env } from "@/env";
 import Image from "next/image";
+import Link from "next/link";
 import { formatQuantity } from "@/lib/voucher";
 import { formateDateDayMonthYear, formatPhone, truncateName } from "@/lib/utils";
 
@@ -122,12 +123,12 @@ export default function ImageTestPage() {
         <div className="mt-8 text-center">
           <p className="text-sm text-gray-500">
             Esta página é apenas para testes. Acesse{" "}
-            <a
+            <Link
               href="/"
-              className="text-blue-600 hover:text-blue-800 underline"
+              className="text-blue-600 underline hover:text-blue-800"
             >
               a página inicial
-            </a>{" "}
+            </Link>{" "}
             para usar o sistema normalmente.
           </p>
         </div>

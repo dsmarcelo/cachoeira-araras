@@ -46,9 +46,13 @@ const fetchPayment = async (
 export default async function PaymentApprovedPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const allStrings = Object.values(searchParams).every(
+  // In Next.js 16, App Router page `searchParams` are asynchronous. Resolve
+  // once at the top so the payment validation below works with a stable query
+  // snapshot and continues rejecting multi-value tampered URLs.
+  const resolvedSearchParams = await searchParams;
+  const allStrings = Object.values(resolvedSearchParams).every(
     (value) => typeof value === "string",
   );
 
@@ -67,7 +71,7 @@ export default async function PaymentApprovedPage({
     );
   }
 
-  const { preference_id, payment_id } = searchParams;
+  const { preference_id, payment_id } = resolvedSearchParams;
   if (
     !preference_id ||
     !payment_id ||

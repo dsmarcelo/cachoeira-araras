@@ -14,6 +14,18 @@ type PaymentFlowStep =
 const sensitiveKeyPattern =
   /authorization|cookie|email|name|phone|secret|signature|surname|token/i;
 
+function stringifyPaymentContextValue(value: unknown): string {
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized ?? String(value);
+  } catch {
+    // Sentry context sanitization runs while handling payment errors. Never let
+    // unusual metadata such as circular objects or bigint values mask the
+    // original exception that we are trying to report.
+    return "[unserializable]";
+  }
+}
+
 function sanitizeContext(
   context?: PaymentFlowContext,
 ): Record<string, Primitive> {
@@ -39,7 +51,10 @@ function sanitizeContext(
         return [[key, value.toISOString()]];
       }
 
-      return [[key, String(value)]];
+      // Avoid default `[object Object]` stringification in Sentry tags. JSON is
+      // more useful during payment debugging and still passes through the
+      // sensitive-key filter above before anything is attached to an event.
+      return [[key, stringifyPaymentContextValue(value)]];
     }),
   );
 }

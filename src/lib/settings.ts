@@ -205,7 +205,7 @@ export async function getAllSettings(): Promise<SettingValueMap> {
   return {
     ...DEFAULT_SETTINGS,
     ...Object.fromEntries(storedSettings),
-  } as SettingValueMap;
+  };
 }
 
 function isSettingKey(value: string): value is SettingKey {

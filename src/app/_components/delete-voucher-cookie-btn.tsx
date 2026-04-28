@@ -21,7 +21,16 @@ export default function DeleteVoucherCookieBtn(
   const router = useRouter()
   async function resetCookieVoucher() {
     await deleteCookieVoucher()
-    refresh ? location.reload() : router.push('/')
+
+    // Keep the original behavior explicit: some callers need a full reload to
+    // re-read server-rendered voucher state, while the default can navigate
+    // client-side back to the purchase flow.
+    if (refresh) {
+      location.reload()
+      return
+    }
+
+    router.push('/')
   }
 
   return (

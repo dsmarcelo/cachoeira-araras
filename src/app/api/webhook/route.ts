@@ -76,7 +76,7 @@ async function readWebhookBody(request: NextRequest): Promise<unknown> {
       return {
         data: dataId ? { id: dataId } : undefined,
         type,
-      } as unknown;
+      };
     }
   } catch {
     return null;
