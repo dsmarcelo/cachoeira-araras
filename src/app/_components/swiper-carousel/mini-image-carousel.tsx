@@ -1,7 +1,4 @@
 'use client'
-import * as React from "react"
-import Autoplay from "embla-carousel-autoplay"
-
 import {
   Carousel,
   CarouselContent,
@@ -11,16 +8,11 @@ import {
 } from "@/components/ui/carousel"
 import Image from "next/image"
 import { motion } from "framer-motion"
-import { env } from "@/env"
 
 export function MiniImageCarousel() {
-  const autoplay = React.useRef(
-    Autoplay({ delay: 3000, stopOnInteraction: true }),
-  )
-
   const getImages = () => {
-    const cQuantity = env.NEXT_PUBLIC_DATA_SAVER ? 2 : 4;
-    const bQuantity = env.NEXT_PUBLIC_DATA_SAVER ? 3 : 9;
+    const cQuantity = 2;
+    const bQuantity = 3;
     const images = [];
 
     for (let i = 0; i < cQuantity; i++) {
@@ -41,7 +33,6 @@ export function MiniImageCarousel() {
     >
       <div>
         <Carousel
-          plugins={env.NEXT_PUBLIC_DATA_SAVER ? [] : [autoplay.current]}
           opts={{
             loop: true,
           }}

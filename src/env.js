@@ -100,8 +100,6 @@ export const env = createEnv({
     NEXT_PUBLIC_POOL_VOUCHER_PRICE: z.coerce.number().default(70),
     NEXT_PUBLIC_FACEBOOK_PIXEL_ID: z.string().optional(),
     NEXT_PUBLIC_ALERT_MESSAGE: z.string().optional(),
-    // Enables client-side data saver behavior to reduce requests on Vercel Free
-    NEXT_PUBLIC_DATA_SAVER: z.coerce.boolean().default(false),
     // Toggle Vercel Analytics on/off at runtime (off reduces /_vercel/insights requests)
     NEXT_PUBLIC_ENABLE_ANALYTICS: z.coerce.boolean().default(false),
     NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
@@ -147,7 +145,6 @@ export const env = createEnv({
     NEXT_PUBLIC_POOL_VOUCHER_PRICE: process.env.NEXT_PUBLIC_POOL_VOUCHER_PRICE,
     NEXT_PUBLIC_FACEBOOK_PIXEL_ID: process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID,
     NEXT_PUBLIC_ALERT_MESSAGE: process.env.NEXT_PUBLIC_ALERT_MESSAGE,
-    NEXT_PUBLIC_DATA_SAVER: process.env.NEXT_PUBLIC_DATA_SAVER,
     NEXT_PUBLIC_ENABLE_ANALYTICS: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
