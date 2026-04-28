@@ -10,10 +10,10 @@ function normalizePublicBaseUrl(base) {
 function resolvePublicBaseUrl(value) {
   const vercelUrl = process.env.VERCEL_URL?.trim();
   if (vercelUrl) {
-    const normalizedVercelUrl = vercelUrl.startsWith("http://") ||
-      vercelUrl.startsWith("https://")
-      ? vercelUrl
-      : `https://${vercelUrl}`;
+    const normalizedVercelUrl =
+      vercelUrl.startsWith("http://") || vercelUrl.startsWith("https://")
+        ? vercelUrl
+        : `https://${vercelUrl}`;
 
     return normalizePublicBaseUrl(normalizedVercelUrl);
   }
@@ -81,6 +81,9 @@ export const env = createEnv({
     GOOGLE_ANALYTICS_MEASUREMENT_ID: z.string().optional(),
     TWILIO_ACCOUNT_SID: z.string().optional(),
     TWILIO_AUTH_TOKEN: z.string().optional(),
+    SENTRY_DSN: z.string().url().optional(),
+    SENTRY_ENVIRONMENT: z.string().optional(),
+    SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).optional(),
     VERCEL_URL: z.string().optional(),
     PORT: z.string().optional(),
   },
@@ -101,6 +104,13 @@ export const env = createEnv({
     NEXT_PUBLIC_DATA_SAVER: z.coerce.boolean().default(false),
     // Toggle Vercel Analytics on/off at runtime (off reduces /_vercel/insights requests)
     NEXT_PUBLIC_ENABLE_ANALYTICS: z.coerce.boolean().default(false),
+    NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
+    NEXT_PUBLIC_SENTRY_ENVIRONMENT: z.string().optional(),
+    NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: z.coerce
+      .number()
+      .min(0)
+      .max(1)
+      .optional(),
     NEXT_PUBLIC_VERCEL_URL: z.string().optional(),
     NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
   },
@@ -127,6 +137,9 @@ export const env = createEnv({
       process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID,
     TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
     TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+    SENTRY_DSN: process.env.SENTRY_DSN,
+    SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT,
+    SENTRY_TRACES_SAMPLE_RATE: process.env.SENTRY_TRACES_SAMPLE_RATE,
     VERCEL_URL: process.env.VERCEL_URL,
     PORT: process.env.PORT,
     NEXT_PUBLIC_MAX_INTENDED_DAYS: process.env.NEXT_PUBLIC_MAX_INTENDED_DAYS,
@@ -136,6 +149,10 @@ export const env = createEnv({
     NEXT_PUBLIC_ALERT_MESSAGE: process.env.NEXT_PUBLIC_ALERT_MESSAGE,
     NEXT_PUBLIC_DATA_SAVER: process.env.NEXT_PUBLIC_DATA_SAVER,
     NEXT_PUBLIC_ENABLE_ANALYTICS: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS,
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
+    NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE:
+      process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE,
     NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
     NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL:
       process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL,
