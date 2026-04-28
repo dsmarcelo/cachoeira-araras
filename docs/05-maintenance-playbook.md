@@ -43,6 +43,7 @@ Antes de merge/deploy:
 - [ ] Admin consegue validar voucher e consumi-lo.
 - [ ] Cron de expiração executando com autorização correta.
 - [ ] Lint/build verdes.
+- [ ] Se a mudança afetar pagamento, conferir eventos/spans no Sentry com `payment.flow_step`.
 
 ## Variáveis de ambiente críticas
 
@@ -51,6 +52,8 @@ Antes de merge/deploy:
 - Pagamento: `MERCADOPAGO_TOKEN`, `URL`, `WEBHOOK_URL`.
 - Manutenção: `CRON_SECRET`.
 - Tracking opcional: Meta/Google Ads.
+- Monitoramento opcional: `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`.
+- Upload de sourcemaps Sentry no build/CI: `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`.
 
 ## Riscos conhecidos para futuras mudanças
 

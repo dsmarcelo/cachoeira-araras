@@ -16,6 +16,8 @@ Esta pasta reúne uma documentação prática para **uma pessoa desenvolvedora**
    Guia de manutenção: tarefas comuns, checklists e pontos de atenção para mudanças futuras.
 6. [`06-optimization-implementation-plan.md`](./06-optimization-implementation-plan.md)  
    Plano objetivo por item de otimização: o que mudar, onde mudar e ganho esperado.
+7. [`07-sentry-payment-monitoring.md`](./07-sentry-payment-monitoring.md)  
+   Setup do Sentry, variáveis de ambiente, instrumentação do fluxo de pagamento e playbook de investigação.
 
 ## Objetivo desta documentação
 
