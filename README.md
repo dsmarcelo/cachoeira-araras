@@ -62,6 +62,58 @@ O sistema de configurações foi refatorado para usar uma arquitetura DAL (Data 
 - Preço fixo de R$ 0,01 independente da quantidade selecionada
 - Cria vouchers reais com preço de teste no Mercado Pago
 
+## Website flow
+
+High-level navigation and purchase path. Route groups live under `src/app/`.
+
+### Shell and public layout
+
+- **Root** (`src/app/layout.tsx`): `TRPCReactProvider`, toasts, optional Vercel Analytics, Facebook Pixel (suspense), Google Tag Manager. `lang="pt-BR"`.
+- **Site (visitor) pages** use the `(client)` route group: `src/app/(client)/layout.tsx` wraps content with the public **Header** and **Footer** (`src/app/_components/header.tsx`, `footer.tsx`).
+
+### Visitor-facing routes
+
+| Path | Role |
+|------|------|
+| `/` | Landing: hero carousel, **VoucherBuy** (price table + `VoucherForm`), info card, mini carousel, link to gallery, map |
+| `/galeria` | Photo gallery (static image lists under `/public/images/`) |
+| `/comprar` | Redirects to `/` |
+| `/pagamento` | Return URL after Mercado Pago; reads `preference_id` and `payment_id` from the query string, syncs Mercado Pago status, then either shows pending UI, error states, or redirects to `/pagamento/aprovado` when approved |
+| `/pagamento/aprovado` | Confirms approved payment server-side, shows **PaymentCard** + **VoucherCard** + option to clear voucher cookie |
+| `/voucher` | Deep link with `code` + `pid` (payment id); shows receipt + voucher if payment is not denied |
+| `/test__` | Same layout as home with **VoucherBuyTest** (`testMode` on the form: R$ 0,01, name preset `--TESTE--`) |
+| `/tests_iE72e7789D3` | Internal test page route (obscured path under `(client)`) |
+| `/erro` | Dedicated error route + `erro/error.tsx` boundary |
+
+### Purchase flow (happy path)
+
+1. User fills **VoucherForm** on `/` (or `/test__` for test mode). Settings (limits, feature flags, message) come from `api.settings.getAll` via `src/lib/settings.ts` / tRPC.
+2. Submit creates a Mercado Pago **preference** (`api.mercadopago.create`), persists a **pending** voucher (`api.voucher.create`), stores the voucher code in a **cookie**, and optionally records referrer metadata.
+3. **VoucherCreatedCard** offers the Mercado Pago checkout URL (`init_point`); user is sent to Mercado Pago (`router.push(init_point)`).
+4. After payment, the user returns to **`/pagamento`** with `preference_id` and `payment_id` in the query string (see `formatPaymentUrl` in `src/lib/utils.ts`).
+5. When status is **approved**, `confirmVoucherPayment` runs and the app redirects to **`/pagamento/aprovado`**, which renders the success state with payment and voucher details.
+
+If the user returns to the site with a voucher cookie while payment completed, the form resumes in **VoucherCreatedCard** with a success URL instead of only `init_point` (see `checkPaymentStatus` in `voucher-form.tsx`).
+
+### Admin area
+
+- **Base path**: `/admin` — `src/app/admin/layout.tsx`. Unauthenticated visitors see **PasswordLoginForm**; authenticated admins get sidebar + header + footer (`DashboardSidebar`, admin header/footer).
+- **Main screens** (direct URLs; not all appear in the slim sidebar):
+  - `/admin` — validate voucher + today’s vouchers widgets
+  - `/admin/hoje` — today’s vouchers focus
+  - `/admin/tabela` — full data table of vouchers
+  - `/admin/dashboard` — “Visão Geral de Hoje” metrics (client page)
+  - `/admin/dashboard/vouchers` — voucher management UI (linked from sidebar as “Visão Geral”)
+  - `/admin/dashboard/vendas` — sales / date-range reports
+  - `/admin/dashboard/configuracoes` — system settings (server actions + DAL)
+  - `/admin/dashboard/referencias` — placeholder (“Referências”)
+
+### Other notable routes
+
+- `/qr` — server redirect to WhatsApp menu (`wa.me` community link)
+- `/image-test` — image experiment page
+- **API**: `api/trpc`, `api/auth/[...nextauth]`, `api/webhook` (Mercado Pago + conversion tracking), `api/cron`, `api/og`, `api/pagamento/aprovado` (POST stub)
+
 ---
 
 # Create T3 App
