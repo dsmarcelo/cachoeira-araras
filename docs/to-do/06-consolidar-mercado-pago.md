@@ -2,37 +2,52 @@
 
 ## Prioridade
 
-Baixa isoladamente; media se for feito junto com o webhook.
+Baixa isoladamente; media se for feito junto com o webhook ou com manutencao do checkout.
+
+## Status atual
+
+Parcialmente aplicado.
+
+## Confirmado no codigo
+
+- `src/server/mercadopago.ts` ja centraliza chamadas server-only para buscar preference, payment e payments por `external_reference`.
+- `src/app/api/webhook/route.ts` usa `getMercadoPagoPayment()` desse servico.
+- `src/server/api/routers/voucher.ts` usa `searchMercadoPagoPaymentsByExternalReference()` para reconciliacao publica.
+- `src/server/api/routers/mercadopago.ts` ainda faz `fetch()` direto para `getPreference`, `getPublicPreference`, `getPreferenceByEReference` e `getPayment`.
+- A criacao de preference continua usando SDK/checkout em `src/server/api/routers/mercadopago.ts` e `src/server/mercadopago-checkout.ts`.
 
 ## Por que ainda faz sentido
 
-- `src/server/api/routers/mercadopago.ts` ainda tem chamadas HTTP diretas para preference/payment.
-- `src/app/api/webhook/route.ts` ja usa servico server-only para buscar pagamento.
-- Consolidar ajuda manutencao, mas nao deve atrasar a correcao critica do webhook.
+- A consolidacao principal ja comecou, entao o trabalho restante e menor e menos arriscado.
+- Ainda existem chamadas HTTP diretas duplicadas no router tRPC.
+- Padronizar retorno e tratamento de erro evita divergencia entre webhook, admin e fluxo publico.
 
 ## Arquivos principais
 
 - `src/server/api/routers/mercadopago.ts`
 - `src/server/mercadopago.ts`
+- `src/server/mercadopago-checkout.ts`
 - `src/app/api/webhook/route.ts`
 
 ## Implementacao recomendada
 
 - Manter procedures tRPC finas.
-- Mover fetch e normalizacao de Mercado Pago para `src/server/mercadopago.ts`.
-- Padronizar nomes como `getPreference`, `getPreferenceByExternalReference` e `getPayment`.
-- Deixar o router responsavel por validacao de input e resposta tRPC, nao por detalhes da API externa.
+- Substituir fetch direto no router por `getMercadoPagoPreference()` e `getMercadoPagoPayment()`.
+- Criar, se necessario, `searchMercadoPagoPreferencesByExternalReference()` no servico antes de alterar `getPreferenceByEReference`.
+- Preservar contratos publicos atuais, especialmente `getPublicPreference` retornando apenas `{ init_point }`.
+- Avaliar em etapa separada se a criacao de preference deve sair do router; nao misturar essa mudanca com a remocao dos fetches diretos.
 
 ## Teste funcional minimo
 
 - Criar uma preference pelo fluxo de compra.
-- Buscar uma preference no admin, se a tela usar essa query.
+- Recuperar uma preference publica e confirmar que `init_point` continua funcionando.
+- Buscar payment/preference em admin, se a tela ainda usa essas queries.
 - Confirmar que o webhook continua conseguindo buscar pagamento aprovado.
 
 ## Checklist
 
-- [ ] Mudanca aplicada nos arquivos listados
+- [ ] Fetches diretos restantes removidos do router tRPC
+- [ ] Contratos publicos preservados
 - [ ] Teste funcional minimo do fluxo afetado
 - [ ] `pnpm lint` OK
 - [ ] `pnpm type-check` OK
-- [ ] Documentacao atualizada quando necessario
