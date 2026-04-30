@@ -18,6 +18,10 @@ Esta pasta reúne uma documentação prática para **uma pessoa desenvolvedora**
    Plano objetivo por item de otimização: o que mudar, onde mudar e ganho esperado.
 7. [`07-sentry-payment-monitoring.md`](./07-sentry-payment-monitoring.md)  
    Setup do Sentry, variáveis de ambiente, instrumentação do fluxo de pagamento e playbook de investigação.
+8. [`08-voucher-purchase-intake.md`](./08-voucher-purchase-intake.md)  
+   Decisão arquitetural que centraliza o início da compra de voucher em um módulo server-side.
+9. [`09-architecture-deepening-backlog.md`](./09-architecture-deepening-backlog.md)  
+   Backlog das cinco oportunidades de aprofundamento arquitetural identificadas na revisão.
 
 ## Objetivo desta documentação
 
