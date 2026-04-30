@@ -12,8 +12,11 @@ import { createQueryClient } from "./query-client";
  * This wraps the `createTRPCContext` helper and provides the required context for the tRPC API when
  * handling a tRPC call from a React Server Component.
  */
-const createContext = cache(() => {
-  const heads = new Headers(headers());
+const createContext = cache(async () => {
+  // Next.js 16 makes request headers asynchronous. Resolve them inside the
+  // cached RSC context factory so every server-side tRPC call receives the
+  // same immutable request headers plus our tracing source marker.
+  const heads = new Headers(await headers());
   heads.set("x-trpc-source", "rsc");
 
   return createTRPCContext({

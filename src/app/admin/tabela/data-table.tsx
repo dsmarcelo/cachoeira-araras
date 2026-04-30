@@ -3,7 +3,6 @@ import React from 'react'
 import { VoucherTable } from './voucher-table'
 import { columns } from "./columns"
 import { api } from '@/trpc/react'
-import { type CompleteVoucherSchema } from '@/lib/voucher/types'
 
 export default function DataTable() {
   const [page, setPage] = React.useState(1)
@@ -28,7 +27,7 @@ export default function DataTable() {
     <div className='w-full'>
       <VoucherTable
         columns={columns}
-        data={(data?.items ?? []) as CompleteVoucherSchema[]}
+        data={(data?.items ?? [])}
         total={data?.total ?? 0}
         page={data?.page ?? page}
         pageSize={data?.pageSize ?? pageSize}

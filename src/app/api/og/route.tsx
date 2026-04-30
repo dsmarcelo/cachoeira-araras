@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   const interSemiBoldFontData = await interSemiBold;
 
-  const expiration_date = expires_at ? expires_at : '';
+  const expiration_date = expires_at ?? '';
   const formatedStatus = formatVoucherStatusWithoutBg(status, expiration_date);
 
   let url = ''

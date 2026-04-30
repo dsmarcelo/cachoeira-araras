@@ -74,7 +74,6 @@ Use `pnpm test:payments` para rodar um teste E2E automatico sem agente de IA. O 
 | `NEXT_PUBLIC_VOUCHER_PRICE` | `50` | Preco base do voucher adulto. |
 | `NEXT_PUBLIC_POOL_VOUCHER_PRICE` | `70` | Preco base do voucher com piscina. |
 | `NEXT_PUBLIC_ALERT_MESSAGE` | Nao definido | Mensagem publica opcional de alerta no app. |
-| `NEXT_PUBLIC_DATA_SAVER` | `false` | Reduz autoplay e quantidade de itens em carrosseis. |
 | `NEXT_PUBLIC_ENABLE_ANALYTICS` | `false` | Liga ou desliga o Vercel Analytics no layout. |
 | `NEXT_PUBLIC_VERCEL_URL` | Nao definido | URL publica de preview do Vercel usada como fallback para imagens/links. Normalmente preenchida pela plataforma. |
 | `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL` | Nao definido | URL publica de producao do projeto no Vercel usada como fallback para imagens/links. Normalmente preenchida pela plataforma. |

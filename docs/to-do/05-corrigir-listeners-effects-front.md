@@ -4,23 +4,35 @@
 
 Baixa, mas vale fazer quando tocar nessas telas.
 
+## Status atual
+
+Parcialmente aplicado.
+
+## Confirmado no codigo
+
+- `src/app/admin/tabela/voucher-table.tsx` ja usa `window.addEventListener("resize", ...)` dentro de `useEffect` com cleanup.
+- A tabela admin ja usa dados paginados do servidor.
+- `src/app/_components/voucher-form.tsx` ainda tem `useEffect` dependente do objeto `settingsQuery` e desabilita `react-hooks/exhaustive-deps`.
+- `checkPaymentStatus()` e recriada a cada render e e usada dentro do efeito.
+
 ## Por que ainda faz sentido
 
-- `src/app/admin/tabela/voucher-table.tsx` ainda usa `window.onresize` fora de `useEffect`.
-- `src/app/_components/voucher-form.tsx` tem efeito dependente de `settingsQuery`, o que pode causar reexecucoes desnecessarias.
-- O ajuste reduz bugs pequenos de UI sem mudar regra de negocio.
+- O item de resize antigo nao precisa mais ser feito, mas o hook `useWindowWidth` continua declarado dentro do componente. Isso funciona, porem e um padrao fragil e dificil de reutilizar.
+- O efeito do formulario publico pode reexecutar por mudancas no objeto de query, nao por mudancas reais no fluxo de pagamento/referrer.
+- O disable de `react-hooks/exhaustive-deps` esconde riscos de stale closure no fluxo de recuperar checkout pendente e checar pagamento ao voltar para a aba.
 
 ## Arquivos principais
 
-- `src/app/admin/tabela/voucher-table.tsx`
 - `src/app/_components/voucher-form.tsx`
+- `src/app/admin/tabela/voucher-table.tsx`
 - `src/lib/utils.ts` ou um hook reutilizavel, somente se a extracao reduzir duplicacao real.
 
 ## Implementacao recomendada
 
-- Substituir `window.onresize` por `addEventListener` dentro de `useEffect` com cleanup.
-- Mover hook de largura da janela para fora do componente ou reaproveitar utilitario existente.
-- Ajustar dependencias do efeito do formulario para executar apenas quando o fluxo de pagamento/referrer precisar.
+- No formulario, estabilizar `checkPaymentStatus`/`getPreference` com `useCallback` ou separar a logica para reduzir dependencias.
+- Trocar a dependencia `[settingsQuery]` por dependencias reais do fluxo, sem desabilitar `react-hooks/exhaustive-deps`.
+- Manter o listener de `visibilitychange` com cleanup.
+- Opcional: mover `useWindowWidth` para fora de `VoucherTable` ou para hook local pequeno se houver outro uso. Nao criar abstracao global sem duplicacao real.
 - Preservar textos de UI em pt-BR e manter a mudanca pequena.
 
 ## Teste funcional minimo
@@ -31,8 +43,8 @@ Baixa, mas vale fazer quando tocar nessas telas.
 
 ## Checklist
 
-- [ ] Mudanca aplicada nos arquivos listados
+- [ ] Dependencias do efeito do formulario corrigidas sem disable de hook lint
+- [ ] Resize da tabela revisado sem regressao visual
 - [ ] Teste funcional minimo do fluxo afetado
 - [ ] `pnpm lint` OK
 - [ ] `pnpm type-check` OK
-- [ ] Documentacao atualizada quando necessario

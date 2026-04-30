@@ -12,6 +12,7 @@ import {
 } from "@/server/mercadopago-webhook";
 import { getMercadoPagoPayment } from "@/server/mercadopago";
 import { processVoucherPaymentWebhook } from "@/server/voucher";
+import { capturePaymentFlowException } from "@/lib/sentry/payment";
 // import { sendWhatsappMessage } from "@/app/lib";
 
 function isValidSignature(
@@ -75,7 +76,7 @@ async function readWebhookBody(request: NextRequest): Promise<unknown> {
       return {
         data: dataId ? { id: dataId } : undefined,
         type,
-      } as unknown;
+      };
     }
   } catch {
     return null;
@@ -115,6 +116,10 @@ async function sendPaymentConversionEvents(
       console.log(`Facebook Pixel event skipped for payment ${payment_id}`);
     }
   } catch (error: unknown) {
+    capturePaymentFlowException(error, "webhook", {
+      paymentId: payment_id,
+      integration: "facebook_pixel",
+    });
     console.error("Error sending Facebook Pixel event:", String(error));
     // Don't fail the webhook if Facebook Pixel fails
   }
@@ -131,6 +136,10 @@ async function sendPaymentConversionEvents(
       console.log(`Google Ads conversion skipped for payment ${payment_id}`);
     }
   } catch (error: unknown) {
+    capturePaymentFlowException(error, "webhook", {
+      paymentId: payment_id,
+      integration: "google_ads",
+    });
     console.error("Error sending Google Ads conversion:", String(error));
     // Don't fail the webhook if Google Ads fails
   }
@@ -178,6 +187,10 @@ export async function POST(request: NextRequest) {
 
     return jsonResponse(result.body, result.status);
   } catch (error: unknown) {
+    capturePaymentFlowException(error, "webhook", {
+      path: request.nextUrl.pathname,
+      sourceNews: request.nextUrl.searchParams.get("source_news"),
+    });
     console.error("Error processing webhook:", String(error));
     return jsonResponse(
       { success: false, error: "Internal Server Error" },

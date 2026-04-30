@@ -11,6 +11,10 @@ import {
   getMercadoPagoPayment,
   getMercadoPagoPreference,
 } from "@/server/mercadopago";
+import {
+  capturePaymentFlowException,
+  capturePaymentFlowMessage,
+} from "@/lib/sentry/payment";
 
 const fetchPreference = async (
   preference_id: string,
@@ -18,6 +22,9 @@ const fetchPreference = async (
   try {
     return await getMercadoPagoPreference(preference_id);
   } catch (error) {
+    capturePaymentFlowException(error, "fetch_preference", {
+      preferenceId: preference_id,
+    });
     console.error("Error fetching payment:", error);
     throw error;
   }
@@ -29,6 +36,9 @@ const fetchPayment = async (
   try {
     return await getMercadoPagoPayment(payment_id);
   } catch (error) {
+    capturePaymentFlowException(error, "fetch_payment", {
+      paymentId: payment_id,
+    });
     console.error("Error fetching payment:", error);
     throw error;
   }
@@ -37,18 +47,30 @@ const fetchPayment = async (
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const allStrings = Object.values(searchParams).every(
+  // Next.js 16 resolves page query params asynchronously. Await them once so
+  // all payment confirmation checks operate on the same validated query data.
+  const resolvedSearchParams = await searchParams;
+  const allStrings = Object.values(resolvedSearchParams).every(
     (value) => typeof value === "string",
   );
 
   if (!allStrings) {
+    capturePaymentFlowMessage(
+      "Payment approved page received invalid multi-value query",
+      "payment_return",
+    );
     return <div className="h-screen text-center text-3xl">Link inválido</div>;
   }
 
-  const { preference_id, payment_id } = searchParams;
-  if (!preference_id || !payment_id)
+  const { preference_id, payment_id } = resolvedSearchParams;
+  if (
+    !preference_id ||
+    !payment_id ||
+    typeof preference_id !== "string" ||
+    typeof payment_id !== "string"
+  )
     return (
       <div className="flex h-screen flex-col items-center justify-center">
         <div className="text-center text-3xl">Link inválido</div>
@@ -58,9 +80,17 @@ export default async function Page({
       </div>
     );
 
-  const preference = await fetchPreference(preference_id as string);
+  const preference = await fetchPreference(preference_id);
 
-  if (!preference)
+  if (!preference) {
+    capturePaymentFlowMessage(
+      "Approved payment preference not found",
+      "payment_return",
+      {
+        preferenceId: preference_id,
+        paymentId: payment_id,
+      },
+    );
     return (
       <div className="flex h-screen flex-col items-center justify-center">
         <div className="text-center text-3xl">Erro ao buscar preferência</div>
@@ -69,10 +99,15 @@ export default async function Page({
         </Link>
       </div>
     );
+  }
 
-  const payment = await fetchPayment(payment_id as string);
+  const payment = await fetchPayment(payment_id);
 
-  if (!payment)
+  if (!payment) {
+    capturePaymentFlowMessage("Approved payment not found", "payment_return", {
+      preferenceId: preference_id,
+      paymentId: payment_id,
+    });
     return (
       <div className="flex h-screen flex-col items-center justify-center">
         <div className="text-center text-3xl">Erro ao buscar pagamento</div>
@@ -81,6 +116,7 @@ export default async function Page({
         </Link>
       </div>
     );
+  }
 
   if (!preference)
     return (
@@ -95,16 +131,22 @@ export default async function Page({
     );
 
   if (payment.status === "approved") {
-    const voucher = await confirmVoucherPayment(
-      preference_id as string,
-      payment_id as string,
-    );
-    if (!voucher)
+    const voucher = await confirmVoucherPayment(preference_id, payment_id);
+    if (!voucher) {
+      capturePaymentFlowMessage(
+        "Approved payment but voucher confirmation failed",
+        "payment_return",
+        {
+          preferenceId: preference_id,
+          paymentId: payment_id,
+        },
+      );
       return (
         <div className="h-screen text-center text-3xl">
           Não foi possível confirmar o pagamento
         </div>
       );
+    }
 
     return (
       <div className="flex w-full flex-col items-center overflow-hidden bg-bg-blue px-4 pb-24 pt-8">
@@ -112,7 +154,7 @@ export default async function Page({
           Pagamento aprovado
         </h1>
         <div className="flex w-full max-w-lg flex-col gap-8">
-          <PaymentCard data={preference} payment_id={payment_id as string} />
+          <PaymentCard data={preference} payment_id={payment_id} />
           <VoucherCard data={voucher} />
           <DeleteVoucherCookieBtn />
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Cog, Ticket } from "lucide-react";
+import { Cog, CreditCard, Ticket } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -26,6 +26,11 @@ const adminSidebarItems = [
     name: "Visão Geral",
     icon: <Ticket className="h-5 w-5" />,
     href: "/admin/dashboard/vouchers",
+  },
+  {
+    name: "Pagamentos",
+    icon: <CreditCard className="h-5 w-5" />,
+    href: "/admin/dashboard/pagamentos",
   },
   {
     name: "Configurações",

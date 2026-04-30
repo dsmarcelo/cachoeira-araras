@@ -8,6 +8,7 @@
 - **Prisma** para acesso ao banco PostgreSQL.
 - **Mercado Pago SDK/API** para checkout e pagamentos.
 - **Tailwind CSS + Radix UI** para interface.
+- **Sentry** para monitoramento de erros/traces, com foco no fluxo de pagamento.
 
 ## Organização de diretórios (visão prática)
 
@@ -15,6 +16,7 @@
 - `src/app/_components/` — componentes de domínio do app (voucher, compra, etc.).
 - `src/server/api/routers/` — routers tRPC (voucher, settings, mercadopago etc.).
 - `src/lib/` — utilitários, lógica de negócio e integrações.
+- `src/lib/sentry/payment.ts` — helpers de observabilidade para o fluxo Mercado Pago.
 - `prisma/schema.prisma` — modelo de dados.
 
 ## Como as camadas conversam
@@ -39,6 +41,7 @@
 - Assinatura do webhook é validada via HMAC.
 - Sistema consulta pagamento e atualiza voucher para status válido quando aprovado.
 - Integrações de conversão (Meta/Google Ads) são disparadas sem bloquear a confirmação.
+- Sentry registra erros, mensagens e spans das etapas críticas (`create_preference`, `fetch_payment`, `payment_return`, `confirm_voucher`, `webhook`).
 
 ### Fluxo operacional (uso do voucher)
 
