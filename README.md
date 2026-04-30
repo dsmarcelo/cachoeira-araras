@@ -32,11 +32,11 @@ Crie um arquivo `.env` na raiz do projeto usando `.env.example` como base. O sch
 | Key | Uso |
 | --- | --- |
 | `DATABASE_URL` | Conexao do Prisma com o banco de dados. Em desenvolvimento pode usar `file:./db.sqlite`. |
-| `URL` | URL publica/base **unica** (`src/env.js`): app inteiro, **incluindo `back_urls` do Checkout Pro** (retorno apos pagamento) e links. Na Vercel, a `VERCEL_URL` da plataforma e usada automaticamente; localmente ou com tunel, defina a URL publica desejada aqui. |
+| `URL` | URL publica/base **unica** (`src/env.js`): app inteiro, **incluindo `back_urls` do Checkout Pro** (retorno apos pagamento) e links. Este valor vem sempre do `.env` (sem fallback automatico da Vercel). |
 | `MERCADOPAGO_TOKEN` | Access token do Mercado Pago usado para criar preferencias e consultar pagamentos. |
 | `CRON_SECRET` | Segredo usado no header `Authorization: Bearer <CRON_SECRET>` da rota `/api/cron`. |
 
-**Producao vs tunel local (mesma chave `URL`):** no Vercel, a plataforma fornece `VERCEL_URL` automaticamente e o app usa essa origem como prioridade. Para testar checkout com tunel (ngrok, Cloudflare Tunnel, etc.), no `.env` **local** use a origem HTTPS do tunel em `URL`, rode `pnpm dev` e crie a preferencia por esse backend — o Mercado Pago passa a redirecionar e enviar webhooks para o tunel. Nao e necessario definir `WEBHOOK_URL` quando a base publica for a mesma.
+**Producao vs tunel local (mesma chave `URL`):** defina explicitamente no `.env` a origem publica correta em cada ambiente. Para testar checkout com tunel (ngrok, Cloudflare Tunnel, etc.), no `.env` **local** use a origem HTTPS do tunel em `URL`, rode `pnpm dev` e crie a preferencia por esse backend — o Mercado Pago passa a redirecionar e enviar webhooks para o tunel. Nao e necessario definir `WEBHOOK_URL` quando a base publica for a mesma.
 
 ### Obrigatorias em producao
 
@@ -45,7 +45,7 @@ Crie um arquivo `.env` na raiz do projeto usando `.env.example` como base. O sch
 | `NEXTAUTH_SECRET` | Segredo de sessao do NextAuth. Gere com `openssl rand -base64 32`. |
 | `ADMIN_PASSWORD_HASH` | Hash da senha do admin no formato `scrypt:<salt>:<derived-key-hex>`. |
 
-Em deploy na Vercel, `URL` nao precisa ser definida manualmente porque a origem publica vem de `VERCEL_URL`. O app so exige `URL` no ambiente local ou em qualquer deploy fora da Vercel.
+Em qualquer deploy (incluindo Vercel), `URL` deve ser definida explicitamente no `.env` com a origem publica correta do app.
 
 ### Acesso interno opcional
 

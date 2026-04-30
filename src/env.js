@@ -8,16 +8,6 @@ function normalizePublicBaseUrl(base) {
 
 /** @param {unknown} value */
 function resolvePublicBaseUrl(value) {
-  const vercelUrl = process.env.VERCEL_URL?.trim();
-  if (vercelUrl) {
-    const normalizedVercelUrl =
-      vercelUrl.startsWith("http://") || vercelUrl.startsWith("https://")
-        ? vercelUrl
-        : `https://${vercelUrl}`;
-
-    return normalizePublicBaseUrl(normalizedVercelUrl);
-  }
-
   if (typeof value === "string") {
     return normalizePublicBaseUrl(value.trim());
   }
