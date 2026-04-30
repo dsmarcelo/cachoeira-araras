@@ -396,9 +396,9 @@ export const mercadopagoRouter = createTRPCRouter({
                   },
                 },
                 back_urls: {
-                  success: `${siteBase}/pagamento/`,
-                  failure: `${siteBase}/pagamento/`,
-                  pending: `${siteBase}/pagamento/`,
+                  success: `${siteBase}`, // TODO: Add /pagamento/ correctly
+                  failure: `${siteBase}`, // TODO: Add /pagamento/ correctly
+                  pending: `${siteBase}`, // TODO: Add /pagamento/ correctly
                 },
                 external_reference: input.code,
                 expires: true,
