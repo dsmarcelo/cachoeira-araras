@@ -1,6 +1,6 @@
 import React from "react";
 import AdminHeader from "./_components/header";
-import { isLoggedIn } from "../lib";
+import { getCurrentUserRole } from "../lib";
 import PasswordLoginForm from "../_components/passwordLoginForm";
 import AdminFooter from "./_components/footer";
 import DashboardSidebar from "../_components/admin/admin-sidebar";
@@ -11,8 +11,9 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const isAdmin = await isLoggedIn();
-  if (!isAdmin) {
+  const role = await getCurrentUserRole();
+
+  if (!role) {
     return (
       <div className="flex min-h-screen w-full flex-col items-center justify-center px-4">
         <PasswordLoginForm />
@@ -21,7 +22,7 @@ export default async function AdminLayout({
   }
   return (
     <SidebarProvider>
-      <DashboardSidebar />
+      <DashboardSidebar role={role} />
       <div className="flex min-h-screen w-full flex-col">
         <AdminHeader>
           <SidebarTrigger className="" />

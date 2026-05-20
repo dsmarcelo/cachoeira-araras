@@ -19,10 +19,9 @@ export function formateDate(input: string) {
 }
 
 export function formateDateDayMonthYear(input: string | Date) {
-  let date = new Date();
-  typeof input === "string"
-    ? (date = new Date(input.toString()))
-    : (date = new Date(input));
+  // Normalize both persisted ISO strings and Date instances through one branch
+  // so formatting behavior stays identical while avoiding side-effect ternaries.
+  const date = typeof input === "string" ? new Date(input) : new Date(input);
   const day = String(date.getDate()).padStart(2, "0"); // Adiciona zero à esquerda se necessário
   const month = String(date.getMonth() + 1).padStart(2, "0"); // Meses são baseados em zero, então adicionamos 1
   const year = date.getFullYear();
@@ -31,10 +30,8 @@ export function formateDateDayMonthYear(input: string | Date) {
 }
 
 export function formatDateWeekDay(input: string | Date) {
-  let date = new Date();
-  typeof input === "string"
-    ? (date = new Date(input.toString()))
-    : (date = new Date(input));
+  // Keep date parsing centralized for both URL/string values and Date objects.
+  const date = typeof input === "string" ? new Date(input) : new Date(input);
   const dayOfWeek = date.toLocaleDateString("pt-BR", { weekday: "long" });
   const capitalizedDayOfWeek =
     dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1);

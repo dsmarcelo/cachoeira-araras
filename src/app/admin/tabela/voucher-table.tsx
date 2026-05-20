@@ -10,9 +10,6 @@ import {
   getSortedRowModel,
   type VisibilityState,
   type Row,
-  getPaginationRowModel,
-  getFilteredRowModel,
-  type ColumnFiltersState,
 } from "@tanstack/react-table"
 
 import {
@@ -41,19 +38,42 @@ import {
 } from "@/components/ui/select"
 
 import { Button } from "@/components/ui/button"
-import { ListFilter } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { ListFilter, Search } from "lucide-react"
 import { VoucherInfoCard } from "../voucher-info-card"
 import { DataTablePagination } from "./table-pagination"
 import { type CompleteVoucherSchema } from "@/lib/voucher/types"
 
 interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[],
+  columns: ColumnDef<TData, TValue>[]
   data: TData[]
+  total: number
+  page: number
+  pageSize: number
+  pageCount: number
+  status: string
+  search: string
+  isLoading?: boolean
+  onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
+  onStatusChange: (status: string) => void
+  onSearchChange: (search: string) => void
 }
 
 export function VoucherTable<TData, TValue>({
   columns,
   data,
+  total,
+  page,
+  pageSize,
+  pageCount,
+  status,
+  search,
+  isLoading = false,
+  onPageChange,
+  onPageSizeChange,
+  onStatusChange,
+  onSearchChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([{
     id: 'id',
@@ -62,32 +82,29 @@ export function VoucherTable<TData, TValue>({
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
   const [selectedRow, setSelectedRow] = React.useState<Row<TData>>()
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  )
 
   const handleClick = (row: Row<TData>) => {
     setSelectedRow(row)
   }
 
   const useWindowWidth = (): number => {
-    const [windowWidth, setWindowWidth] = React.useState<number>(window.innerWidth);
+    const [windowWidth, setWindowWidth] = React.useState<number>(1024)
 
     React.useEffect(() => {
       const handleResize = () => {
-        setWindowWidth(window.innerWidth);
-      };
+        setWindowWidth(window.innerWidth)
+      }
 
-      window.addEventListener('resize', handleResize);
+      handleResize()
+      window.addEventListener('resize', handleResize)
 
-      // Cleanup the event listener on component unmount
       return () => {
-        window.removeEventListener('resize', handleResize);
-      };
-    }, []);
+        window.removeEventListener('resize', handleResize)
+      }
+    }, [])
 
-    return windowWidth;
-  };
+    return windowWidth
+  }
 
   const table = useReactTable({
     data,
@@ -96,20 +113,21 @@ export function VoucherTable<TData, TValue>({
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
-    getPaginationRowModel: getPaginationRowModel(),
-    onColumnFiltersChange: setColumnFilters,
-    getFilteredRowModel: getFilteredRowModel(),
+    manualPagination: true,
+    pageCount,
     state: {
-      columnFilters,
       columnVisibility,
       sorting,
+      pagination: {
+        pageIndex: page - 1,
+        pageSize,
+      },
     },
-    // initialState: {
   })
 
-  const windowwidth = useWindowWidth();
+  const windowwidth = useWindowWidth()
 
-  function setColumnsVisibility() {
+  React.useEffect(() => {
     if (windowwidth < 768) {
       table.getColumn("id")?.toggleVisibility(false)
       table.getColumn("name")?.toggleVisibility(true)
@@ -123,31 +141,37 @@ export function VoucherTable<TData, TValue>({
       table.getColumn("expires_at")?.toggleVisibility(true)
       table.getColumn("actions")?.toggleVisibility(true)
     }
-  }
+  }, [table, windowwidth])
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  React.useEffect(() => { setColumnsVisibility() }, []);
-  window.onresize = () => setColumnsVisibility();
   return (
     <div className="w-full max-w-7xl mx-auto py-4 sm:py-4 sm:px-8 rounded-lg shadow-md border space-y-4">
-      <div className="flex justify-between px-4 sm:px-0">
-        <Select onValueChange={(value) => {
-          value === 'all' ? table.resetColumnFilters() : table.getColumn("status")?.setFilterValue(value)
-        }}>
-          <SelectTrigger className="w-32 h-8">
-            <SelectValue placeholder="Filtrar status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectLabel>Status</SelectLabel>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="valid">Validos</SelectItem>
-              <SelectItem value="redeemed">Usados</SelectItem>
-              <SelectItem value="pending">Pendentes</SelectItem>
-              <SelectItem value="expired">Expirados</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Select value={status} onValueChange={onStatusChange}>
+            <SelectTrigger className="h-8 w-36">
+              <SelectValue placeholder="Filtrar status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Status</SelectLabel>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="valid">Válidos</SelectItem>
+                <SelectItem value="redeemed">Usados</SelectItem>
+                <SelectItem value="pending">Pendentes</SelectItem>
+                <SelectItem value="expired">Expirados</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <div className="relative">
+            <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="h-8 w-full pl-8 sm:w-72"
+              placeholder="Buscar por nome, telefone ou código"
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+            />
+          </div>
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -182,6 +206,9 @@ export function VoucherTable<TData, TValue>({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <div className="px-4 text-sm text-muted-foreground sm:px-0">
+        {total} voucher(s) encontrado(s).
+      </div>
       <div className="border-y sm:border sm:rounded-lg w-full">
         <Table>
           <TableHeader>
@@ -203,7 +230,13 @@ export function VoucherTable<TData, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  Carregando vouchers...
+                </TableCell>
+              </TableRow>
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
@@ -220,14 +253,22 @@ export function VoucherTable<TData, TValue>({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  Sem resultados.
+                  Nenhum voucher encontrado.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} />
+      <DataTablePagination
+        table={table}
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        pageCount={pageCount}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
+      />
       {selectedRow && (
         <VoucherInfoCard
           data={selectedRow.original as CompleteVoucherSchema}

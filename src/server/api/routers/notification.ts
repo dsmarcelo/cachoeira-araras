@@ -1,11 +1,9 @@
-import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
+import { env } from "@/env";
+import { adminProcedure, createTRPCRouter } from "@/server/api/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import twilio from "twilio";
-
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const client = twilio(accountSid, authToken);
 
 //TODO: notify when voucher is bought?
 //TODO: notify when voucher is used?
@@ -18,8 +16,20 @@ function removeExtra9(phoneNumber: string): string {
   }
 }
 
+function getTwilioClient() {
+  const accountSid = env.TWILIO_ACCOUNT_SID;
+  const authToken = env.TWILIO_AUTH_TOKEN;
+
+  if (!accountSid?.startsWith("AC") || !authToken) {
+    console.warn("Twilio is not configured. Skipping WhatsApp notification.");
+    return null;
+  }
+
+  return twilio(accountSid, authToken);
+}
+
 export const notificationRouter = createTRPCRouter({
-  sendWhatsAppMessage: publicProcedure
+  sendWhatsAppMessage: adminProcedure
     .input(
       z.object({
         body: z.string(),
@@ -28,6 +38,15 @@ export const notificationRouter = createTRPCRouter({
     )
     .mutation(async ({ input }) => {
       const from = "whatsapp:+14155238886";
+      const client = getTwilioClient();
+
+      if (!client) {
+        return {
+          success: false,
+          skipped: true,
+          reason: "TWILIO_NOT_CONFIGURED",
+        };
+      }
 
       try {
         await client.messages.create({
@@ -42,7 +61,11 @@ export const notificationRouter = createTRPCRouter({
         return { success: true };
       } catch (error) {
         console.error("Error sending message:", error);
-        throw { succsess: false, error: error };
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Erro ao enviar mensagem WhatsApp.",
+          cause: error,
+        });
       }
     }),
 });

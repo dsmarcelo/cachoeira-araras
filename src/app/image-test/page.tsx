@@ -1,4 +1,6 @@
+import { env } from "@/env";
 import Image from "next/image";
+import Link from "next/link";
 import { formatQuantity } from "@/lib/voucher";
 import { formateDateDayMonthYear, formatPhone, truncateName } from "@/lib/utils";
 
@@ -30,10 +32,10 @@ export default function ImageTestPage() {
 
   // Build the URL exactly like the voucher card does
   let url = "";
-  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-    url = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
-  } else if (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
-    url = `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (env.NEXT_PUBLIC_VERCEL_URL) {
+    url = `https://${env.NEXT_PUBLIC_VERCEL_URL}`;
+  } else if (env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
+    url = `https://${env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}`;
   } else {
     url = "http://localhost:3000";
   }
@@ -121,12 +123,12 @@ export default function ImageTestPage() {
         <div className="mt-8 text-center">
           <p className="text-sm text-gray-500">
             Esta página é apenas para testes. Acesse{" "}
-            <a
+            <Link
               href="/"
-              className="text-blue-600 hover:text-blue-800 underline"
+              className="text-blue-600 underline hover:text-blue-800"
             >
               a página inicial
-            </a>{" "}
+            </Link>{" "}
             para usar o sistema normalmente.
           </p>
         </div>

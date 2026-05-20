@@ -5,8 +5,16 @@ import Link from "next/link";
 import { RiGalleryView2 } from "react-icons/ri";
 import { FaLocationArrow } from "react-icons/fa";
 import { MiniImageCarousel } from "../../_components/swiper-carousel/mini-image-carousel";
+import { requireStaff } from "@/app/lib";
+import { redirect } from "next/navigation";
 
 export default async function TestPage() {
+  const user = await requireStaff();
+
+  if (!user) {
+    redirect("/admin");
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center bg-bg-blue text-primary-200 lg:pt-8">
       <ImageCarousel />

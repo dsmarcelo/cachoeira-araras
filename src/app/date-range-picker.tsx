@@ -23,15 +23,17 @@ import {
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { useId, useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { DateRange } from "react-day-picker";
 
 export default function DateRangePicker() {
   const id = useId();
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [date, setDate] = useState<DateRange | undefined>();
-  const today = new Date();
+  const today = useState(() => new Date())[0];
+  const currentMonthRange = { from: startOfMonth(today), to: today };
+  const [date, setDate] = useState<DateRange | undefined>(currentMonthRange);
   const [month, setMonth] = useState(today);
 
   // Define preset date ranges
@@ -124,11 +126,7 @@ export default function DateRangePicker() {
       // Reset preset param as this is a custom selection
       params.delete("preset");
 
-      // Update URL without adding to history
-      window.history.replaceState({}, "", `?${params.toString()}`);
-
-      // Refresh the page data
-      router.refresh();
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     }
   };
 
@@ -146,11 +144,7 @@ export default function DateRangePicker() {
     params.set("from", preset.from.toISOString());
     params.set("to", preset.to.toISOString());
 
-    // Update URL without adding to history
-    window.history.replaceState({}, "", `?${params.toString()}`);
-
-    // Refresh the page data
-    router.refresh();
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   return (

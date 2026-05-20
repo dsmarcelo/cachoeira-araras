@@ -1,12 +1,20 @@
-import React from 'react'
-import ValidateVoucher from '../_components/validate-voucher'
-import TodayVouchers from './_components/today-vouchers'
+import React from "react";
+import ValidateVoucher from "../_components/validate-voucher";
+import EmployeeTodayVouchers from "./_components/employee-today-vouchers";
+import TodayVouchers from "./_components/today-vouchers";
+import { requireStaff } from "../lib";
 
 export default async function AdminPage() {
+  const user = await requireStaff();
+
+  if (!user) {
+    return null;
+  }
+
   return (
-    <main className='grid grid-cols-1 sm:grid-cols-2 w-full items-center px-4 sm:gap-12 py-4 max-w-6xl mx-auto'>
+    <main className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-4 px-4 py-4 sm:grid-cols-2 sm:gap-12">
       <ValidateVoucher />
-      <TodayVouchers />
+      {user.role === "admin" ? <TodayVouchers /> : <EmployeeTodayVouchers />}
     </main>
   );
 }

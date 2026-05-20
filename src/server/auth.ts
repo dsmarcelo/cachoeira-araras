@@ -1,66 +1,185 @@
-import { PrismaAdapter } from "@auth/prisma-adapter";
+import { scryptSync, timingSafeEqual } from "node:crypto";
 import {
   getServerSession,
   type DefaultSession,
   type NextAuthOptions,
 } from "next-auth";
-import { type Adapter } from "next-auth/adapters";
+import CredentialsProvider from "next-auth/providers/credentials";
 
-import { db } from "@/server/db";
+import { env } from "@/env.js";
 
-/**
- * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
- * object and keep type safety.
- *
- * @see https://next-auth.js.org/getting-started/typescript#module-augmentation
- */
+export const USER_ROLES = ["admin", "employee"] as const;
+
+export type UserRole = (typeof USER_ROLES)[number];
+
+interface ParsedPasswordHash {
+  derivedKeyHex: string;
+  salt: string;
+}
+
 declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
-      // ...other properties
-      // role: UserRole;
+      isAdmin: boolean;
+      role: UserRole;
     } & DefaultSession["user"];
   }
 
-  // interface User {
-  //   // ...other properties
-  //   // role: UserRole;
-  // }
+  interface User {
+    isAdmin: boolean;
+    role: UserRole;
+  }
 }
 
-/**
- * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
- *
- * @see https://next-auth.js.org/configuration/options
- */
+declare module "next-auth/jwt" {
+  interface JWT {
+    isAdmin?: boolean;
+    role?: UserRole;
+  }
+}
+
+function parsePasswordHash(storedHash: string): ParsedPasswordHash | null {
+  const separator = storedHash.includes(":") ? ":" : "$";
+  const [algorithm, salt, derivedKeyHex] = storedHash.split(separator);
+
+  if (algorithm !== "scrypt" || !salt || !derivedKeyHex) {
+    return null;
+  }
+
+  return { derivedKeyHex, salt };
+}
+
+function verifyPasswordHash(
+  password: string,
+  storedHash: string | undefined,
+  envName: string,
+): boolean {
+  if (!storedHash) {
+    return false;
+  }
+
+  const parsedHash = parsePasswordHash(storedHash);
+
+  if (!parsedHash) {
+    console.error(
+      `Invalid ${envName} format. Generate it with: pnpm admin:hash -- "<password>"`,
+    );
+    return false;
+  }
+
+  try {
+    const expectedKey = Buffer.from(parsedHash.derivedKeyHex, "hex");
+
+    if (expectedKey.length === 0) {
+      return false;
+    }
+
+    const derivedKey = scryptSync(password, parsedHash.salt, expectedKey.length);
+
+    return timingSafeEqual(derivedKey, expectedKey);
+  } catch (error) {
+    console.error(`Invalid ${envName} configuration`, error);
+    return false;
+  }
+}
+
+function resolveUserRole(password: string): UserRole | null {
+  if (verifyPasswordHash(password, env.ADMIN_PASSWORD_HASH, "ADMIN_PASSWORD_HASH")) {
+    return "admin";
+  }
+
+  if (
+    verifyPasswordHash(
+      password,
+      env.EMPLOYEE_PASSWORD_HASH,
+      "EMPLOYEE_PASSWORD_HASH",
+    )
+  ) {
+    return "employee";
+  }
+
+  return null;
+}
+
+const isProduction = env.NODE_ENV === "production";
+
 export const authOptions: NextAuthOptions = {
   callbacks: {
-    session: ({ session, user }) => ({
+    jwt: ({ token, user }) => {
+      if (user) {
+        token.isAdmin = user.isAdmin;
+        token.role = user.role;
+      }
+
+      return token;
+    },
+    session: ({ session, token }) => ({
       ...session,
       user: {
         ...session.user,
-        id: user.id,
+        id: token.sub ?? "staff",
+        isAdmin: token.isAdmin === true,
+        role: token.role === "employee" ? "employee" : "admin",
       },
     }),
   },
-  adapter: PrismaAdapter(db) as Adapter,
+  cookies: {
+    sessionToken: {
+      name: isProduction
+        ? "__Secure-next-auth.session-token"
+        : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        path: "/",
+        sameSite: "lax",
+        secure: isProduction,
+      },
+    },
+  },
   providers: [
-    /**
-     * ...add more providers here.
-     *
-     * Most other providers require a bit more work than the Discord provider. For example, the
-     * GitHub provider requires you to add the `refresh_token_expires_in` field to the Account
-     * model. Refer to the NextAuth.js docs for the provider you want to use. Example:
-     *
-     * @see https://next-auth.js.org/providers/github
-     */
+    CredentialsProvider({
+      credentials: {
+        password: {
+          label: "Senha de acesso",
+          type: "password",
+        },
+      },
+      name: "Acesso interno",
+      authorize(credentials) {
+        const password = credentials?.password;
+
+        if (typeof password !== "string" || password.length === 0) {
+          return null;
+        }
+
+        const role = resolveUserRole(password);
+
+        if (!role) {
+          return null;
+        }
+
+        return {
+          email: `${role}@cachoeira-araras.local`,
+          id: role,
+          isAdmin: role === "admin",
+          name: role === "admin" ? "Administrador" : "Funcionário",
+          role,
+        };
+      },
+    }),
   ],
+  secret: env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "jwt",
+  },
 };
 
-/**
- * Wrapper for `getServerSession` so that you don't need to import the `authOptions` in every file.
- *
- * @see https://next-auth.js.org/configuration/nextjs
- */
 export const getServerAuthSession = () => getServerSession(authOptions);
+
+export async function getCurrentUserRole(): Promise<UserRole | null> {
+  const session = await getServerAuthSession();
+  const role = session?.user?.role;
+
+  return role === "admin" || role === "employee" ? role : null;
+}

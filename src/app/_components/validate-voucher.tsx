@@ -19,7 +19,7 @@ export default function ValidateVoucher() {
   const [openMoreInfo, setOpenMoreInfo] = useState(false);
   const [message, setMessage] = useState('');
 
-  const updateVoucher = api.voucher.updateVoucherStatus.useMutation()
+  const redeemVoucher = api.voucher.redeemByCode.useMutation()
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
     setVoucher(undefined);
@@ -59,15 +59,20 @@ export default function ValidateVoucher() {
 
   async function useVoucher() {
     if (!voucherCode) return null
-    const res = await updateVoucher.mutateAsync({
-      code: voucherCode,
-      data: {
-        status: "redeemed",
-        valid: false,
-      }
-    })
-    setVoucher(undefined);
-    return res
+    try {
+      const res = await redeemVoucher.mutateAsync({
+        code: voucherCode,
+      })
+      setVoucher(undefined);
+      setValid(false);
+      setMessage('Voucher usado com sucesso')
+      return res
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erro ao usar voucher'
+      setMessage(errorMessage)
+      return null
+    }
   }
 
   async function onSubmit() {

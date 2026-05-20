@@ -52,7 +52,6 @@ export default function PriceTable() {
     data["enable.voucher.half-price.pool.buy"] ?? true;
 
   const elderlyPrice = voucherPrice / 2;
-  const poolElderlyPrice = poolVoucherPrice / 2;
 
   const showRegular = enableVoucherBuy && voucherPrice > 0;
   const showRegularHalf = showRegular && enableHalfPriceVoucherBuy;

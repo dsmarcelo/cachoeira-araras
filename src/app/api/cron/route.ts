@@ -1,67 +1,76 @@
 export const dynamic = "force-dynamic";
-import { PrismaClient } from "@prisma/client";
+import { env } from "@/env";
+import { db } from "@/server/db";
 import { NextResponse } from "next/server";
 
-const prisma = new PrismaClient();
-
-async function updateExpiredVouchers() {
-  const now = new Date(
+function getSaoPauloNow() {
+  return new Date(
     new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
   );
-  try {
-    // Update all expired vouchers in a single query
-    await prisma.voucher.updateMany({
-      where: {
-        expires_at: {
-          lte: now,
-        },
-        valid: true,
-        status: "valid",
-        deletedAt: null,
-      },
-      data: {
-        valid: false,
-        status: "expired",
-      },
-    });
-  } catch (error) {
-    console.error("Error updating expired vouchers:", error);
-  }
 }
 
-async function deleteExpiredPendingVouchers() {
-  const now = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
-  );
-  try {
-    // Find all vouchers that have expired
-    await prisma.voucher.updateMany({
-      where: {
-        expires_at: {
-          lte: now,
-        },
-        valid: false,
-        status: "pending",
+async function updateExpiredVouchers(now: Date) {
+  const result = await db.voucher.updateMany({
+    where: {
+      expires_at: {
+        lte: now,
       },
-      data: {
-        deletedAt: now,
+      valid: true,
+      status: "valid",
+      deletedAt: null,
+    },
+    data: {
+      valid: false,
+      status: "expired",
+    },
+  });
+
+  return result.count;
+}
+
+async function deleteExpiredPendingVouchers(now: Date) {
+  const result = await db.voucher.updateMany({
+    where: {
+      expires_at: {
+        lte: now,
       },
-    });
-  } catch (error) {
-    console.error("Error deleting expired vouchers:", error);
-  }
+      valid: false,
+      status: "pending",
+      deletedAt: null,
+    },
+    data: {
+      deletedAt: now,
+    },
+  });
+
+  return result.count;
 }
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${env.CRON_SECRET}`) {
     return new Response("Unauthorized", {
       status: 401,
     });
   }
   console.log("Running cron job");
 
-  await updateExpiredVouchers();
-  await deleteExpiredPendingVouchers();
-  return NextResponse.json({ success: true });
+  try {
+    const now = getSaoPauloNow();
+    const expiredVouchers = await updateExpiredVouchers(now);
+    const softDeletedPendingVouchers = await deleteExpiredPendingVouchers(now);
+
+    return NextResponse.json({
+      success: true,
+      expiredVouchers,
+      softDeletedPendingVouchers,
+    });
+  } catch (error) {
+    console.error("Error running cron job:", error);
+
+    return NextResponse.json(
+      { success: false, error: "Cron maintenance failed" },
+      { status: 500 },
+    );
+  }
 }

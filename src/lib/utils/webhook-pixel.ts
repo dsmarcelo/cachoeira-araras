@@ -180,14 +180,6 @@ export async function sendFacebookPixelEvent(payment: PaymentResponse): Promise<
     const result: Record<string, unknown> = await response.json();
     console.log('Facebook Pixel event sent successfully:', result);
 
-    // Also send Google Ads conversion
-    try {
-      await sendGoogleAdsConversion(payment);
-    } catch (error: unknown) {
-      console.error('Error sending Google Ads conversion:', String(error));
-      // Don't fail the main function if Google Ads fails
-    }
-
     return true;
 
   } catch (error: unknown) {

@@ -3,19 +3,10 @@ import { api } from "@/trpc/react";
 import React, { useEffect, useState } from "react";
 import type { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  calculatePrice,
-  formatVoucher,
-  getElderlyVoucherPrice,
-  getPoolElderlyVoucherPrice,
-  getPoolVoucherPrice,
-  getVoucherPrice,
-  randomCode,
-} from "@/lib/utils/utils";
 import { useRouter } from "next/navigation";
 import { voucherFormSchema } from "@/lib/voucher/types";
 import { cn, formatPaymentUrl, formatPhone } from "@/lib/utils";
@@ -24,7 +15,6 @@ import {
   addCookieVoucher,
   deleteCookieVoucher,
   getCookieVoucher,
-  createReferrer,
 } from "../lib";
 import VoucherCreatedCard from "./voucher-created-card";
 import { CalendarIcon, ChevronRight, Loader2 } from "lucide-react";
@@ -36,10 +26,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { formatMercadoPagoDescription } from "@/lib/voucher";
 import { getBrazilianDate } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
-import { type Voucher } from "@/types/voucher";
 
 export default function VoucherForm({
   testMode = false,
@@ -64,14 +52,30 @@ export default function VoucherForm({
     "disabled.days": disabledDays = [],
     "max.intended.days": maxIntendedDays = 60,
     "form.message": formMessage = "",
+    "voucher.price": voucherPrice = 50,
+    "voucher.pool.price": poolVoucherPrice = 70,
+    "voucher.max.quantity.adults": maxAdults = 20,
+    "voucher.max.quantity.elderly": maxElderly = 20,
+    "voucher.max.quantity.adults.pool": maxAdultsPool = 20,
+    "voucher.max.quantity.elderly.pool": maxElderlyPool = 20,
     "enable.voucher.buy": enableVoucherBuy = true,
     "enable.voucher.pool.buy": enablePoolVoucherBuy = true,
     "enable.voucher.half-price.buy": enableHalfPriceVoucherBuy = true,
     "enable.voucher.half-price.pool.buy": enableHalfPricePoolVoucherBuy = false,
   } = settingsQuery.data ?? {};
+  const elderlyVoucherPrice = voucherPrice / 2;
+  const poolElderlyVoucherPrice = poolVoucherPrice / 2;
 
   async function checkPaymentStatus(code: string) {
-    const voucher = (await utils.voucher.findByCode.fetch({ code })) as Voucher;
+    const reconciliation = await utils.voucher.reconcilePublicPaymentStatus.fetch({
+      code,
+    });
+    if (reconciliation.status === "paid" && reconciliation.successUrl) {
+      setPaymentSuccessUrl(reconciliation.successUrl);
+      return;
+    }
+
+    const voucher = await utils.voucher.getPublicStatusByCode.fetch({ code });
     if (!voucher) return deleteCookieVoucher();
 
     if (voucher.status !== "pending" && voucher.payment_id) {
@@ -79,7 +83,7 @@ export default function VoucherForm({
       setPaymentSuccessUrl(url);
     }
 
-    const preference = await utils.mercadopago.getPrefence.fetch({
+    const preference = await utils.mercadopago.getPublicPreference.fetch({
       preference_id: voucher.preference_id,
     });
 
@@ -130,15 +134,13 @@ export default function VoucherForm({
   }, [settingsQuery]);
 
   type FormSchema = z.infer<typeof voucherFormSchema>;
-  const addVoucher = api.voucher.create.useMutation();
-  const mercadopago = api.mercadopago.create.useMutation();
+  const startCheckout = api.voucher.startCheckout.useMutation();
 
   const {
     register,
     handleSubmit,
     control,
     formState: { errors, isSubmitting },
-    watch,
   } = useForm<FormSchema>({
     resolver: zodResolver(voucherFormSchema),
     defaultValues: {
@@ -151,48 +153,16 @@ export default function VoucherForm({
     },
   });
 
-  const formValues = watch();
+  const formValues = useWatch({ control });
+  const totalPrice = testMode
+    ? 0.01
+    : (formValues.adults ?? 0) * voucherPrice +
+      (formValues.elderly ?? 0) * elderlyVoucherPrice +
+      (formValues.adults_pool ?? 0) * poolVoucherPrice +
+      (formValues.elderly_pool ?? 0) * poolElderlyVoucherPrice;
 
   function normalizePhone(value: string) {
     return value.replace(/\D/g, "");
-  }
-
-  async function buyVoucher({
-    data,
-    code,
-  }: {
-    data: FormSchema;
-    code: string;
-  }) {
-    const res = await mercadopago.mutateAsync({
-      code,
-      title: `Voucher ${code}`,
-      id: code,
-      description: formatMercadoPagoDescription({
-        adults: data.adults,
-        elderly: data.elderly,
-        adults_pool: data.adults_pool,
-        elderly_pool: data.elderly_pool,
-        phone: data.phone,
-        code,
-      }),
-      adults: data.adults,
-      elderly: data.elderly,
-      unit_price: testMode
-        ? 0.01
-        : calculatePrice(
-            data.adults,
-            data.elderly,
-            data.adults_pool,
-            data.elderly_pool,
-          ),
-      name: data.name.trim().split(" ")[0] ?? "",
-      surname: data.name.trim().split(" ").slice(1).join(" ") ?? "",
-      phone: data.phone,
-    });
-
-    if (!res) console.error("Failed to create preference");
-    return res;
   }
 
   function redirectToPayment() {
@@ -239,37 +209,31 @@ export default function VoucherForm({
     }
     try {
       setIsLoading(true);
-      const rcode = randomCode();
-      setCode(rcode);
-      const res = await buyVoucher({ data, code: rcode });
-      if (!res?.id || !res?.init_point)
-        throw new Error("Falha ao criar preferencia");
-      await addCookieVoucher(rcode);
-      const preference_id = res.id;
-      const completeData = formatVoucher({
-        ...data,
-        preference_id,
-        code: rcode,
+      const checkout = await startCheckout.mutateAsync({
+        name: data.name,
+        phone: data.phone,
+        adults: data.adults,
+        elderly: data.elderly,
+        adults_pool: data.adults_pool,
+        elderly_pool: data.elderly_pool,
+        intendedDate: data.intendedDate,
+        testMode,
+        referrerUrl: referrerURL,
       });
-      // Override price for test mode
-      if (testMode) {
-        completeData.price = 0.01;
-      }
-      const voucher = await addVoucher.mutateAsync(completeData);
-      if (!voucher)
-        return toast({
-          title: "Erro",
-          description:
-            "Erro ao criar o voucher, por favor atualize a página e tente novamente",
-        });
-      setInitPoint(res.init_point);
-      if (referrerURL) {
-        await createReferrer(rcode, referrerURL);
-      }
+      setCode(checkout.code);
+      await addCookieVoucher(checkout.code);
+      setInitPoint(checkout.initPoint);
       setIsLoading(false);
     } catch (error) {
-      return console.error(error);
-      // TODO: send error to server and show error page
+      console.error(error);
+      setIsLoading(false);
+      return toast({
+        title: "Erro",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Erro ao criar voucher. Tente novamente.",
+      });
     }
   }
 
@@ -372,7 +336,7 @@ export default function VoucherForm({
                       <p className="text-base font-bold">Inteira</p>
                       <p className="text-sm">(de 9 a 59 anos)</p>
                       <p className="text-sm">
-                        R$ {getVoucherPrice().toFixed(2).replace(".", ",")}
+                        R$ {voucherPrice.toFixed(2).replace(".", ",")}
                       </p>
                     </Label>
                     <div className="w-fit">
@@ -383,7 +347,7 @@ export default function VoucherForm({
                           <NumberInput
                             id="adults"
                             minValue={0}
-                            maxValue={20}
+                            maxValue={maxAdults}
                             selectedValue={field.value}
                             onChange={field.onChange}
                           />
@@ -405,7 +369,7 @@ export default function VoucherForm({
                           <p className="text-sm">(+60 anos e especiais)</p>
                           <p className="text-sm">
                             R${" "}
-                            {getElderlyVoucherPrice().toFixed(2).replace(".", ",")}
+                            {elderlyVoucherPrice.toFixed(2).replace(".", ",")}
                           </p>
                         </Label>
                         <div className="w-fit">
@@ -416,7 +380,7 @@ export default function VoucherForm({
                               <NumberInput
                                 id="elderly"
                                 minValue={0}
-                                maxValue={20}
+                                maxValue={maxElderly}
                                 selectedValue={field.value}
                                 onChange={field.onChange}
                               />
@@ -424,7 +388,7 @@ export default function VoucherForm({
                           />
                         </div>
                       </div>
-                        {formValues.elderly > 0 && (
+                        {(formValues.elderly ?? 0) > 0 && (
                           <p className="text-base font-medium text-yellow-950 bg-yellow-50 rounded-md px-3 py-2">
                             Necessário apresentar documento de identificação
                           </p>
@@ -445,7 +409,7 @@ export default function VoucherForm({
                     <Label className="flex flex-col">
                       <p className="text-base font-bold">Área da Piscina</p>
                       <p className="text-sm">
-                        R$ {getPoolVoucherPrice().toFixed(2).replace(".", ",")}
+                        R$ {poolVoucherPrice.toFixed(2).replace(".", ",")}
                       </p>
                     </Label>
                     <div className="w-fit">
@@ -456,7 +420,7 @@ export default function VoucherForm({
                           <NumberInput
                             id="adults_pool"
                             minValue={0}
-                            maxValue={20}
+                            maxValue={maxAdultsPool}
                             selectedValue={field.value}
                             onChange={field.onChange}
                           />
@@ -477,7 +441,7 @@ export default function VoucherForm({
                         <p className="text-sm">(+60 anos e especiais)</p>
                         <p className="text-sm">
                           R${" "}
-                          {getPoolElderlyVoucherPrice()
+                          {poolElderlyVoucherPrice
                             .toFixed(2)
                             .replace(".", ",")}
                         </p>
@@ -490,7 +454,7 @@ export default function VoucherForm({
                             <NumberInput
                               id="elderly_pool"
                               minValue={0}
-                              maxValue={20}
+                              maxValue={maxElderlyPool}
                               selectedValue={field.value}
                               onChange={field.onChange}
                             />
@@ -576,7 +540,7 @@ export default function VoucherForm({
             )}
           </div>
 
-          <h1 className="font-bold">{`Valor: R$${(testMode ? 0.01 : calculatePrice(formValues.adults, formValues.elderly, formValues.adults_pool, formValues.elderly_pool)).toFixed(2).replace(".", ",")}`}</h1>
+          <h1 className="font-bold">{`Valor: R$${totalPrice.toFixed(2).replace(".", ",")}`}</h1>
 
           <Button
             disabled={isSubmitting}
@@ -596,7 +560,7 @@ export default function VoucherForm({
             )}
           </Button>
         </form>
-        {addVoucher.isError && (
+        {startCheckout.isError && (
           <div className="my-4 flex flex-col justify-center space-y-2 text-lg font-medium text-red-500">
             <p>Erro ao criar o voucher, tente novamente!</p>
             <Button onClick={() => location.reload()} className="h-20">
