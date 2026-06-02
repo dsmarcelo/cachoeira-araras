@@ -24,7 +24,7 @@ function PriceSummary({ label, price, description }: PriceSummaryProps) {
   );
 }
 
-export default function PriceTable() {
+export default function LegacyPriceTable() {
   // Fetch all settings once. We keep sensible fallbacks to avoid flashing empty content.
   const settingsQuery = api.settings.getAll.useQuery();
   const data = settingsQuery.data;
@@ -43,14 +43,24 @@ export default function PriceTable() {
   }
 
   const voucherPrice = data["voucher.price"] ?? 0;
+  const poolVoucherPrice = data["voucher.pool.price"] ?? 0;
   const enableVoucherBuy = data["enable.voucher.buy"] ?? true;
+  const enablePoolVoucherBuy = data["enable.voucher.pool.buy"] ?? true;
+  const enableHalfPriceVoucherBuy =
+    data["enable.voucher.half-price.buy"] ?? true;
+  const enableHalfPricePoolVoucherBuy =
+    data["enable.voucher.half-price.pool.buy"] ?? true;
 
   const elderlyPrice = voucherPrice / 2;
 
   const showRegular = enableVoucherBuy && voucherPrice > 0;
+  const showRegularHalf = showRegular && enableHalfPriceVoucherBuy;
+  const showPool = enablePoolVoucherBuy && poolVoucherPrice > 0;
+  const showPoolHalf = showPool && enableHalfPricePoolVoucherBuy;
 
   // Track whether at least one price is visible; useful to display fallback messaging.
-  const hasAnyPrice = showRegular;
+  const hasAnyPrice =
+    showRegular || showRegularHalf || showPool || showPoolHalf;
 
   return (
     <div className="flex w-full flex-col items-center justify-center">
@@ -60,13 +70,13 @@ export default function PriceTable() {
       <div className="flex w-full flex-col gap-2 bg-custom-secondary pb-2 pt-1 font-semibold text-primary-50">
         <div className="flex h-10 w-full items-center justify-center bg-dark-blue">
           <p className="text-lg font-semibold text-primary-50">
-            Day Use
+            Day use (Cachoeira + Bar Pé de Serra)
           </p>
         </div>
         <div className="flex w-full flex-col gap-2 px-4">
           {showRegular && (
             <PriceSummary
-              label="Voucher"
+              label="Inteira (de 9 a 59 anos)"
               price={voucherPrice}
             />
           )}
@@ -77,6 +87,10 @@ export default function PriceTable() {
             description="Compra apenas na portaria, necessário apresentar documento."
           />
 
+          {/* {showRegularHalf && (
+            <PriceSummary label="Meia (+60 e especiais)" price={elderlyPrice} />
+          )} */}
+
           <div className="flex w-full justify-between">
             <div className="flex gap-2">
               <p>Crianças até 8 anos</p>
@@ -84,6 +98,36 @@ export default function PriceTable() {
             Grátis
           </div>
         </div>
+        {(showPool ?? showPoolHalf) ? (
+          <>
+            <div className="flex h-10 w-full items-center justify-center bg-dark-blue">
+              <p className="text-lg font-semibold text-primary-50">
+                Day Use + Acesso a piscina
+              </p>
+            </div>
+            <div className="flex w-full flex-col gap-2 px-4">
+              {showPool && (
+                <PriceSummary
+                  label="Acesso a piscina"
+                  price={poolVoucherPrice}
+                />
+              )}
+
+              {/*<PriceSummary
+                label="Meia (+60 e especiais)"
+                price={poolElderlyPrice}
+                description="Compra apenas na portaria, necessário apresentar documento."
+              />*/}
+
+              <div className="flex w-full justify-between">
+                <div className="flex gap-2">
+                  <p>Crianças até 8 anos</p>
+                </div>
+                Grátis
+              </div>
+            </div>
+          </>
+        ) : null}
         {!hasAnyPrice ? <></> : null}
       </div>
     </div>
