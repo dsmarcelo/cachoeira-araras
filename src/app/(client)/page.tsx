@@ -5,18 +5,20 @@ import Link from "next/link";
 import { RiGalleryView2 } from "react-icons/ri";
 import { FaLocationArrow } from "react-icons/fa";
 import { MiniImageCarousel } from "../_components/swiper-carousel/mini-image-carousel";
+import { AttractionCardCarousel } from "../_components/attraction-card-carousel";
 
 export default async function Home() {
   return (
-    <div className="flex min-h-screen flex-col items-center bg-bg-blue lg:pt-8 text-primary-200">
+    <div className="flex min-h-screen min-w-0 flex-col items-center bg-bg-blue lg:pt-8 text-primary-200">
       <ImageCarousel />
-      <main className="flex flex-col items-center px-4 gap-12 md:gap-24 pb-8 z-10 -mt-6 lg:mt-0 md:py-8 md:px-8">
+      <main className="flex flex-col items-center w-full min-w-0 px-4 gap-12 md:gap-24 pb-8 z-10 -mt-6 lg:mt-0 md:py-8 md:px-8">
         <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 justify-center gap-6">
           <VoucherBuy />
           <InfoCard />
         </div>
         <section className="w-full flex flex-col items-center space-y-4">
           <h4 className="font-semibold text-3xl text-center">Veja o que você pode aproveitar</h4>
+          <AttractionCardCarousel />
           <MiniImageCarousel />
           <Link href="/galeria" className="h-16 w-full max-w-[500px] flex justify-center items-center rounded-xl font-medium bg-primary-500 text-bg-blue hover:bg-primary-600">
             <RiGalleryView2 className="mr-2 h-5 w-5" />
