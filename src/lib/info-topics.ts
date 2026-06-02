@@ -14,10 +14,10 @@ export const infoTopics: InfoTopic[] = [
     title: env.NEXT_PUBLIC_INFO_CACHOEIRA_TITLE ?? "Cachoeira",
     description:
       env.NEXT_PUBLIC_INFO_CACHOEIRA_DESCRIPTION ??
-      "Aproveite o contato direto com a natureza em uma cachoeira privilegiada de Pirenopolis-GO.",
+      "Conforto, privacidade e contato direto com a natureza em uma localização privilegiada de Pirenópolis-GO.",
     image:
       env.NEXT_PUBLIC_INFO_CACHOEIRA_IMAGE ??
-      "/images/principais/cachoeira-principal.png",
+      "/images/cachoeira-principal.avif",
     imageAlt: env.NEXT_PUBLIC_INFO_CACHOEIRA_TITLE ?? "Cachoeira",
   },
   {
@@ -27,10 +27,10 @@ export const infoTopics: InfoTopic[] = [
       "Restaurante e bar Pe de Serra",
     description:
       env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_DESCRIPTION ??
-      "Comida de qualidade, atendimento acolhedor e estrutura para completar o seu passeio.",
+      "Atendimento de excelência, comida de qualidade com preço humanizado.",
     image:
       env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_IMAGE ??
-      "/images/principais/quiosque.png",
+      "/images/prato.avif",
     imageAlt:
       env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_TITLE ??
       "Restaurante e bar Pe de Serra",
@@ -40,10 +40,10 @@ export const infoTopics: InfoTopic[] = [
     title: env.NEXT_PUBLIC_INFO_PISCINA_TITLE ?? "Piscina",
     description:
       env.NEXT_PUBLIC_INFO_PISCINA_DESCRIPTION ??
-      "Area de piscina para adultos e criancas curtirem o dia com conforto.",
+      "Área de piscinas de adultos e crianças com bar acessível",
     image:
       env.NEXT_PUBLIC_INFO_PISCINA_IMAGE ??
-      "/images/principais/piscina-drone.png",
+      "/images/piscina-drone.avif",
     imageAlt: env.NEXT_PUBLIC_INFO_PISCINA_TITLE ?? "Piscina",
   },
   {
@@ -51,8 +51,8 @@ export const infoTopics: InfoTopic[] = [
     title: env.NEXT_PUBLIC_INFO_PRAIA_TITLE ?? "Praia",
     description:
       env.NEXT_PUBLIC_INFO_PRAIA_DESCRIPTION ??
-      "Espaco de praia para descansar, tomar sol e aproveitar o visual natural.",
-    image: env.NEXT_PUBLIC_INFO_PRAIA_IMAGE ?? "/images/principais/praia.jpg",
+      "Espaço de praia para descansar, tomar sol e aproveitar o visual natural.",
+    image: env.NEXT_PUBLIC_INFO_PRAIA_IMAGE ?? "/images/praia.avif",
     imageAlt: env.NEXT_PUBLIC_INFO_PRAIA_TITLE ?? "Praia",
   },
   {
@@ -61,22 +61,22 @@ export const infoTopics: InfoTopic[] = [
       env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_TITLE ?? "Bar pe na areia",
     description:
       env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_DESCRIPTION ??
-      "Bebidas e petiscos perto da area de lazer para voce relaxar sem pressa.",
+      "Bebidas e petiscos perto da praia para você relaxar sem pressa.",
     image:
       env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_IMAGE ??
-      "/images/principais/piscinas-naturais.png",
+      "/images/bar-pe-na-areia.avif",
     imageAlt:
       env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_TITLE ?? "Bar pe na areia",
   },
   {
-    key: "redeiro",
-    title: env.NEXT_PUBLIC_INFO_REDEIRO_TITLE ?? "Redeiro",
+    key: "redario",
+    title: env.NEXT_PUBLIC_INFO_REDEIRO_TITLE ?? "Redário",
     description:
       env.NEXT_PUBLIC_INFO_REDEIRO_DESCRIPTION ??
-      "Area com redes para descansar entre um mergulho e outro.",
+      "Área coberta e privada com redes para descansar",
     image:
       env.NEXT_PUBLIC_INFO_REDEIRO_IMAGE ??
-      "/images/principais/redario.png",
+      "/images/redario.avif",
     imageAlt: env.NEXT_PUBLIC_INFO_REDEIRO_TITLE ?? "Redeiro",
   },
 ];
