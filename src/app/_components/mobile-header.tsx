@@ -16,6 +16,7 @@ export default function MobileHeader() {
           width={96}
           height={76}
           className="h-auto w-[96px]"
+          style={{ height: "auto" }}
           priority
         />
       </Link>
@@ -38,6 +39,7 @@ export default function MobileHeader() {
                 width={96}
                 height={76}
                 className="h-auto w-[96px]"
+                style={{ height: "auto" }}
                 priority
               />
             </Link>

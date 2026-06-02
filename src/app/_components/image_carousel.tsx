@@ -4,18 +4,20 @@ import {
   CarouselContent,
   CarouselItem,
 } from "@/components/ui/carousel";
-import Image from "next/image";
+import { OptimizedImage } from "@/components/ui/optimized-image";
 import { motion } from "framer-motion";
 
 export function ImageCarousel() {
   const getImages = () => {
-    const quantity = 7;
-    const images = [];
-
-    for (let i = 0; i < quantity; i++) {
-      images.push(`/images/carousel/${i + 1}.jpg`);
-    }
-    return images;
+    return [
+      "/images/carousel-1.avif",
+      "/images/carousel-2.avif",
+      "/images/carousel-3.avif",
+      "/images/carousel-4.avif",
+      "/images/carousel-5.avif",
+      "/images/carousel-6.avif",
+      "/images/carousel-7.avif",
+    ];
   };
 
   return (
@@ -38,9 +40,9 @@ export function ImageCarousel() {
                 className="aspect-[2/1] w-full md:max-tall:aspect-[2.5/1]"
               >
                 <div className="relative h-full w-full">
-                  <Image
+                  <OptimizedImage
                     src={image}
-                    alt="Imagem"
+                    alt="Foto da Cachoeira das Araras"
                     fill
                     quality={60}
                     className="object-cover"
