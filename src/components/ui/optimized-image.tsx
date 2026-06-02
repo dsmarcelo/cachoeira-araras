@@ -4,11 +4,11 @@ interface OptimizedImageProps extends Omit<ImageProps, "src"> {
   src: string;
 }
 
-const IMAGE_EXTENSION_PATTERN = /\.(avif|webp|png|jpe?g|gif)$/i;
+const RASTER_EXTENSION_PATTERN = /\.(avif|webp|png|jpe?g|gif)$/i;
 
 /**
- * Static gallery assets are pre-generated as `{basename}-768.avif` under public/images.
- * Callers may pass `/images/foo`, `/images/foo.avif`, or `foo.png` — all resolve to the same file.
+ * Normalizes local gallery paths under public/images.
+ * Bare filenames become `/images/{name}`; legacy `.png`/`.jpg` callers map to `.avif`.
  */
 function resolveLocalImageSrc(src: string): string | null {
   if (
@@ -19,7 +19,6 @@ function resolveLocalImageSrc(src: string): string | null {
     return null;
   }
 
-  // Vectors and other non-raster assets are served as-is from public/.
   if (src.toLowerCase().endsWith(".svg")) {
     return null;
   }
@@ -30,12 +29,16 @@ function resolveLocalImageSrc(src: string): string | null {
     return null;
   }
 
-  if (normalized.endsWith("-768.avif")) {
+  if (normalized.endsWith(".avif")) {
     return normalized;
   }
 
-  const base = normalized.replace(IMAGE_EXTENSION_PATTERN, "");
-  return `${base}-768.avif`;
+  if (!RASTER_EXTENSION_PATTERN.test(normalized)) {
+    return normalized;
+  }
+
+  const base = normalized.replace(RASTER_EXTENSION_PATTERN, "");
+  return `${base}.avif`;
 }
 
 export function OptimizedImage({
