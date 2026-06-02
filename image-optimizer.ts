@@ -5,7 +5,7 @@ import path from "node:path";
 const inputDir = "public/images/novas";
 const outputDir = "public/images/novas";
 
-const sizes = [480, 768, 1080];
+const outputWidth = 768;
 const allowedExtensions = [".png", ".jpg", ".jpeg"];
 
 await fs.mkdir(outputDir, { recursive: true });
@@ -23,11 +23,8 @@ for (const entry of entries) {
 
   console.log(`Optimizing ${entry.name}...`);
 
-  for (const width of sizes) {
-    await sharp(input)
-      .resize({ width, withoutEnlargement: true })
-      .avif({ quality: 55, effort: 3 })
-      .toFile(path.join(outputDir, `${name}-${width}.avif`));
-  }
+  await sharp(input)
+    .resize({ width: outputWidth, withoutEnlargement: true })
+    .avif({ quality: 55, effort: 3 })
+    .toFile(path.join(outputDir, `${name}.avif`));
 }
-
