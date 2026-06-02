@@ -10,6 +10,7 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import { motion } from "framer-motion";
+import { infoTopics } from "@/lib/info-topics";
 import { AttractionCard } from "./attraction-card";
 
 // Center-focus layout tuning. The active card keeps a 4:3 ratio capped at this
@@ -18,42 +19,6 @@ import { AttractionCard } from "./attraction-card";
 // full-width card instead of showing a sliver of the neighbors.
 const MAX_CENTER_WIDTH = 600; // px
 const MIN_SIDE_PEEK = 20; // px
-
-const attractions = [
-  {
-    image: "/images/cachoeira-principal",
-    imageAlt: "Cachoeira principal da Cachoeira das Araras",
-    title: "Cachoeira principal",
-    description:
-      "Aproveite a queda d'agua e o poco natural em meio ao cerrado.",
-  },
-  {
-    image: "/images/piscinas-naturais",
-    imageAlt: "Piscinas naturais da Cachoeira das Araras",
-    title: "Piscinas naturais",
-    description:
-      "Espacos tranquilos para relaxar e se refrescar durante o passeio.",
-  },
-  {
-    image: "/images/praia",
-    imageAlt: "Praia da Cachoeira das Araras",
-    title: "Prainha",
-    description: "Um cantinho raso e acolhedor para descansar perto da agua.",
-  },
-  {
-    image: "/images/redario",
-    imageAlt: "Redario da Cachoeira das Araras",
-    title: "Redario",
-    description: "Redes em area sombreada para uma pausa depois da trilha.",
-  },
-  {
-    image: "/images/quiosque",
-    imageAlt: "Quiosques da Cachoeira das Araras",
-    title: "Quiosques",
-    description:
-      "Estrutura para reunir a familia com conforto durante a visita.",
-  },
-];
 
 export function AttractionCardCarousel() {
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -104,9 +69,9 @@ export function AttractionCardCarousel() {
         }}
       >
         <CarouselContent className="rounded-xl">
-          {attractions.map((attraction) => (
+          {infoTopics.map(({ key, ...attraction }) => (
             <CarouselItem
-              key={attraction.title}
+              key={key}
               className="aspect-[4/3]"
               style={slideWidth ? { flexBasis: `${slideWidth}px` } : undefined}
             >
