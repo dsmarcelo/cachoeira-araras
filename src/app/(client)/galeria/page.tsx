@@ -1,29 +1,9 @@
-import React from "react";
 import ImageGallery from "../../_components/galery";
 import { MobileHomeButton } from "../../_components/mobile-home-button";
+import { getGalleryImages } from "@/lib/dao/gallery-images";
 
-export default function page() {
-  const getImages = () => {
-    return [
-      "/images/cachoeira-principal.avif",
-      "/images/cachoeira2.avif",
-      "/images/cachoeira3.avif",
-      "/images/cachoeira4.avif",
-      "/images/cachoeira5.avif",
-      "/images/entrada-cachoeira.avif",
-      "/images/placa-trilha-cachoeira2.avif",
-      "/images/trilha2.avif",
-      "/images/piscina-drone.avif",
-      "/images/piscina-drone-2.avif",
-      "/images/piscina-infantil.avif",
-      "/images/piscinas-naturais.avif",
-      "/images/praia.avif",
-      "/images/quiosque.avif",
-      "/images/quiosque2.avif",
-      "/images/redario.avif",
-      "/images/parquinho.avif",
-    ];
-  };
+export default async function page() {
+  const images = getGalleryImages();
 
   return (
     <div className="relative mb-auto w-full justify-center pb-4">
@@ -32,7 +12,7 @@ export default function page() {
           Galeria de Fotos
         </h1>
       </div>
-      <ImageGallery images={getImages()} />
+      <ImageGallery images={images} />
       <MobileHomeButton />
     </div>
   );
