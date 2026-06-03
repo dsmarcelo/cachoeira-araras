@@ -55,24 +55,24 @@ export const infoTopics: InfoTopic[] = [
     key: "restaurante-bar-pe-de-serra",
     title:
       env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_TITLE ??
-      "Restaurante e bar Pe de Serra",
+      "Restaurante e bar Pé de Serra",
     description:
       env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_DESCRIPTION ??
-      "Atendimento de excelência, comida de qualidade com preço humanizado.",
+      "Atendimento de excelência e comida de qualidade com preços humanizados.",
     images: imagesWithEnvOverride(
       env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_IMAGE,
       DEFAULT_IMAGES.restaurante,
     ),
     imageAlt:
       env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_TITLE ??
-      "Restaurante e bar Pe de Serra",
+      "Restaurante e bar Pé de Serra",
   },
   {
     key: "piscina",
     title: env.NEXT_PUBLIC_INFO_PISCINA_TITLE ?? "Piscina",
     description:
       env.NEXT_PUBLIC_INFO_PISCINA_DESCRIPTION ??
-      "Área de piscinas de adultos e crianças com bar acessível",
+      "Área de piscinas para adultos e crianças, com bar acessível.",
     images: imagesWithEnvOverride(
       env.NEXT_PUBLIC_INFO_PISCINA_IMAGE,
       DEFAULT_IMAGES.piscina,
@@ -94,7 +94,7 @@ export const infoTopics: InfoTopic[] = [
   {
     key: "bar-pe-na-areia",
     title:
-      env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_TITLE ?? "Bar pe na areia",
+      env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_TITLE ?? "Bar Pé na Areia",
     description:
       env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_DESCRIPTION ??
       "Bebidas e petiscos perto da praia para você relaxar sem pressa.",
@@ -103,18 +103,18 @@ export const infoTopics: InfoTopic[] = [
       DEFAULT_IMAGES.barPeNaAreia,
     ),
     imageAlt:
-      env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_TITLE ?? "Bar pe na areia",
+      env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_TITLE ?? "Bar Pé na Areia",
   },
   {
     key: "redario",
     title: env.NEXT_PUBLIC_INFO_REDEIRO_TITLE ?? "Redário",
     description:
       env.NEXT_PUBLIC_INFO_REDEIRO_DESCRIPTION ??
-      "Área coberta e privada com redes para descansar",
+      "Área coberta e privada com redes para descansar.",
     images: imagesWithEnvOverride(
       env.NEXT_PUBLIC_INFO_REDEIRO_IMAGE,
       DEFAULT_IMAGES.redario,
     ),
-    imageAlt: env.NEXT_PUBLIC_INFO_REDEIRO_TITLE ?? "Redeiro",
+    imageAlt: env.NEXT_PUBLIC_INFO_REDEIRO_TITLE ?? "Redário",
   },
 ];
