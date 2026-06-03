@@ -58,11 +58,6 @@ export default function PriceTable() {
         Adquira já seu voucher
       </h3>
       <div className="flex w-full flex-col gap-2 bg-custom-secondary pb-2 pt-1 font-semibold text-primary-50">
-        <div className="flex h-10 w-full items-center justify-center bg-dark-blue">
-          <p className="text-lg font-semibold text-primary-50">
-            Day Use
-          </p>
-        </div>
         <div className="flex w-full flex-col gap-2 px-4">
           {showRegular && (
             <PriceSummary
