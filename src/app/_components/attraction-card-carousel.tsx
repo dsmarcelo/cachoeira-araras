@@ -55,37 +55,51 @@ export function AttractionCardCarousel() {
 
   return (
     <motion.div
-      ref={wrapperRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="mx-auto min-w-0 w-full max-w-5xl overflow-hidden rounded-2xl"
+      className="mx-auto min-w-0 w-full max-w-5xl"
     >
-      <Carousel
-        setApi={setApi}
-        opts={{
-          loop: true,
-          align: "center",
-        }}
+      {/* Small screens: stacked cards with portrait 3:4 ratio */}
+      <ul className="flex flex-col gap-4 md:hidden">
+        {infoTopics.map(({ key, ...attraction }) => (
+          <li key={key} className="aspect-[3/4] w-full overflow-hidden rounded-2xl">
+            <AttractionCard {...attraction} prominentText className="h-full w-full" />
+          </li>
+        ))}
+      </ul>
+
+      {/* md+: horizontal center-focus carousel with 4:3 cards */}
+      <div
+        ref={wrapperRef}
+        className="hidden overflow-hidden rounded-2xl md:block"
       >
-        <CarouselContent className="rounded-xl">
-          {infoTopics.map(({ key, ...attraction }) => (
-            <CarouselItem
-              key={key}
-              className="aspect-[4/3]"
-              style={slideWidth ? { flexBasis: `${slideWidth}px` } : undefined}
-            >
-              <AttractionCard {...attraction} className="h-full w-full" />
-            </CarouselItem>
-          ))}
-        </CarouselContent>
-        {isCenterMode && (
-          <>
-            <CarouselPrevious variant="ghost" className="invisible sm:visible" />
-            <CarouselNext variant="ghost" className="invisible sm:visible" />
-          </>
-        )}
-      </Carousel>
+        <Carousel
+          setApi={setApi}
+          opts={{
+            loop: true,
+            align: "center",
+          }}
+        >
+          <CarouselContent className="rounded-xl">
+            {infoTopics.map(({ key, ...attraction }) => (
+              <CarouselItem
+                key={key}
+                className="aspect-[4/3]"
+                style={slideWidth ? { flexBasis: `${slideWidth}px` } : undefined}
+              >
+                <AttractionCard {...attraction} className="h-full w-full" />
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          {isCenterMode && (
+            <>
+              <CarouselPrevious variant="ghost" className="invisible sm:visible" />
+              <CarouselNext variant="ghost" className="invisible sm:visible" />
+            </>
+          )}
+        </Carousel>
+      </div>
     </motion.div>
   );
 }

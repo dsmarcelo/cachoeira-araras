@@ -12,6 +12,8 @@ interface AttractionCardProps {
   /** Card description */
   description: string;
   className?: string;
+  /** Larger type for full-width stacked cards on small screens */
+  prominentText?: boolean;
 }
 
 /**
@@ -26,6 +28,7 @@ export function AttractionCard({
   title,
   description,
   className,
+  prominentText = false,
 }: AttractionCardProps) {
   return (
     <div
@@ -47,10 +50,29 @@ export function AttractionCard({
       {/* Dark gradient overlay — transparent at top, opaque at bottom */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
-      {/* Text content */}
-      <div className="relative z-10 flex flex-col gap-1.5 p-4 sm:gap-2 sm:p-6">
-        <h3 className="text-xl font-bold leading-snug text-white sm:text-2xl">{title}</h3>
-        <p className="text-xs leading-relaxed text-white/80 sm:text-sm">{description}</p>
+      {/* Text content — prominentText bumps sizes for portrait stacked cards */}
+      <div
+        className={cn(
+          "relative z-10 flex flex-col",
+          prominentText ? "gap-2 p-5" : "gap-1.5 p-4 sm:gap-2 sm:p-6",
+        )}
+      >
+        <h3
+          className={cn(
+            "font-bold leading-snug text-white",
+            prominentText ? "text-2xl" : "text-xl sm:text-2xl",
+          )}
+        >
+          {title}
+        </h3>
+        <p
+          className={cn(
+            "leading-relaxed text-white/80",
+            prominentText ? "text-base" : "text-xs sm:text-sm",
+          )}
+        >
+          {description}
+        </p>
       </div>
     </div>
   );
