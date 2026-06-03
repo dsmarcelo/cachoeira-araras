@@ -27,21 +27,26 @@ export default function ImageGallery({ images }: { images: string[] }) {
   const [image, setImage] = useState<string>('')
 
   return (
-    <div className='w-full mb-auto mx-auto px-4 max-w-5xl gap-4'>
-      <div className='w-full mb-8 max-w-5xl gap-4 grid grid-cols-1 md:grid-cols-2'>
+    <div className='w-full mb-auto mx-auto px-4 max-w-5xl'>
+      {/* CSS columns masonry: each image keeps its natural aspect ratio (no crop). */}
+      <div className='mb-8 columns-1 gap-4 md:columns-2'>
         {images.map((image, index) => (
-          <div key={index} className='break-inside-avoid' onClick={() => setImage(image)}>
-            <div className='w-full min-h-96 max-h-96 relative rounded-xl overflow-hidden transition-all hover:scale-[101%] hover:shadow-xl'>
-              <OptimizedImage
-                src={image}
-                alt='Foto da Cachoeira das Araras'
-                fill
-                sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 40vw'
-                className='object-cover'
-                loading='lazy'
-              />
-            </div>
-          </div>
+          <button
+            key={index}
+            type='button'
+            className='mb-4 block w-full break-inside-avoid cursor-pointer rounded-xl transition-all hover:scale-[101%] hover:shadow-xl'
+            onClick={() => setImage(image)}
+          >
+            <OptimizedImage
+              src={image}
+              alt='Foto da Cachoeira das Araras'
+              width={1200}
+              height={1600}
+              sizes='(max-width: 768px) 100vw, 50vw'
+              className='h-auto w-full rounded-xl'
+              loading='lazy'
+            />
+          </button>
         ))}
       </div>
       {image && <ImageCard image={image} setImage={setImage} />}
