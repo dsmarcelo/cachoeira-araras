@@ -1,11 +1,9 @@
 "use client";
 import { motion } from "framer-motion";
 import React from "react";
-import { MdOutlineDirectionsCar, MdLocalBar } from "react-icons/md";
+import { MdOutlineDirectionsCar } from "react-icons/md";
 import { IoSunnyOutline } from "react-icons/io5";
-import { RiRestaurant2Line } from "react-icons/ri";
 import { FaChild, FaTicketAlt } from "react-icons/fa";
-import { FaPersonSwimming } from "react-icons/fa6";
 import { GiCooler } from "react-icons/gi";
 
 const itemVariants = {
@@ -39,38 +37,6 @@ export default function InfoCard() {
           <div className="font-semibold">Estacionamento</div>
           <div className="mt-3 font-light">
             Estacionamento facilitado próximo à cachoeira
-          </div>
-        </div>
-      </motion.div>
-
-      <motion.div
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true }}
-        className="mt-4 flex gap-3"
-        variants={itemVariants}
-      >
-        <RiRestaurant2Line className="mt-1 h-6 w-6" />
-        <div className="flex flex-1 flex-col">
-          <div className="font-semibold">Restaurante</div>
-          <div className="mt-3 font-light">
-            Atendimento de excelência, comida de qualidade com preço humanizado
-          </div>
-        </div>
-      </motion.div>
-
-      <motion.div
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true }}
-        className="mt-4 flex gap-3"
-        variants={itemVariants}
-      >
-        <MdLocalBar className="mt-1 h-6 w-6" />
-        <div className="flex flex-1 flex-col">
-          <div className="font-semibold">Bar</div>
-          <div className="mt-3 font-light">
-            Bar Pé de serra localizado próximo à cachoeira
           </div>
         </div>
       </motion.div>
@@ -120,22 +86,6 @@ export default function InfoCard() {
           <div className="mt-3 font-light">
             Compre seu voucher online por pix ou cartão e entre apenas
             apresentando o código na portaria
-          </div>
-        </div>
-      </motion.div>
-
-      <motion.div
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true }}
-        className="mt-4 flex gap-3"
-        variants={itemVariants}
-      >
-        <FaPersonSwimming className="mt-1 h-6 w-6" />
-        <div className="flex flex-1 flex-col">
-          <div className="font-semibold">Piscina</div>
-          <div className="mt-3 font-light">
-            Área exclusiva para piscinas de adultos e crianças com bar
           </div>
         </div>
       </motion.div>

@@ -4,7 +4,6 @@ import { ImageCarousel } from "../_components/image_carousel";
 import Link from "next/link";
 import { RiGalleryView2 } from "react-icons/ri";
 import { FaLocationArrow } from "react-icons/fa";
-import { MiniImageCarousel } from "../_components/swiper-carousel/mini-image-carousel";
 import { AttractionCardCarousel } from "../_components/attraction-card-carousel";
 
 export default async function Home() {
@@ -12,19 +11,35 @@ export default async function Home() {
     <div className="flex min-h-screen min-w-0 flex-col items-center bg-bg-blue lg:pt-8 text-primary-200">
       <ImageCarousel />
       <main className="flex flex-col items-center w-full min-w-0 px-4 gap-12 md:gap-24 pb-8 z-10 -mt-6 lg:mt-0 md:py-8 md:px-8">
-        <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 justify-center gap-6">
-          <VoucherBuy />
-          <InfoCard />
-        </div>
-        <section className="w-full flex flex-col items-center space-y-4">
-          <h4 className="font-semibold text-3xl text-center">Veja o que você pode aproveitar</h4>
-          <AttractionCardCarousel />
-          <MiniImageCarousel />
-          <Link href="/galeria" className="h-16 w-full max-w-[500px] flex justify-center items-center rounded-xl font-medium bg-primary-500 text-bg-blue hover:bg-primary-600">
+        {/* Mobile: voucher → carousel → info → galeria. md+: voucher | info, then attractions + galeria. */}
+        <div className="flex w-full max-w-5xl flex-col justify-center gap-6 md:grid md:grid-cols-2">
+          <div className="order-1">
+            <VoucherBuy />
+          </div>
+          <section className="order-2 flex w-full flex-col items-center space-y-4 md:order-3 md:col-span-2">
+            <h4 className="text-center text-3xl font-semibold">
+              Veja o que você pode aproveitar
+            </h4>
+            <AttractionCardCarousel />
+            <Link
+              href="/galeria"
+              className="hidden h-16 w-full max-w-[500px] items-center justify-center rounded-xl bg-primary-500 font-medium text-bg-blue hover:bg-primary-600 md:flex"
+            >
+              <RiGalleryView2 className="mr-2 h-5 w-5" />
+              <h4 className="-translate-y-px text-xl">Galeria</h4>
+            </Link>
+          </section>
+          <div className="order-3 md:order-2">
+            <InfoCard />
+          </div>
+          <Link
+            href="/galeria"
+            className="order-4 flex h-16 w-full max-w-[500px] items-center justify-center self-center rounded-xl bg-primary-500 font-medium text-bg-blue hover:bg-primary-600 md:hidden"
+          >
             <RiGalleryView2 className="mr-2 h-5 w-5" />
-            <h4 className="text-xl -translate-y-px">Galeria</h4>
+            <h4 className="-translate-y-px text-xl">Galeria</h4>
           </Link>
-        </section>
+        </div>
         <div className="w-full grid md:grid-cols-2 text-center md:text-right items-center gap-4 md:gap-8">
           <div className="mx-auto space-y-2">
             <div className="font-medium text-xl">
