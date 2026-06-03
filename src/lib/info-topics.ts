@@ -4,9 +4,39 @@ export type InfoTopic = {
   key: string;
   title: string;
   description: string;
-  image: string;
+  images: string[];
   imageAlt: string;
 };
+
+/** Default gallery paths under public/images, grouped by category filename prefix. */
+const DEFAULT_IMAGES = {
+  cachoeira: [
+    "/images/cachoeira-1.avif",
+    "/images/cachoeira-2.avif",
+    "/images/cachoeira-3.avif",
+  ],
+  restaurante: ["/images/restaurante-1.avif", "/images/restaurante-2.avif"],
+  piscina: [
+    "/images/piscina-1.avif",
+    "/images/piscina-2.avif",
+    "/images/piscina-3.avif",
+  ],
+  praia: [
+    "/images/praia-1.avif", 
+    "/images/praia-2.avif",
+    "/images/praia-3.avif",
+    "/images/praia-4.avif",
+  ],
+  barPeNaAreia: ["/images/bar-pe-na-areia-1.avif"],
+  redario: ["/images/redario-1.avif"],
+} as const;
+
+function imagesWithEnvOverride(
+  envImage: string | undefined,
+  defaults: readonly string[],
+): string[] {
+  return envImage ? [envImage] : [...defaults];
+}
 
 export const infoTopics: InfoTopic[] = [
   {
@@ -15,9 +45,10 @@ export const infoTopics: InfoTopic[] = [
     description:
       env.NEXT_PUBLIC_INFO_CACHOEIRA_DESCRIPTION ??
       "Conforto, privacidade e contato direto com a natureza em uma localização privilegiada de Pirenópolis-GO.",
-    image:
-      env.NEXT_PUBLIC_INFO_CACHOEIRA_IMAGE ??
-      "/images/cachoeira-principal.avif",
+    images: imagesWithEnvOverride(
+      env.NEXT_PUBLIC_INFO_CACHOEIRA_IMAGE,
+      DEFAULT_IMAGES.cachoeira,
+    ),
     imageAlt: env.NEXT_PUBLIC_INFO_CACHOEIRA_TITLE ?? "Cachoeira",
   },
   {
@@ -28,9 +59,10 @@ export const infoTopics: InfoTopic[] = [
     description:
       env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_DESCRIPTION ??
       "Atendimento de excelência, comida de qualidade com preço humanizado.",
-    image:
-      env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_IMAGE ??
-      "/images/prato.avif",
+    images: imagesWithEnvOverride(
+      env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_IMAGE,
+      DEFAULT_IMAGES.restaurante,
+    ),
     imageAlt:
       env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_TITLE ??
       "Restaurante e bar Pe de Serra",
@@ -41,9 +73,10 @@ export const infoTopics: InfoTopic[] = [
     description:
       env.NEXT_PUBLIC_INFO_PISCINA_DESCRIPTION ??
       "Área de piscinas de adultos e crianças com bar acessível",
-    image:
-      env.NEXT_PUBLIC_INFO_PISCINA_IMAGE ??
-      "/images/piscina-drone.avif",
+    images: imagesWithEnvOverride(
+      env.NEXT_PUBLIC_INFO_PISCINA_IMAGE,
+      DEFAULT_IMAGES.piscina,
+    ),
     imageAlt: env.NEXT_PUBLIC_INFO_PISCINA_TITLE ?? "Piscina",
   },
   {
@@ -52,7 +85,10 @@ export const infoTopics: InfoTopic[] = [
     description:
       env.NEXT_PUBLIC_INFO_PRAIA_DESCRIPTION ??
       "Espaço de praia para descansar, tomar sol e aproveitar o visual natural.",
-    image: env.NEXT_PUBLIC_INFO_PRAIA_IMAGE ?? "/images/praia.avif",
+    images: imagesWithEnvOverride(
+      env.NEXT_PUBLIC_INFO_PRAIA_IMAGE,
+      DEFAULT_IMAGES.praia,
+    ),
     imageAlt: env.NEXT_PUBLIC_INFO_PRAIA_TITLE ?? "Praia",
   },
   {
@@ -62,9 +98,10 @@ export const infoTopics: InfoTopic[] = [
     description:
       env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_DESCRIPTION ??
       "Bebidas e petiscos perto da praia para você relaxar sem pressa.",
-    image:
-      env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_IMAGE ??
-      "/images/bar-pe-na-areia.avif",
+    images: imagesWithEnvOverride(
+      env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_IMAGE,
+      DEFAULT_IMAGES.barPeNaAreia,
+    ),
     imageAlt:
       env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_TITLE ?? "Bar pe na areia",
   },
@@ -74,9 +111,10 @@ export const infoTopics: InfoTopic[] = [
     description:
       env.NEXT_PUBLIC_INFO_REDEIRO_DESCRIPTION ??
       "Área coberta e privada com redes para descansar",
-    image:
-      env.NEXT_PUBLIC_INFO_REDEIRO_IMAGE ??
-      "/images/redario.avif",
+    images: imagesWithEnvOverride(
+      env.NEXT_PUBLIC_INFO_REDEIRO_IMAGE,
+      DEFAULT_IMAGES.redario,
+    ),
     imageAlt: env.NEXT_PUBLIC_INFO_REDEIRO_TITLE ?? "Redeiro",
   },
 ];

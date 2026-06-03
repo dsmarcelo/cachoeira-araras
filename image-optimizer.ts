@@ -2,8 +2,8 @@ import sharp from "sharp";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const inputDir = "public/images/novas";
-const outputDir = "public/images/novas";
+const inputDir = process.argv[2] ?? "public/images/novas";
+const outputDir = process.argv[3] ?? inputDir;
 
 const outputWidth = 768;
 const allowedExtensions = [".png", ".jpg", ".jpeg"];
