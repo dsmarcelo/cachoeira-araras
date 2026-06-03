@@ -20,6 +20,12 @@ import { AttractionCard } from "./attraction-card";
 const MAX_CENTER_WIDTH = 600; // px
 const MIN_SIDE_PEEK = 20; // px
 
+// Matches info.tsx scroll-in animation (fade + upward movement).
+const itemVariants = {
+  hidden: { opacity: 0, y: -40 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, delay: 0.1 } },
+};
+
 export function AttractionCardCarousel() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [api, setApi] = useState<CarouselApi>();
@@ -63,9 +69,16 @@ export function AttractionCardCarousel() {
       {/* Small screens: stacked cards with portrait 3:4 ratio */}
       <ul className="flex flex-col gap-4 md:hidden">
         {infoTopics.map(({ key, ...attraction }) => (
-          <li key={key} className="aspect-[3/4] w-full overflow-hidden rounded-2xl">
+          <motion.li
+            key={key}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={itemVariants}
+            className="aspect-[3/4] w-full overflow-hidden rounded-2xl"
+          >
             <AttractionCard {...attraction} prominentText className="h-full w-full" />
-          </li>
+          </motion.li>
         ))}
       </ul>
 
