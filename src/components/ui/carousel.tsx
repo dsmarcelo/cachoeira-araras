@@ -6,8 +6,11 @@ import useEmblaCarousel, {
 } from "embla-carousel-react"
 import { ChevronRight } from "lucide-react"
 
+import { motion } from "framer-motion"
+
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { OptimizedImage } from "@/components/ui/optimized-image"
 
 type CarouselApi = UseEmblaCarouselType[1]
 type UseCarouselParameters = Parameters<typeof useEmblaCarousel>
@@ -254,6 +257,57 @@ const CarouselNext = React.forwardRef<
 })
 CarouselNext.displayName = "CarouselNext"
 
+interface MainCarouselGalleryProps {
+  images: string[]
+}
+
+function MainCarouselGallery({ images }: MainCarouselGalleryProps) {
+  if (images.length === 0) {
+    return null
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="mx-auto w-full max-w-5xl overflow-hidden lg:rounded-2xl"
+    >
+      <div className="mx-auto w-full max-w-5xl overflow-hidden lg:rounded-2xl">
+        <Carousel
+          opts={{
+            loop: true,
+          }}
+        >
+          <CarouselContent>
+            {images.map((image, index) => (
+              <CarouselItem
+                key={image}
+                className="aspect-[2/1] w-full md:max-tall:aspect-[2.5/1]"
+              >
+                <div className="relative h-full w-full">
+                  <OptimizedImage
+                    src={image}
+                    alt="Foto da Cachoeira das Araras"
+                    fill
+                    quality={60}
+                    className="object-cover"
+                    priority={index < 1}
+                    loading={index < 1 ? ("eager" as const) : ("lazy" as const)}
+                    sizes="(max-width: 768px) 100vw, 75vw"
+                    unoptimized
+                  />
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-bg-blue via-transparent via-15% to-transparent lg:hidden"></div>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+        </Carousel>
+      </div>
+    </motion.div>
+  )
+}
+
 export {
   type CarouselApi,
   Carousel,
@@ -261,4 +315,5 @@ export {
   CarouselItem,
   CarouselPrevious,
   CarouselNext,
+  MainCarouselGallery,
 }

@@ -29,7 +29,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { getBrazilianDate } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
 
-export default function VoucherForm({
+export default function LegacyVoucherForm({
   testMode = false,
 }: {
   testMode?: boolean;
@@ -53,9 +53,18 @@ export default function VoucherForm({
     "max.intended.days": maxIntendedDays = 60,
     "form.message": formMessage = "",
     "voucher.price": voucherPrice = 50,
+    "voucher.pool.price": poolVoucherPrice = 70,
     "voucher.max.quantity.adults": maxAdults = 20,
+    "voucher.max.quantity.elderly": maxElderly = 20,
+    "voucher.max.quantity.adults.pool": maxAdultsPool = 20,
+    "voucher.max.quantity.elderly.pool": maxElderlyPool = 20,
     "enable.voucher.buy": enableVoucherBuy = true,
+    "enable.voucher.pool.buy": enablePoolVoucherBuy = true,
+    "enable.voucher.half-price.buy": enableHalfPriceVoucherBuy = true,
+    "enable.voucher.half-price.pool.buy": enableHalfPricePoolVoucherBuy = false,
   } = settingsQuery.data ?? {};
+  const elderlyVoucherPrice = voucherPrice / 2;
+  const poolElderlyVoucherPrice = poolVoucherPrice / 2;
 
   async function checkPaymentStatus(code: string) {
     const reconciliation = await utils.voucher.reconcilePublicPaymentStatus.fetch({
@@ -147,7 +156,10 @@ export default function VoucherForm({
   const formValues = useWatch({ control });
   const totalPrice = testMode
     ? 0.01
-    : (formValues.adults ?? 0) * voucherPrice;
+    : (formValues.adults ?? 0) * voucherPrice +
+      (formValues.elderly ?? 0) * elderlyVoucherPrice +
+      (formValues.adults_pool ?? 0) * poolVoucherPrice +
+      (formValues.elderly_pool ?? 0) * poolElderlyVoucherPrice;
 
   function normalizePhone(value: string) {
     return value.replace(/\D/g, "");
@@ -165,7 +177,31 @@ export default function VoucherForm({
         description: "Compra de voucher normal está desativada",
       });
     }
-    if (data.adults === 0) {
+    if (
+      !enablePoolVoucherBuy &&
+      (data.adults_pool > 0 || data.elderly_pool > 0)
+    ) {
+      return toast({
+        title: "Indisponível",
+        description: "Compra de voucher com piscina está desativada",
+      });
+    }
+    if (!enableHalfPriceVoucherBuy && data.elderly > 0) {
+      return toast({
+        title: "Indisponível",
+        description: "Compra de voucher meia entrada está desativada",
+      });
+    }
+    if (!enableHalfPricePoolVoucherBuy && data.elderly_pool > 0) {
+      return toast({
+        title: "Indisponível",
+        description: "Compra de voucher meia entrada com piscina está desativada",
+      });
+    }
+    if (
+      data.adults + data.elderly + data.adults_pool + data.elderly_pool ===
+      0
+    ) {
       return toast({
         title: "Erro",
         description: "Verifique a quantidade de pessoas",
@@ -177,9 +213,9 @@ export default function VoucherForm({
         name: data.name,
         phone: data.phone,
         adults: data.adults,
-        elderly: 0,
-        adults_pool: 0,
-        elderly_pool: 0,
+        elderly: data.elderly,
+        adults_pool: data.adults_pool,
+        elderly_pool: data.elderly_pool,
         intendedDate: data.intendedDate,
         testMode,
         referrerUrl: referrerURL,
@@ -213,8 +249,8 @@ export default function VoucherForm({
     );
   }
 
-  // The public form now exposes only the standard voucher purchase option.
-  if (!enableVoucherBuy) {
+  // Check if all voucher purchase options are disabled
+  if (!enableVoucherBuy && !enablePoolVoucherBuy && !enableHalfPriceVoucherBuy && !enableHalfPricePoolVoucherBuy) {
     return (
       <div className="mx-auto w-full bg-dark-blue">
         <div className="border-none bg-dark-blue p-4 text-primary-50">
@@ -297,8 +333,8 @@ export default function VoucherForm({
                 <>
                   <div className="flex items-center justify-between gap-2 py-4">
                     <Label className="">
-                      <p className="text-base font-bold">Voucher</p>
-                      <p className="text-sm">Day Use</p>
+                      <p className="text-base font-bold">Inteira</p>
+                      <p className="text-sm">(de 9 a 59 anos)</p>
                       <p className="text-sm">
                         R$ {voucherPrice.toFixed(2).replace(".", ",")}
                       </p>
@@ -325,6 +361,113 @@ export default function VoucherForm({
                     )}
                   </div>
 
+                  {enableHalfPriceVoucherBuy && (
+                    <div className="space-y-4 py-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="flex flex-col">
+                          <p className="text-base font-bold">Meia</p>
+                          <p className="text-sm">(+60 anos e especiais)</p>
+                          <p className="text-sm">
+                            R${" "}
+                            {elderlyVoucherPrice.toFixed(2).replace(".", ",")}
+                          </p>
+                        </Label>
+                        <div className="w-fit">
+                          <Controller
+                            name="elderly"
+                            control={control}
+                            render={({ field }) => (
+                              <NumberInput
+                                id="elderly"
+                                minValue={0}
+                                maxValue={maxElderly}
+                                selectedValue={field.value}
+                                onChange={field.onChange}
+                              />
+                            )}
+                          />
+                        </div>
+                      </div>
+                        {(formValues.elderly ?? 0) > 0 && (
+                          <p className="text-base font-medium text-yellow-950 bg-yellow-50 rounded-md px-3 py-2">
+                            Necessário apresentar documento de identificação
+                          </p>
+                        )}
+                      {errors.elderly && (
+                        <p className="text-base font-medium text-red-400">
+                          {errors.elderly?.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {enablePoolVoucherBuy && (
+                <>
+                  <div className="flex items-center justify-between gap-2 py-4">
+                    <Label className="flex flex-col">
+                      <p className="text-base font-bold">Área da Piscina</p>
+                      <p className="text-sm">
+                        R$ {poolVoucherPrice.toFixed(2).replace(".", ",")}
+                      </p>
+                    </Label>
+                    <div className="w-fit">
+                      <Controller
+                        name="adults_pool"
+                        control={control}
+                        render={({ field }) => (
+                          <NumberInput
+                            id="adults_pool"
+                            minValue={0}
+                            maxValue={maxAdultsPool}
+                            selectedValue={field.value}
+                            onChange={field.onChange}
+                          />
+                        )}
+                      />
+                    </div>
+                    {errors.adults_pool && (
+                      <p className="text-base font-medium text-red-400">
+                        {errors.adults_pool?.message}
+                      </p>
+                    )}
+                  </div>
+
+                  {enableHalfPricePoolVoucherBuy && (
+                    <div className="flex items-center justify-between gap-2 py-4">
+                      <Label className="flex flex-col">
+                        <p className="text-base font-bold">Meia (Piscina)</p>
+                        <p className="text-sm">(+60 anos e especiais)</p>
+                        <p className="text-sm">
+                          R${" "}
+                          {poolElderlyVoucherPrice
+                            .toFixed(2)
+                            .replace(".", ",")}
+                        </p>
+                      </Label>
+                      <div className="w-fit">
+                        <Controller
+                          name="elderly_pool"
+                          control={control}
+                          render={({ field }) => (
+                            <NumberInput
+                              id="elderly_pool"
+                              minValue={0}
+                              maxValue={maxElderlyPool}
+                              selectedValue={field.value}
+                              onChange={field.onChange}
+                            />
+                          )}
+                        />
+                      </div>
+                      {errors.elderly_pool && (
+                        <p className="text-base font-medium text-red-400">
+                          {errors.elderly_pool?.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </div>

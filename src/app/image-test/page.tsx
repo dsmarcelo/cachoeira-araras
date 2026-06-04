@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { formatQuantity } from "@/lib/voucher";
 import { formateDateDayMonthYear, formatPhone, truncateName } from "@/lib/utils";
+import { OptimizedImage } from "@/components/ui/optimized-image";
 
 export default function ImageTestPage() {
   // Mock voucher data for testing
@@ -117,6 +118,40 @@ export default function ImageTestPage() {
             <p className="break-all text-xs text-gray-600 font-mono">
               {imgURL}
             </p>
+          </div>
+        </div>
+
+        <div className="mt-8 rounded-lg bg-white p-6 shadow-lg">
+          <h2 className="mb-4 text-xl font-semibold text-gray-800">
+            Teste do Componente de Imagem Otimizada:
+          </h2>
+          <div className="grid gap-6 md:grid-cols-2">
+            <div>
+              <h3 className="mb-2 text-sm font-medium text-gray-600">
+                Imagem Otimizada (/images/cachoeira-principal.png):
+              </h3>
+              <div className="relative aspect-[16/9] w-full rounded-lg overflow-hidden border">
+                <OptimizedImage
+                  src="/images/cachoeira-principal.png"
+                  alt="Cachoeira Principal (Otimizada)"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+            </div>
+            <div>
+              <h3 className="mb-2 text-sm font-medium text-gray-600">
+                Imagem Não Otimizada (Fallback a padrão):
+              </h3>
+              <div className="relative aspect-[16/9] w-full rounded-lg overflow-hidden border">
+                <OptimizedImage
+                  src="/logo-bar.svg"
+                  alt="Logo Bar (Não Otimizada)"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
