@@ -24,6 +24,7 @@ const settings: SettingValueMap = {
   "enable.voucher.half-price.buy": true,
   "enable.voucher.half-price.pool.buy": true,
 };
+const futureIntendedDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
 
 const validInput: StartVoucherCheckoutInput = {
   name: "Maria Silva",
@@ -32,8 +33,9 @@ const validInput: StartVoucherCheckoutInput = {
   elderly: 1,
   adults_pool: 0,
   elderly_pool: 0,
-  intendedDate: new Date("2026-05-10T12:00:00-03:00"),
+  intendedDate: futureIntendedDate,
   referrerUrl: "https://example.com/?fbclid=abc",
+  gclid: "test-gclid-123",
 };
 
 await test("starts checkout with server-owned voucher state", async () => {
@@ -82,6 +84,7 @@ await test("starts checkout with server-owned voucher state", async () => {
       price: 125,
       preferenceId: "pref_123",
       expiresAt: validInput.intendedDate,
+      gclid: "test-gclid-123",
     },
   ]);
   assert.equal(preferences.length, 1);
@@ -151,6 +154,33 @@ await test("does not fail checkout when referrer attribution fails", async () =>
 
   assert.equal(result.code, "z9y8");
   assert.equal(warnings.length, 1);
+});
+
+await test("does not persist invalid gclid values", async () => {
+  const createdVouchers: Array<{ gclid: string | null }> = [];
+  const intake = createVoucherPurchaseIntake({
+    createCheckoutPreference: async () => ({
+      id: "pref_gclid",
+      initPoint: "https://mercadopago.example/checkout",
+    }),
+    createPendingVoucher: async (voucher) => {
+      createdVouchers.push({ gclid: voucher.gclid });
+      return {};
+    },
+    createReferrerAttribution: async () => ({}),
+    findVoucherByCode: async () => null,
+    generateCode: () => "gcld",
+    getSettings: async () => settings,
+    isUniqueConstraintError: () => false,
+  });
+
+  await intake({
+    ...validInput,
+    gclid: "x".repeat(256),
+    referrerUrl: null,
+  });
+
+  assert.deepEqual(createdVouchers, [{ gclid: null }]);
 });
 
 await test("classifies known referrer URLs", () => {

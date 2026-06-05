@@ -86,6 +86,13 @@ Use `pnpm test:payments` para rodar um teste E2E automatico sem agente de IA. O 
 | `FACEBOOK_ACCESS_TOKEN` | Token da Conversions API do Facebook. |
 | `GOOGLE_ANALYTICS_MEASUREMENT_ID` | Measurement ID usado no Measurement Protocol do GA4. |
 | `GOOGLE_ANALYTICS_API_SECRET` | API secret usado no Measurement Protocol do GA4. |
+| `GOOGLE_ADS_CLIENT_ID` | Client ID OAuth usado para enviar conversoes offline ao Google Ads. |
+| `GOOGLE_ADS_CLIENT_SECRET` | Client secret OAuth usado para renovar o access token do Google Ads. |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Developer token da API do Google Ads. |
+| `GOOGLE_ADS_REFRESH_TOKEN` | Refresh token OAuth da conta autorizada no Google Ads. |
+| `GOOGLE_ADS_CUSTOMER_ID` | Customer ID da conta Google Ads que recebe a conversao, sem tracos. |
+| `GOOGLE_ADS_CONVERSION_ACTION_ID` | ID da acao de conversao offline configurada no Google Ads. |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | Opcional. Manager account ID quando a conta usa MCC, sem tracos. |
 | `NEXT_PUBLIC_FACEBOOK_PIXEL_ID` | Pixel ID exposto no client por `src/lib/fbpixel.js`, se essa integracao for usada. |
 | `TWILIO_ACCOUNT_SID` | SID da conta Twilio para envio de WhatsApp pelo admin. |
 | `TWILIO_AUTH_TOKEN` | Token da conta Twilio para envio de WhatsApp pelo admin. |

@@ -8,6 +8,7 @@ import { GoogleTagManager } from "@next/third-parties/google";
 import { Suspense } from "react";
 import FacebookPixel from "@/app/_components/FacebookPixel";
 import { env } from "@/env";
+import GclidCapture from "@/app/_components/gclid-capture";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -31,6 +32,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={`${inter.variable}`}>
       <body className="min-h-screen bg-background">
+        <GclidCapture />
         <TRPCReactProvider>{children}</TRPCReactProvider>
         <Toaster />
         {/* Only enable Analytics if explicitly allowed to avoid Edge requests to /_vercel/insights */}

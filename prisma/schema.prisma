@@ -70,6 +70,8 @@ model Voucher {
   status        String    @default("pending")
   preference_id String    @unique
   payment_id    String?   @unique
+  gclid         String?   @db.VarChar(255)
+  google_ads_conversion_uploaded_at DateTime?
   expires_at    DateTime?
   Referrer      Referrer?
 

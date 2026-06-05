@@ -3,6 +3,7 @@ import { randomInt } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 
 import type { SettingValueMap } from "../lib/settings";
+import { normalizeGclid } from "../lib/gclid.ts";
 import { validateVoucherPurchase } from "./voucher-purchase.ts";
 
 export interface StartVoucherCheckoutInput {
@@ -15,6 +16,7 @@ export interface StartVoucherCheckoutInput {
   intendedDate: Date;
   testMode?: boolean;
   referrerUrl?: string | null;
+  gclid?: string | null;
 }
 
 export interface StartVoucherCheckoutOptions {
@@ -59,6 +61,7 @@ interface PendingVoucherInput {
   price: number;
   preferenceId: string;
   expiresAt: Date;
+  gclid: string | null;
 }
 
 interface ReferrerAttributionInput {
@@ -156,6 +159,7 @@ export function createVoucherPurchaseIntake(deps: VoucherPurchaseIntakeDeps) {
           price: validation.price,
           preferenceId: preference.id,
           expiresAt: input.intendedDate,
+          gclid: normalizeGclid(input.gclid),
         });
       } catch (error) {
         logger.error("Voucher checkout preference created without voucher", {

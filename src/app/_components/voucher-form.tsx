@@ -28,6 +28,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { getBrazilianDate } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
+import { readGclidCookie } from "@/lib/gclid";
 
 export default function VoucherForm({
   testMode = false,
@@ -183,6 +184,7 @@ export default function VoucherForm({
         intendedDate: data.intendedDate,
         testMode,
         referrerUrl: referrerURL,
+        gclid: readGclidCookie(),
       });
       setCode(checkout.code);
       await addCookieVoucher(checkout.code);

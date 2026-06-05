@@ -43,6 +43,7 @@ export async function startVoucherCheckout(
             status: "pending",
             preference_id: voucher.preferenceId,
             expires_at: voucher.expiresAt,
+            gclid: voucher.gclid,
           },
         });
       },

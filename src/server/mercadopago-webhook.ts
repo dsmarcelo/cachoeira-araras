@@ -42,6 +42,10 @@ type ProcessMercadoPagoPaymentWebhookInput = {
     payment: MercadoPagoPaymentWebhookPayload,
     paymentId: string,
   ) => Promise<void>;
+  sendIdempotentConversionEvents?: (
+    payment: MercadoPagoPaymentWebhookPayload,
+    paymentId: string,
+  ) => Promise<void>;
   logger?: Pick<Console, "warn">;
 };
 
@@ -178,6 +182,7 @@ export async function processMercadoPagoPaymentWebhook({
   getPayment,
   processVoucherPayment,
   sendConversionEvents,
+  sendIdempotentConversionEvents,
   logger = console,
 }: ProcessMercadoPagoPaymentWebhookInput): Promise<ProcessMercadoPagoPaymentWebhookResult> {
   if (normalizeWebhookType(type) !== "payment") {
@@ -235,6 +240,10 @@ export async function processMercadoPagoPaymentWebhook({
     await sendConversionEvents?.(payment, dataId);
   }
 
+  if (isApprovedPayment(payment.status)) {
+    await sendIdempotentConversionEvents?.(payment, dataId);
+  }
+
   return {
     status: 200,
     body: {
@@ -247,6 +256,10 @@ export async function processMercadoPagoPaymentWebhook({
 function normalizeWebhookType(type: string | null): string | null {
   if (!type) return null;
   return type.trim().toLowerCase();
+}
+
+function isApprovedPayment(status: string | null | undefined): boolean {
+  return status?.trim().toLowerCase() === "approved";
 }
 
 function timingSafeEqualHex(expected: string, received: string): boolean {

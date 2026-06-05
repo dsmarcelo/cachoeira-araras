@@ -389,6 +389,35 @@ await test("does not send conversion events for already processed vouchers", asy
   });
 });
 
+await test("sends idempotent conversion events for already approved payments", async () => {
+  let idempotentConversionCalls = 0;
+  const result = await processMercadoPagoPaymentWebhook({
+    dataId,
+    type: "payment",
+    getPayment: async () => ({
+      external_reference: "abcd",
+      status: "approved",
+    }),
+    processVoucherPayment: async () => ({
+      outcome: "already_processed",
+      shouldSendConversionEvents: false,
+    }),
+    sendIdempotentConversionEvents: async () => {
+      idempotentConversionCalls += 1;
+    },
+    logger: silentLogger,
+  });
+
+  assert.equal(idempotentConversionCalls, 1);
+  assert.deepEqual(result, {
+    status: 200,
+    body: {
+      success: true,
+      outcome: "already_processed",
+    },
+  });
+});
+
 await test("plural webhook route reexports the singular handler", async () => {
   const routeFile = await readFile(
     new URL("../app/api/webhooks/route.ts", import.meta.url),

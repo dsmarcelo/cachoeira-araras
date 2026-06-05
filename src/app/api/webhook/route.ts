@@ -4,7 +4,12 @@ import {
   sendFacebookPixelEvent,
   sendGoogleAdsConversion,
 } from "@/lib/utils/webhook-pixel";
+import {
+  findVoucherGoogleAdsConversion,
+  markGoogleAdsConversionUploaded,
+} from "@/lib/dao/google-ads-conversions";
 import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
+import { sendGoogleAdsOfflineConversion } from "@/server/google-ads-offline-conversions";
 import {
   processMercadoPagoPaymentWebhook,
   resolveMercadoPagoWebhookData,
@@ -145,6 +150,77 @@ async function sendPaymentConversionEvents(
   }
 }
 
+async function sendIdempotentPaymentConversionEvents(
+  payment: unknown,
+  paymentId: string,
+): Promise<void> {
+  if (!payment || typeof payment !== "object") {
+    return;
+  }
+
+  try {
+    const offlineResult = await sendGoogleAdsOfflineConversionEvent(
+      payment as PaymentResponse,
+    );
+    if (offlineResult) {
+      console.log(
+        `Google Ads offline conversion sent successfully for payment ${paymentId}`,
+      );
+    } else {
+      console.log(
+        `Google Ads offline conversion skipped for payment ${paymentId}`,
+      );
+    }
+  } catch (error: unknown) {
+    capturePaymentFlowException(error, "webhook", {
+      paymentId,
+      integration: "google_ads_offline",
+    });
+    console.error("Error sending Google Ads offline conversion:", String(error));
+    // Don't fail the webhook if Google Ads offline upload fails
+  }
+}
+
+async function sendGoogleAdsOfflineConversionEvent(
+  payment: PaymentResponse,
+): Promise<boolean> {
+  if (payment.status?.trim().toLowerCase() !== "approved") {
+    return false;
+  }
+
+  const voucherCode = payment.external_reference?.trim();
+  if (!voucherCode) {
+    return false;
+  }
+
+  const attribution = await findVoucherGoogleAdsConversion(voucherCode);
+  if (
+    !attribution?.gclid ||
+    attribution.googleAdsConversionUploadedAt !== null
+  ) {
+    return false;
+  }
+
+  const value = payment.transaction_amount;
+  if (typeof value !== "number") {
+    throw new Error("Mercado Pago payment is missing transaction_amount");
+  }
+
+  const result = await sendGoogleAdsOfflineConversion({
+    gclid: attribution.gclid,
+    value,
+    currencyCode: payment.currency_id ?? "BRL",
+    conversionDate: payment.date_approved ?? new Date(),
+    orderId: voucherCode,
+  });
+
+  if (result.status !== "sent") {
+    return false;
+  }
+
+  return await markGoogleAdsConversionUploaded(voucherCode);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const signature = request.headers.get("x-signature");
@@ -183,6 +259,7 @@ export async function POST(request: NextRequest) {
       getPayment: getMercadoPagoPayment,
       processVoucherPayment: processVoucherPaymentWebhook,
       sendConversionEvents: sendPaymentConversionEvents,
+      sendIdempotentConversionEvents: sendIdempotentPaymentConversionEvents,
     });
 
     return jsonResponse(result.body, result.status);

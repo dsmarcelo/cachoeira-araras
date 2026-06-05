@@ -80,6 +80,7 @@ const startVoucherCheckoutInput = z.object({
   intendedDate: z.date(),
   testMode: z.boolean().optional().default(false),
   referrerUrl: z.string().max(2048).optional().nullable(),
+  gclid: z.string().trim().max(255).optional().nullable(),
 });
 
 function getEndOfDay(date: Date) {

@@ -11,6 +11,8 @@ Campos essenciais para operação:
 - `valid`: flag booleana auxiliar de validade.
 - `preference_id`: id da preferência do Mercado Pago.
 - `payment_id`: id do pagamento confirmado (quando houver).
+- `gclid`: identificador do clique do Google Ads capturado antes da compra.
+- `google_ads_conversion_uploaded_at`: marca idempotente do envio da conversão offline ao Google Ads.
 - `expires_at`: data planejada de uso/expiração.
 - `deletedAt`: soft delete.
 
@@ -26,6 +28,12 @@ Tabela de configuração dinâmica do sistema:
 ### `Referrer`
 
 Relaciona voucher com origem/referrer para acompanhamento de aquisição.
+
+### Rastreamento Google Ads offline
+
+O `gclid` é capturado no client e salvo diretamente no `Voucher` quando a compra é iniciada. Quando o Mercado Pago confirma um pagamento aprovado, o webhook usa esse valor para enviar a conversão offline ao Google Ads.
+
+`google_ads_conversion_uploaded_at` não representa o pagamento; ele existe apenas para evitar reenvio da mesma conversão offline em webhooks duplicados ou reconciliações tardias.
 
 ## Máquina de estados do voucher (prática)
 
