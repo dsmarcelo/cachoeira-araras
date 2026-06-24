@@ -38,7 +38,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <FacebookPixel />
         </Suspense>
-        <GoogleTagManager gtmId="GTM-TT3T4V5Q" />
+        <GoogleTagManager gtmId={env.NEXT_PUBLIC_GTM_ID} />
       </body>
     </html>
   );

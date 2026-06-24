@@ -89,6 +89,9 @@ export const env = createEnv({
     NEXT_PUBLIC_VOUCHER_PRICE: z.coerce.number().default(50),
     NEXT_PUBLIC_POOL_VOUCHER_PRICE: z.coerce.number().default(70),
     NEXT_PUBLIC_FACEBOOK_PIXEL_ID: z.string().optional(),
+    // Google Tag Manager container ID. Defaults to the production container so
+    // GTM keeps working even if the Vercel env var is not set.
+    NEXT_PUBLIC_GTM_ID: z.string().default("GTM-TQW2H9V8"),
     NEXT_PUBLIC_ALERT_MESSAGE: z.string().optional(),
     // Toggle Vercel Analytics on/off at runtime (off reduces /_vercel/insights requests)
     NEXT_PUBLIC_ENABLE_ANALYTICS: z.coerce.boolean().default(false),
@@ -154,6 +157,7 @@ export const env = createEnv({
     NEXT_PUBLIC_VOUCHER_PRICE: process.env.NEXT_PUBLIC_VOUCHER_PRICE,
     NEXT_PUBLIC_POOL_VOUCHER_PRICE: process.env.NEXT_PUBLIC_POOL_VOUCHER_PRICE,
     NEXT_PUBLIC_FACEBOOK_PIXEL_ID: process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID,
+    NEXT_PUBLIC_GTM_ID: process.env.NEXT_PUBLIC_GTM_ID,
     NEXT_PUBLIC_ALERT_MESSAGE: process.env.NEXT_PUBLIC_ALERT_MESSAGE,
     NEXT_PUBLIC_ENABLE_ANALYTICS: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,

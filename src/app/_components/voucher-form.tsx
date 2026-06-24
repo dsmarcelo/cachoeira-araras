@@ -29,6 +29,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { getBrazilianDate } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
 
+declare global {
+  interface Window {
+    dataLayer?: Record<string, unknown>[];
+  }
+}
+
 export default function VoucherForm({
   testMode = false,
 }: {
@@ -154,6 +160,15 @@ export default function VoucherForm({
   }
 
   function redirectToPayment() {
+    // GTM: sinaliza o início do checkout antes de redirecionar ao Mercado Pago
+    if (typeof window !== "undefined") {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: "iniciar_checkout",
+        valor: totalPrice,
+        moeda: "BRL",
+      });
+    }
     router.push(init_point);
   }
 
