@@ -2,6 +2,7 @@ import VoucherBuy from "../_components/voucher-buy";
 import InfoCard from "../_components/info";
 import { ImageCarousel } from "../_components/image_carousel";
 import Link from "next/link";
+import Image from "next/image";
 import { RiGalleryView2 } from "react-icons/ri";
 import { AttractionCardCarousel } from "../_components/attraction-card-carousel";
 import { MapAppButtons } from "../_components/map-app-buttons";
@@ -47,7 +48,17 @@ export default async function Home() {
             </div>
             <MapAppButtons />
           </div>
-          <div className="w-full flex flex-col items-center justify-center">
+          <div className="w-full flex flex-col items-center justify-center gap-4">
+            <div className="w-full flex flex-col items-center gap-2">
+              <Image
+                src="/images/entrada-1.avif"
+                alt="Entrada para Cachoeira das Araras"
+                width={600}
+                height={450}
+                className="w-full h-64 md:h-96 rounded-xl object-cover"
+              />
+              <p className="font-medium">Entrada para Cachoeira das Araras</p>
+            </div>
             <iframe
               src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3197.8051767937786!2d-49.03570865266417!3d-15.733303493238164!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x935c5d7f7e549cc1%3A0x1f15768a4f2c4d36!2sCachoeira%20das%20Araras!5e0!3m2!1spt-BR!2sbr!4v1786745501861!5m2!1spt-BR!2sbr" width="600" height="450" className="w-full border border-slate-300 h-64 md:h-96 rounded-xl" allowFullScreen={true} loading="lazy" referrerPolicy="strict-origin-when-cross-origin"></iframe>
           </div>
