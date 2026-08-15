@@ -2,9 +2,10 @@ import VoucherBuy from "../_components/voucher-buy";
 import InfoCard from "../_components/info";
 import { ImageCarousel } from "../_components/image_carousel";
 import Link from "next/link";
+import Image from "next/image";
 import { RiGalleryView2 } from "react-icons/ri";
-import { FaLocationArrow } from "react-icons/fa";
 import { AttractionCardCarousel } from "../_components/attraction-card-carousel";
+import { MapAppButtons } from "../_components/map-app-buttons";
 
 export default async function Home() {
   return (
@@ -41,20 +42,25 @@ export default async function Home() {
           </Link>
         </div>
         <div className="w-full grid md:grid-cols-2 text-center md:text-right items-center gap-4 md:gap-8">
-          <div className="mx-auto space-y-2">
+          <div className="mx-auto flex flex-col items-center space-y-4">
             <div className="font-medium text-xl">
               GO 338 - Km 18 - Zona Rural / Pirenópolis-GO
             </div>
-            <Link
-              className="h-12 max-w-[500px] flex justify-center items-center rounded-full font-medium bg-primary-500 text-bg-blue hover:bg-primary-600"
-              href="https://maps.app.goo.gl/8pCVbnzQNrpb7D7L8" target="_blank">
-              <span className="mr-2"><FaLocationArrow /></span>
-              Localização
-            </Link>
+            <MapAppButtons />
           </div>
-          <div className="w-full flex flex-col items-center justify-center">
+          <div className="w-full flex flex-col items-center justify-center gap-4">
+            <div className="w-full flex flex-col items-center gap-2">
+              <Image
+                src="/images/entrada-1.avif"
+                alt="Entrada para Cachoeira das Araras"
+                width={600}
+                height={450}
+                className="w-full h-64 md:h-96 rounded-xl object-cover"
+              />
+              <p className="font-medium">Entrada para Cachoeira das Araras</p>
+            </div>
             <iframe
-              src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d15361.553819846727!2d-49.0319204!3d-15.7305765!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x935c5d7f7e549cc1%3A0x1f15768a4f2c4d36!2sCachoeira%20das%20Araras!5e0!3m2!1sen!2sbr!4v1721700001876!5m2!1sen!2sbr" width="600" height="450" className="w-full border border-slate-300 h-64 md:h-96 rounded-xl" allowFullScreen={true} loading="lazy" referrerPolicy="no-referrer-when-downgrade"></iframe>
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3197.8051767937786!2d-49.03570865266417!3d-15.733303493238164!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x935c5d7f7e549cc1%3A0x1f15768a4f2c4d36!2sCachoeira%20das%20Araras!5e0!3m2!1spt-BR!2sbr!4v1786745501861!5m2!1spt-BR!2sbr" width="600" height="450" className="w-full border border-slate-300 h-64 md:h-96 rounded-xl" allowFullScreen={true} loading="lazy" referrerPolicy="strict-origin-when-cross-origin"></iframe>
           </div>
         </div>
       </main>
