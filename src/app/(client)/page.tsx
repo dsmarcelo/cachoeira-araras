@@ -3,8 +3,8 @@ import InfoCard from "../_components/info";
 import { ImageCarousel } from "../_components/image_carousel";
 import Link from "next/link";
 import { RiGalleryView2 } from "react-icons/ri";
-import { FaLocationArrow } from "react-icons/fa";
 import { AttractionCardCarousel } from "../_components/attraction-card-carousel";
+import { MapAppButtons } from "../_components/map-app-buttons";
 
 export default async function Home() {
   return (
@@ -41,16 +41,11 @@ export default async function Home() {
           </Link>
         </div>
         <div className="w-full grid md:grid-cols-2 text-center md:text-right items-center gap-4 md:gap-8">
-          <div className="mx-auto space-y-2">
+          <div className="mx-auto flex flex-col items-center space-y-4">
             <div className="font-medium text-xl">
               GO 338 - Km 18 - Zona Rural / Pirenópolis-GO
             </div>
-            <Link
-              className="h-12 max-w-[500px] flex justify-center items-center rounded-full font-medium bg-primary-500 text-bg-blue hover:bg-primary-600"
-              href="https://maps.app.goo.gl/8pCVbnzQNrpb7D7L8" target="_blank">
-              <span className="mr-2"><FaLocationArrow /></span>
-              Localização
-            </Link>
+            <MapAppButtons />
           </div>
           <div className="w-full flex flex-col items-center justify-center">
             <iframe
