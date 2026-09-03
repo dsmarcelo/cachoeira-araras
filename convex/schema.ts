@@ -60,7 +60,9 @@ const vouchers = defineTable({
 // each other. `key` values and their value shapes come from the
 // SettingKey/SettingValueMap map in src/lib/settings.ts, which stays the
 // compile-time source of truth; this validator only bounds the shapes the
-// settings vocabulary actually uses.
+// settings vocabulary actually uses. `updatedBy`/`updatedAt` are set only by
+// `settings.set`, from the caller's verified identity and the server clock,
+// so a surprising value can be traced to who changed it and when.
 const settings = defineTable({
   key: v.string(),
   value: v.union(
@@ -70,6 +72,7 @@ const settings = defineTable({
     v.array(v.string()),
   ),
   updatedBy: v.optional(v.string()),
+  updatedAt: v.optional(v.number()),
 }).index("by_key", ["key"]);
 
 export default defineSchema({
