@@ -25,6 +25,12 @@ const settings: SettingValueMap = {
   "enable.voucher.half-price.pool.buy": true,
 };
 
+function daysFromNow(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
 const validInput: StartVoucherCheckoutInput = {
   name: "Maria Silva",
   phone: "11999999999",
@@ -32,7 +38,7 @@ const validInput: StartVoucherCheckoutInput = {
   elderly: 1,
   adults_pool: 0,
   elderly_pool: 0,
-  intendedDate: new Date("2026-05-10T12:00:00-03:00"),
+  intendedDate: daysFromNow(10),
   referrerUrl: "https://example.com/?fbclid=abc",
 };
 
@@ -57,6 +63,7 @@ await test("starts checkout with server-owned voucher state", async () => {
       return {};
     },
     findVoucherByCode: async () => null,
+    findActiveVoucherByPhone: async () => null,
     generateCode: () => "a1b2",
     getSettings: async () => settings,
     isUniqueConstraintError: () => false,
@@ -108,6 +115,7 @@ await test("retries voucher code collisions before creating a preference", async
     createPendingVoucher: async () => ({}),
     createReferrerAttribution: async () => ({}),
     findVoucherByCode: async (code) => (code === "used" ? { code } : null),
+    findActiveVoucherByPhone: async () => null,
     generateCode: () => generatedCodes.shift() ?? "free",
     getSettings: async () => settings,
     isUniqueConstraintError: () => false,
@@ -134,6 +142,7 @@ await test("does not fail checkout when referrer attribution fails", async () =>
       throw new Error("referrer write failed");
     },
     findVoucherByCode: async () => null,
+    findActiveVoucherByPhone: async () => null,
     generateCode: () => "z9y8",
     getSettings: async () => settings,
     isUniqueConstraintError: () => false,
@@ -151,6 +160,30 @@ await test("does not fail checkout when referrer attribution fails", async () =>
 
   assert.equal(result.code, "z9y8");
   assert.equal(warnings.length, 1);
+});
+
+await test("blocks checkout when phone already has an active voucher", async () => {
+  const intake = createVoucherPurchaseIntake({
+    createCheckoutPreference: async () => {
+      throw new Error("should not create a preference");
+    },
+    createPendingVoucher: async () => {
+      throw new Error("should not create a voucher");
+    },
+    createReferrerAttribution: async () => ({}),
+    findVoucherByCode: async () => null,
+    findActiveVoucherByPhone: async (phone) =>
+      phone === validInput.phone ? { code: "abcd" } : null,
+    generateCode: () => "a1b2",
+    getSettings: async () => settings,
+    isUniqueConstraintError: () => false,
+  });
+
+  await assert.rejects(
+    () => intake(validInput),
+    (error: unknown) =>
+      error instanceof Error && error.message.includes("abcd"),
+  );
 });
 
 await test("classifies known referrer URLs", () => {

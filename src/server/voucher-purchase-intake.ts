@@ -61,6 +61,18 @@ export async function startVoucherCheckout(
           },
         });
       },
+      findActiveVoucherByPhone: async (phone) => {
+        return await db.voucher.findFirst({
+          where: {
+            phone,
+            status: "valid",
+            deletedAt: null,
+          },
+          select: {
+            code: true,
+          },
+        });
+      },
       generateCode: generateVoucherCode,
       getSettings: getAllSettings,
       isUniqueConstraintError,

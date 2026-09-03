@@ -76,6 +76,9 @@ interface VoucherPurchaseIntakeDeps {
     input: ReferrerAttributionInput,
   ) => Promise<unknown>;
   findVoucherByCode: (code: string) => Promise<object | null>;
+  findActiveVoucherByPhone: (
+    phone: string,
+  ) => Promise<{ code: string } | null>;
   generateCode: () => string;
   getSettings: () => Promise<SettingValueMap>;
   isUniqueConstraintError: (error: unknown) => boolean;
@@ -106,6 +109,14 @@ export function createVoucherPurchaseIntake(deps: VoucherPurchaseIntakeDeps) {
         settings,
       },
     );
+
+    const activeVoucher = await deps.findActiveVoucherByPhone(input.phone);
+    if (activeVoucher) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: `Você já possui um voucher válido (código ${activeVoucher.code}) cadastrado com este telefone. Anote o código antes de comprar outro e certifique-se de que realmente precisa adquirir um novo voucher.`,
+      });
+    }
 
     for (let attempt = 1; attempt <= maxVoucherCodeAttempts; attempt += 1) {
       const code = deps.generateCode();
