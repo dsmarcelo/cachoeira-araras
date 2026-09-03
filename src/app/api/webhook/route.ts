@@ -95,6 +95,16 @@ function logBadRequest(error: string, context: WebhookRequestLogContext) {
   });
 }
 
+// THROWAWAY: staff test purchases use the nominal R$0,01 price to exercise the
+// real payment path, but that isn't a real sale and shouldn't be reported to ad
+// platforms as one. Deleted at cutover, when ticket 13's server-set `isTest`
+// flag on the Voucher becomes the real (non-price-based) way to detect this.
+const NOMINAL_TEST_PURCHASE_AMOUNT = 0.01;
+
+function isNominalTestPurchase(payment: PaymentResponse): boolean {
+  return payment.transaction_amount === NOMINAL_TEST_PURCHASE_AMOUNT;
+}
+
 async function sendPaymentConversionEvents(
   payment: unknown,
   payment_id: string,
@@ -104,6 +114,13 @@ async function sendPaymentConversionEvents(
   }
 
   const paymentPayload = payment as PaymentResponse;
+
+  if (isNominalTestPurchase(paymentPayload)) {
+    console.log(
+      `Skipping ad conversion events for nominal test purchase ${payment_id}`,
+    );
+    return;
+  }
 
   // Send Facebook Pixel conversion event for approved payments
   try {
