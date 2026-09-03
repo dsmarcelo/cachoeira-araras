@@ -65,6 +65,13 @@ export const env = createEnv({
         ? z.string()
         : z.string().optional(),
     CRON_SECRET: z.string(),
+    // Auth bridge: signs the short-lived Convex identity token minted from
+    // the NextAuth session. Base64-encoded PKCS8 PEM so a single-line env
+    // var can hold it. Public counterpart (CONVEX_AUTH_PUBLIC_JWK) is served
+    // at /.well-known/jwks.json for Convex's customJwt provider to verify
+    // against; see convex/auth.config.ts.
+    CONVEX_AUTH_PRIVATE_KEY_B64: z.string(),
+    CONVEX_AUTH_PUBLIC_JWK: z.string(),
     FACEBOOK_ACCESS_TOKEN: z.string().optional(),
     FACEBOOK_PIXEL_ID: z.string().optional(),
     GOOGLE_ANALYTICS_API_SECRET: z.string().optional(),
@@ -85,6 +92,7 @@ export const env = createEnv({
    */
   client: {
     // NEXT_PUBLIC_CLIENTVAR: z.string(),
+    NEXT_PUBLIC_CONVEX_URL: z.string().url(),
     NEXT_PUBLIC_MAX_INTENDED_DAYS: z.coerce.number().default(30),
     NEXT_PUBLIC_VOUCHER_PRICE: z.coerce.number().default(50),
     NEXT_PUBLIC_POOL_VOUCHER_PRICE: z.coerce.number().default(70),
@@ -138,6 +146,8 @@ export const env = createEnv({
     WEBHOOK_URL: process.env.WEBHOOK_URL,
     WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
+    CONVEX_AUTH_PRIVATE_KEY_B64: process.env.CONVEX_AUTH_PRIVATE_KEY_B64,
+    CONVEX_AUTH_PUBLIC_JWK: process.env.CONVEX_AUTH_PUBLIC_JWK,
     FACEBOOK_ACCESS_TOKEN: process.env.FACEBOOK_ACCESS_TOKEN,
     FACEBOOK_PIXEL_ID: process.env.FACEBOOK_PIXEL_ID,
     GOOGLE_ANALYTICS_API_SECRET: process.env.GOOGLE_ANALYTICS_API_SECRET,
@@ -194,6 +204,7 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_INFO_REDEIRO_DESCRIPTION,
     NEXT_PUBLIC_INFO_REDEIRO_IMAGE:
       process.env.NEXT_PUBLIC_INFO_REDEIRO_IMAGE,
+    NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
     NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
     NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL:
       process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL,

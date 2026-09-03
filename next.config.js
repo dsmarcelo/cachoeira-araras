@@ -43,6 +43,13 @@ const config = {
       },
     ],
   },
+  // Convex's customJwt provider fetches JWKS from /.well-known/jwks.json by
+  // convention; the route lives at /api/jwks so it's picked up by tsc/eslint
+  // (Next.js app-router folders starting with "." are excluded from the
+  // TypeScript project by default).
+  async rewrites() {
+    return [{ source: "/.well-known/jwks.json", destination: "/api/jwks" }];
+  },
   async headers() {
     return [
       {
