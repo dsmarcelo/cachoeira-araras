@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 
 import type { SettingValueMap } from "../lib/settings";
+import { getSaoPauloDateKey } from "../lib/utils/date.ts";
 
 export interface VoucherPurchaseInput {
   adults: number;
@@ -206,24 +207,14 @@ function validateIntendedDate(
 }
 
 function formatBrazilianDateKey(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-  }).formatToParts(date);
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
-
-  if (!year || !month || !day) {
+  try {
+    return getSaoPauloDateKey(date);
+  } catch {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Data de visita inválida.",
     });
   }
-
-  return `${year}-${month}-${day}`;
 }
 
 function dateKeyToUtcDay(dateKey: string) {
