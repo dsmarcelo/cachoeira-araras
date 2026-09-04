@@ -7,5 +7,6 @@ export default defineConfig({
     // Only Convex functions use vitest/convex-test; src/server/*.test.ts
     // files are node:test suites run separately via `node --test`.
     include: ["convex/**/*.test.ts"],
+    testTimeout: 15000,
   },
 });

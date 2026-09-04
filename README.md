@@ -89,6 +89,9 @@ Configure o deployment Convex selecionado uma vez:
 ```bash
 pnpm exec convex env set SITE_URL http://localhost:3000
 pnpm exec convex env set BETTER_AUTH_SECRET "<segredo-aleatorio-de-32-bytes>"
+pnpm exec convex env set MERCADOPAGO_TOKEN "<access-token-do-mercadopago>"
+pnpm exec convex env set MERCADOPAGO_WEBHOOK_SERVICE_SECRET "<segredo-de-servico-webhook>"
+pnpm exec convex env set URL "https://seu-dominio-ou-tunel"
 pnpm exec convex dev --once
 ```
 
