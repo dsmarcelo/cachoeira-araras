@@ -33,7 +33,7 @@ const adminSidebarItems = [
   {
     name: "Visão Geral",
     icon: <Ticket className="h-5 w-5" />,
-    href: "/admin/dashboard/vouchers",
+    href: "/admin/tabela",
   },
   {
     name: "Pagamentos",

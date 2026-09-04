@@ -87,10 +87,6 @@ export function formatVoucher(data: initialVoucherSchema): VoucherSchema {
   return completeData;
 }
 
-export function formatVoucherUrl(code: string, payment_id: string) {
-  return `${env.NEXT_PUBLIC_VERCEL_URL ?? env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL ?? "http://localhost:3000"}/voucher?code=${code}&pid=${payment_id}`;
-}
-
 export function formatPhone(phone: string) {
   return phone.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3");
 }

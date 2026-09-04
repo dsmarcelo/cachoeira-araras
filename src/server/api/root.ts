@@ -1,23 +1,18 @@
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
-import { voucherRouter } from "./routers/voucher";
 import { mercadopagoRouter } from "./routers/mercadopago";
-import { referrerRouter } from "./routers/referrer";
-import { notificationRouter } from "./routers/notification";
 
 /**
  * This is the primary router for your server.
  *
- * All routers added in /api/routers should be manually added here.
- *
- * Site settings are served from Convex (convex/settings.ts) rather than
- * tRPC — visitor-facing pages read them live via `useQuery`, and the old
- * Prisma EAV accessor (src/lib/settings.ts) is gone.
+ * The rest of the app runs on Convex directly. This router is what remains
+ * of tRPC: the Mercado Pago admin payments screen (`/admin/dashboard/pagamentos`)
+ * enriches Mercado Pago API results with a Prisma voucher lookup, which has
+ * no Convex equivalent yet — see docs/adr/0001-replace-trpc-with-direct-convex-access.md
+ * and ticket 15 for why this one router (and the Prisma client it uses) is
+ * deliberately still here.
  */
 export const appRouter = createTRPCRouter({
-  voucher: voucherRouter,
   mercadopago: mercadopagoRouter,
-  notification: notificationRouter,
-  referrer: referrerRouter,
 });
 
 // export type definition of API
