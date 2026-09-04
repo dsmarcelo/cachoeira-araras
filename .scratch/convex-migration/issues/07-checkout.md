@@ -22,16 +22,29 @@ and its internal mutation, since its purpose was testability without a database.
 
 **Blocked by:** 01, 05
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The total shown matches what the server charges, and a client that sends a different
-      price is charged the server's.
-- [ ] A past date, a date beyond the booking window, and a disabled day are each refused with
+- [x] The total shown matches what the server charges, and a client that sends a different
+      price is charged the server's. (The action's args have no price field at all — there is
+      nothing for a client to smuggle a price through.)
+- [x] A past date, a date beyond the booking window, and a disabled day are each refused with
       a reason the visitor can act on.
-- [ ] A phone number that already holds a valid voucher is refused at checkout.
-- [ ] Quantity limits and per-entry-type toggles from settings are honoured.
-- [ ] The generated code is short enough to read aloud at a gate, and unique.
-- [ ] Two concurrent checkouts that generate the same code produce exactly one voucher, and
+- [x] A phone number that already holds a valid voucher is refused at checkout.
+- [x] Quantity limits and per-entry-type toggles from settings are honoured.
+- [x] The generated code is short enough to read aloud at a gate, and unique.
+- [x] Two concurrent checkouts that generate the same code produce exactly one voucher, and
       the loser gets a different code rather than an error.
-- [ ] The voucher is left Pending with `visitDate` set to the day the customer chose.
-- [ ] Mercado Pago is stubbed at the module boundary in tests; nothing else is stubbed.
+- [x] The voucher is left Pending with `visitDate` set to the day the customer chose.
+- [x] Mercado Pago is stubbed at the module boundary in tests; nothing else is stubbed.
+
+Implementation notes: `convex/vouchers.ts` (`startCheckout` action, `insertPendingVoucher`
+internal mutation, `findActiveByPhone` internal query), `convex/lib/voucherPurchase.ts` (pure
+validator, unit tested in `convex/lib/voucherPurchase.test.ts`), `convex/lib/mercadopago.ts`
+(preference creation, stubbed in tests), `convex/lib/voucherCode.ts`, `convex/lib/settings.ts`
+(the settings vocabulary, replacing `src/lib/settings.ts`). Also closed here: the old
+Prisma-backed checkout path (`src/server/voucher-purchase*.ts`, the tRPC `voucher.startCheckout`
+and dead `voucher.create`/`mercadopago.create` procedures, and the tRPC `settings` router) is
+removed, and `PriceTable`/`VoucherForm` now read settings live from Convex
+(`api.settings.getAll`) and call the Convex checkout action directly — closing 05's two
+deferred boxes. Payment confirmation, the webhook, and payment-status polling stay on the
+existing Prisma/tRPC path through ticket 08.

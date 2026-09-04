@@ -54,7 +54,8 @@ const vouchers = defineTable({
   deletedAt: v.optional(v.number()),
 })
   .index("by_code", ["code"])
-  .index("by_paymentId", ["paymentId"]);
+  .index("by_paymentId", ["paymentId"])
+  .index("by_phone", ["phone"]);
 
 // One document per key so concurrent admins editing settings cannot clobber
 // each other. `key` values and their value shapes come from the

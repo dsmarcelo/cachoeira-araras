@@ -8,12 +8,9 @@ import {
 import { voucherSchema } from "@/lib/voucher/types";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { getAllSettings } from "@/lib/settings";
-import { validateVoucherPurchase } from "@/server/voucher-purchase";
 import { formatPaymentUrl } from "@/lib/utils";
 import { searchMercadoPagoPaymentsByExternalReference } from "@/server/mercadopago";
 import { confirmVoucherPaymentByCode } from "@/server/voucher";
-import { startVoucherCheckout } from "@/server/voucher-purchase-intake";
 
 function getTodayRange() {
   const today = new Date();
@@ -62,26 +59,6 @@ const adminSalesSummaryInput = z.object({
   from: z.date().optional(),
   to: z.date().optional(),
 });
-const createVoucherInput = voucherSchema.extend({
-  testMode: z.boolean().optional().default(false),
-});
-
-const startVoucherCheckoutInput = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Nome é obrigatorio")
-    .max(40, "Nome deve ser menor que 40 caracteres"),
-  phone: z.string().trim().min(11),
-  adults: z.number().int().min(0),
-  elderly: z.number().int().min(0),
-  adults_pool: z.number().int().min(0),
-  elderly_pool: z.number().int().min(0),
-  intendedDate: z.date(),
-  testMode: z.boolean().optional().default(false),
-  referrerUrl: z.string().max(2048).optional().nullable(),
-});
-
 function getEndOfDay(date: Date) {
   const end = new Date(date);
   end.setHours(23, 59, 59, 999);
@@ -117,46 +94,6 @@ function getAdminVoucherWhere(input: z.infer<typeof adminVoucherSummaryInput>): 
 }
 
 export const voucherRouter = createTRPCRouter({
-  startCheckout: publicProcedure
-    .input(startVoucherCheckoutInput)
-    .mutation(async ({ ctx, input }) => {
-      return await startVoucherCheckout(input, {
-        canUseTestMode:
-          ctx.session?.user.role === "admin" ||
-          ctx.session?.user.role === "employee",
-      });
-    }),
-
-  create: publicProcedure
-    .input(createVoucherInput)
-    .mutation(async ({ ctx, input }) => {
-      const { testMode, ...voucherData } = input;
-      const settings = await getAllSettings();
-      const validation = validateVoucherPurchase(
-        {
-          adults: input.adults,
-          elderly: input.elderly,
-          adults_pool: input.adults_pool,
-          elderly_pool: input.elderly_pool,
-          intendedDate: input.expires_at,
-          testMode,
-        },
-        {
-          canUseTestMode:
-            ctx.session?.user.role === "admin" ||
-            ctx.session?.user.role === "employee",
-          settings,
-        },
-      );
-
-      return await ctx.db.voucher.create({
-        data: {
-          ...voucherData,
-          price: validation.price,
-        },
-      });
-    }),
-
   getPublicStatusByCode: publicProcedure
     .input(z.object({ code: z.string().min(3).max(4) }))
     .query(async ({ ctx, input }) => {

@@ -9,12 +9,15 @@ Admin inputs accept prices in reais and convert to cents on write; storage is al
 
 **Blocked by:** 03, 04
 
-**Status:** resolved (admin half; EAV column removal and visitor-facing live reads deferred to 07)
+**Status:** resolved
 
 - [x] An admin editing a setting sees it saved, with the editor and timestamp recorded.
-- [ ] A visitor's open page reflects a settings change without reloading.
+- [x] A visitor's open page reflects a settings change without reloading. (Closed in 07:
+      `PriceTable` and `VoucherForm` now read `api.settings.getAll`, a live Convex query.)
 - [x] Two admins editing different settings at the same time do not overwrite each other.
 - [x] Prices typed in reais are stored in cents and displayed back in reais unchanged.
 - [x] A non-admin cannot write any setting.
-- [ ] The EAV type enum, the four nullable value columns, and the structural typing that
-      existed to keep `any` out of the old accessor are all gone.
+- [x] The EAV type enum, the four nullable value columns, and the structural typing that
+      existed to keep `any` out of the old accessor are all gone. (Closed in 07: deleted
+      `src/lib/settings.ts` and its remaining callers — the tRPC `settings` router and the
+      Prisma-backed checkout path.)

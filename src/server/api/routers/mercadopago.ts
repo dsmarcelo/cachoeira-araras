@@ -6,59 +6,15 @@ import {
 import { TRPCError } from "@trpc/server";
 import { env } from "@/env";
 import { z } from "zod";
-import { MercadoPagoConfig, Preference } from "mercadopago";
 import type { PrismaClient } from "@prisma/client";
 import { type PaymentResponse } from "mercadopago/dist/clients/payment/commonTypes";
 import { type PreferenceResponse } from "mercadopago/dist/clients/preference/commonTypes";
-import { getAllSettings } from "@/lib/settings";
-import { validateVoucherPurchase } from "@/server/voucher-purchase";
-import {
-  buildMercadoPagoWebhookUrl,
-  normalizePublicBaseUrl,
-  resolveWebhookBaseForCheckout,
-} from "@/server/mercadopago-checkout";
-import {
-  capturePaymentFlowException,
-  startPaymentFlowSpan,
-} from "@/lib/sentry/payment";
 import {
   getMercadoPagoPayment,
   mapMercadoPagoPayment,
   searchMercadoPagoPayments,
   type MercadoPagoPaymentListItem,
 } from "@/server/mercadopago";
-
-/**
- * Public origin for Mercado Pago `back_urls`. Prefer validated `env.URL`; if it is empty
- * (e.g. `SKIP_ENV_VALIDATION` builds), keep the same fallbacks the router used before.
- */
-function resolveSiteBaseForCheckout(): string {
-  const primary = (env.URL ?? "").trim();
-  if (primary) return normalizePublicBaseUrl(primary);
-  if (env.NEXT_PUBLIC_VERCEL_URL?.trim()) {
-    return normalizePublicBaseUrl(
-      `https://${env.NEXT_PUBLIC_VERCEL_URL.trim()}`,
-    );
-  }
-  if (env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL?.trim()) {
-    return normalizePublicBaseUrl(
-      `https://${env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL.trim()}`,
-    );
-  }
-  return "http://localhost:3000";
-}
-
-const client = new MercadoPagoConfig({
-  accessToken: env.MERCADOPAGO_TOKEN,
-  options: { timeout: 5000, idempotencyKey: "abc" },
-});
-
-function formatPhone(phone: string) {
-  const formatedPhone: Record<string, string> = {};
-  formatedPhone.area_code = phone.substring(0, 2);
-  formatedPhone.number = phone.substring(2);
-  return formatedPhone;
-}
 
 const paymentStatusSchema = z.enum([
   "all",
@@ -318,128 +274,6 @@ export const mercadopagoRouter = createTRPCRouter({
       };
     }),
 
-  create: publicProcedure
-    .input(
-      z.object({
-        code: z.string(),
-        id: z.string(),
-        title: z.string(),
-        description: z.string(),
-        adults: z.number(),
-        elderly: z.number(),
-        adults_pool: z.number(),
-        elderly_pool: z.number(),
-        intendedDate: z.date(),
-        testMode: z.boolean().optional().default(false),
-        name: z.string(),
-        surname: z.string(),
-        phone: z.string().min(11),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      try {
-        const settings = await getAllSettings();
-        const validation = validateVoucherPurchase(
-          {
-            adults: input.adults,
-            elderly: input.elderly,
-            adults_pool: input.adults_pool,
-            elderly_pool: input.elderly_pool,
-            intendedDate: input.intendedDate,
-            testMode: input.testMode,
-          },
-          {
-            canUseTestMode:
-              ctx.session?.user.role === "admin" ||
-              ctx.session?.user.role === "employee",
-            settings,
-          },
-        );
-        const siteBase = resolveSiteBaseForCheckout();
-        const webhookBase = resolveWebhookBaseForCheckout({
-          siteBaseUrl: siteBase,
-          webhookUrl: env.WEBHOOK_URL,
-        });
-        const preference = new Preference(client);
-        const response = await startPaymentFlowSpan(
-          "create_preference",
-          "Create Mercado Pago checkout preference",
-          {
-            voucherCode: input.code,
-            adults: input.adults,
-            elderly: input.elderly,
-            adults_pool: input.adults_pool,
-            elderly_pool: input.elderly_pool,
-            intendedDate: input.intendedDate,
-            testMode: input.testMode,
-            price: validation.price,
-          },
-          () =>
-            preference.create({
-              body: {
-                items: [
-                  {
-                    id: input.id,
-                    description: input.description,
-                    title: input.title || "Voucher",
-                    quantity: 1,
-                    unit_price: validation.price,
-                    currency_id: "BRL",
-                  },
-                ],
-                payer: {
-                  name: input.name,
-                  surname: input.surname,
-                  phone: {
-                    area_code: formatPhone(input.phone).area_code,
-                    number: formatPhone(input.phone).number,
-                  },
-                },
-                back_urls: {
-                  success: `${siteBase}`, // TODO: Add /pagamento/ correctly
-                  failure: `${siteBase}`, // TODO: Add /pagamento/ correctly
-                  pending: `${siteBase}`, // TODO: Add /pagamento/ correctly
-                },
-                external_reference: input.code,
-                expires: true,
-                auto_return: "approved",
-                expiration_date_from: new Date(Date.now()).toISOString(),
-                expiration_date_to: new Date(
-                  Date.now() + 1000 * 60 * 60 * 24 * 10,
-                ).toISOString(),
-                payment_methods: {
-                  excluded_payment_methods: [
-                    {
-                      id: "bolbradesco",
-                    },
-                    {
-                      id: "pec",
-                    },
-                  ],
-                },
-                statement_descriptor: "Cachoeira das Araras",
-                notification_url: buildMercadoPagoWebhookUrl(webhookBase),
-              },
-            }),
-        );
-        return response;
-      } catch (error) {
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-        capturePaymentFlowException(error, "create_preference", {
-          voucherCode: input.code,
-          adults: input.adults,
-          elderly: input.elderly,
-          adults_pool: input.adults_pool,
-          elderly_pool: input.elderly_pool,
-          intendedDate: input.intendedDate,
-          testMode: input.testMode,
-        });
-        console.error("Error creating preference:", error);
-        throw new Error("Failed to create preference");
-      }
-    }),
   getPreference: adminProcedure
     .input(z.object({ preference_id: z.string() }))
     .query<PreferenceResponse | undefined>(async ({ input }) => {

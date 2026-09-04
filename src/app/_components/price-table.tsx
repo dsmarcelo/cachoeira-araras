@@ -1,15 +1,21 @@
 "use client";
 
 import React from "react";
-import { api } from "@/trpc/react";
+import { useQuery } from "convex/react";
+
+import { api } from "../../../convex/_generated/api";
 
 interface PriceSummaryProps {
   label: string;
-  price: number;
+  priceCents: number;
   description?: string;
 }
 
-function PriceSummary({ label, price, description }: PriceSummaryProps) {
+function formatCentsAsReais(priceCents: number) {
+  return (priceCents / 100).toFixed(2).replace(".", ",");
+}
+
+function PriceSummary({ label, priceCents, description }: PriceSummaryProps) {
   // We keep this tiny helper isolated to avoid repeating formatting logic across the table.
   return (
     <div className="flex w-full justify-between">
@@ -19,17 +25,17 @@ function PriceSummary({ label, price, description }: PriceSummaryProps) {
           <p className="text-sm text-primary-100/80">{description}</p>
         ) : null}
       </div>
-      <p>R${price.toFixed(2).replace(".", ",")}</p>
+      <p>R${formatCentsAsReais(priceCents)}</p>
     </div>
   );
 }
 
 export default function PriceTable() {
-  // Fetch all settings once. We keep sensible fallbacks to avoid flashing empty content.
-  const settingsQuery = api.settings.getAll.useQuery();
-  const data = settingsQuery.data;
+  // A live Convex query: a price change made in the admin settings page
+  // reaches this open tab without a reload.
+  const settings = useQuery(api.settings.getAll);
 
-  if (!data) {
+  if (!settings) {
     return (
       <div className="flex w-full flex-col items-center justify-center">
         <h3 className="h-12 py-2 text-xl font-bold text-primary-100">
@@ -42,15 +48,12 @@ export default function PriceTable() {
     );
   }
 
-  const voucherPrice = data["voucher.price"] ?? 0;
-  const enableVoucherBuy = data["enable.voucher.buy"] ?? true;
+  const voucherPriceCents = settings["voucher.price"];
+  const enableVoucherBuy = settings["enable.voucher.buy"];
 
-  const elderlyPrice = voucherPrice / 2;
+  const elderlyPriceCents = voucherPriceCents / 2;
 
-  const showRegular = enableVoucherBuy && voucherPrice > 0;
-
-  // Track whether at least one price is visible; useful to display fallback messaging.
-  const hasAnyPrice = showRegular;
+  const showRegular = enableVoucherBuy && voucherPriceCents > 0;
 
   return (
     <div className="flex w-full flex-col items-center justify-center">
@@ -60,15 +63,12 @@ export default function PriceTable() {
       <div className="flex w-full flex-col gap-2 bg-custom-secondary pb-2 pt-1 font-semibold text-primary-50">
         <div className="flex w-full flex-col gap-2 px-4">
           {showRegular && (
-            <PriceSummary
-              label="Voucher"
-              price={voucherPrice}
-            />
+            <PriceSummary label="Voucher" priceCents={voucherPriceCents} />
           )}
 
           <PriceSummary
             label="Meia (+60 e especiais)"
-            price={elderlyPrice}
+            priceCents={elderlyPriceCents}
             description="Compra apenas na portaria, necessário apresentar documento."
           />
 
@@ -79,7 +79,6 @@ export default function PriceTable() {
             Grátis
           </div>
         </div>
-        {!hasAnyPrice ? <></> : null}
       </div>
     </div>
   );

@@ -3,19 +3,21 @@ import { voucherRouter } from "./routers/voucher";
 import { mercadopagoRouter } from "./routers/mercadopago";
 import { referrerRouter } from "./routers/referrer";
 import { notificationRouter } from "./routers/notification";
-import { settingsRouter } from "./routers/settings";
 
 /**
  * This is the primary router for your server.
  *
  * All routers added in /api/routers should be manually added here.
+ *
+ * Site settings are served from Convex (convex/settings.ts) rather than
+ * tRPC — visitor-facing pages read them live via `useQuery`, and the old
+ * Prisma EAV accessor (src/lib/settings.ts) is gone.
  */
 export const appRouter = createTRPCRouter({
   voucher: voucherRouter,
   mercadopago: mercadopagoRouter,
   notification: notificationRouter,
   referrer: referrerRouter,
-  settings: settingsRouter,
 });
 
 // export type definition of API

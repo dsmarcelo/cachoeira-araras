@@ -1,5 +1,7 @@
 "use client";
 import { api } from "@/trpc/react";
+import { useAction, useQuery } from "convex/react";
+import { api as convexApi } from "../../../convex/_generated/api";
 import React, { useEffect, useState } from "react";
 import type { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -44,18 +46,23 @@ export default function VoucherForm({
 
   const utils = api.useUtils();
 
-  // Get all settings from database using a single query
-  const settingsQuery = api.settings.getAll.useQuery();
+  // A live Convex query: a settings change made in the admin page reaches
+  // this open form without a reload.
+  const settings = useQuery(convexApi.settings.getAll);
+  const startCheckout = useAction(convexApi.vouchers.startCheckout);
 
-  // Destructure settings with defaults
+  // Destructure settings with defaults; prices are stored in cents and
+  // converted to reais here, the one boundary where that conversion happens
+  // on the way into the UI.
   const {
     "disabled.days": disabledDays = [],
     "max.intended.days": maxIntendedDays = 60,
     "form.message": formMessage = "",
-    "voucher.price": voucherPrice = 50,
+    "voucher.price": voucherPriceCents = 5000,
     "voucher.max.quantity.adults": maxAdults = 20,
     "enable.voucher.buy": enableVoucherBuy = true,
-  } = settingsQuery.data ?? {};
+  } = settings ?? {};
+  const voucherPrice = voucherPriceCents / 100;
 
   async function checkPaymentStatus(code: string) {
     const reconciliation = await utils.voucher.reconcilePublicPaymentStatus.fetch({
@@ -122,10 +129,10 @@ export default function VoucherForm({
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settingsQuery]);
+  }, [settings]);
 
   type FormSchema = z.infer<typeof voucherFormSchema>;
-  const startCheckout = api.voucher.startCheckout.useMutation();
+  const [checkoutFailed, setCheckoutFailed] = useState(false);
 
   const {
     register,
@@ -173,14 +180,15 @@ export default function VoucherForm({
     }
     try {
       setIsLoading(true);
-      const checkout = await startCheckout.mutateAsync({
+      setCheckoutFailed(false);
+      const checkout = await startCheckout({
         name: data.name,
         phone: data.phone,
         adults: data.adults,
         elderly: 0,
-        adults_pool: 0,
-        elderly_pool: 0,
-        intendedDate: data.intendedDate,
+        adultsPool: 0,
+        elderlyPool: 0,
+        visitDateMs: data.intendedDate.getTime(),
         testMode,
         referrerUrl: referrerURL,
       });
@@ -189,6 +197,7 @@ export default function VoucherForm({
       setInitPoint(checkout.initPoint);
       setIsLoading(false);
     } catch (error) {
+      setCheckoutFailed(true);
       console.error(error);
       setIsLoading(false);
       return toast({
@@ -417,7 +426,7 @@ export default function VoucherForm({
             )}
           </Button>
         </form>
-        {startCheckout.isError && (
+        {checkoutFailed && (
           <div className="my-4 flex flex-col justify-center space-y-2 text-lg font-medium text-red-500">
             <p>Erro ao criar o voucher, tente novamente!</p>
             <Button onClick={() => location.reload()} className="h-20">

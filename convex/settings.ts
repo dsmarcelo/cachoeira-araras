@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import { requireRole } from "./lib/auth";
+import { mergeSettings } from "./lib/settings";
 
 /**
  * Role comes only from the verified identity (ticket 04), never from a
@@ -38,6 +39,31 @@ export const get = query({
 });
 
 /**
+ * Every setting a visitor-facing page needs, merged onto the settings
+ * vocabulary's defaults so a key nobody has ever written still resolves to
+ * something usable. Public and unauthenticated: prices, quantity limits and
+ * banner messages are shown before anyone signs in. Being an ordinary
+ * reactive query is what makes a settings change reach an open visitor page
+ * without a reload.
+ */
+export const getAll = query({
+  args: {},
+  // No return validator: settings keys contain "." and "-" (e.g.
+  // "voucher.price"), which aren't valid Convex object-validator
+  // identifiers, and a v.record() would widen every field to the same
+  // union, losing the per-key typing (SettingValueMap, via mergeSettings)
+  // that callers actually rely on. mergeSettings already guarantees the
+  // runtime shape from the settings vocabulary's defaults.
+  handler: async (ctx) => {
+    // Bounded by the settings vocabulary (SETTING_KEYS in
+    // convex/lib/settings.ts, currently ~14 entries) rather than
+    // user-generated data, so a full table scan here never grows unboundedly.
+    const settings = await ctx.db.query("settings").collect();
+    return mergeSettings(settings);
+  },
+});
+
+/**
  * Every stored setting with its audit trail, for the admin settings page.
  * Admin-only because `updatedBy` identifies who made the change; visitors
  * only ever need `get`/individual values, never the audit trail.
@@ -55,9 +81,9 @@ export const list = query({
   handler: async (ctx) => {
     await requireRole(ctx, "admin");
 
-    // Bounded by the settings vocabulary (SETTING_KEYS in src/lib/settings.ts,
-    // currently ~14 entries) rather than user-generated data, so a full
-    // table scan here never grows unboundedly.
+    // Bounded by the settings vocabulary (SETTING_KEYS in
+    // convex/lib/settings.ts, currently ~14 entries) rather than
+    // user-generated data, so a full table scan here never grows unboundedly.
     const settings = await ctx.db.query("settings").collect();
     return settings.map((setting) => ({
       key: setting.key,

@@ -1,4 +1,4 @@
-import type { QueryCtx, MutationCtx } from "../_generated/server";
+import type { ActionCtx, MutationCtx, QueryCtx } from "../_generated/server";
 
 /**
  * The two roles minted into the Convex identity token by
@@ -16,7 +16,7 @@ export type UserRole = "admin" | "employee";
  * argument instead of this.
  */
 export async function getRole(
-  ctx: QueryCtx | MutationCtx,
+  ctx: QueryCtx | MutationCtx | ActionCtx,
 ): Promise<UserRole | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
@@ -29,7 +29,7 @@ export async function getRole(
 
 /** Throws unless the caller is signed in as `role` (or "admin", which can do anything "employee" can). */
 export async function requireRole(
-  ctx: QueryCtx | MutationCtx,
+  ctx: QueryCtx | MutationCtx | ActionCtx,
   role: UserRole,
 ): Promise<UserRole> {
   const actual = await getRole(ctx);

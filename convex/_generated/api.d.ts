@@ -9,6 +9,10 @@
  */
 
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_mercadopago from "../lib/mercadopago.js";
+import type * as lib_settings from "../lib/settings.js";
+import type * as lib_voucherCode from "../lib/voucherCode.js";
+import type * as lib_voucherPurchase from "../lib/voucherPurchase.js";
 import type * as settings from "../settings.js";
 import type * as vouchers from "../vouchers.js";
 
@@ -20,6 +24,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
+  "lib/mercadopago": typeof lib_mercadopago;
+  "lib/settings": typeof lib_settings;
+  "lib/voucherCode": typeof lib_voucherCode;
+  "lib/voucherPurchase": typeof lib_voucherPurchase;
   settings: typeof settings;
   vouchers: typeof vouchers;
 }>;
