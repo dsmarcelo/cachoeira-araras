@@ -122,13 +122,13 @@ Settings:
 - Checkout is one Convex action. It derives price from settings, generates a code, creates the Mercado Pago preference, then calls an internal mutation that re-checks code uniqueness and inserts the voucher atomically. A collision inside that mutation causes the action to retry with a new code. This closes an existing time-of-check/time-of-use race where the uniqueness check and the insert are separate Prisma calls.
 - `validateVoucherPurchase` stays a pure function taking input and settings. The remaining dependency-injection seam in the intake core — roughly eight function-typed parameters — is collapsed into the action and its internal mutation, since its purpose was testability without a database and `convex-test` supplies one.
 - The Mercado Pago webhook remains a Next.js route through cutover. Live checkout preferences carry `notification_url` baked in at creation and expire ten days later, so relocating the endpoint would require both URLs to work simultaneously on a payment path. The route becomes a thin adapter calling a Convex action. Moving it to a Convex HTTP action is deliberately deferred.
-- The daily maintenance job becomes a Convex cron: expire vouchers past their expiry, soft-delete stale pending vouchers, and hard-delete Test Vouchers older than thirty days. The Vercel cron entry is removed at cutover.
+- The daily maintenance job becomes a Convex cron: expire vouchers past their expiry, soft-delete Pending Vouchers whose expiry has passed, and hard-delete Test Vouchers older than thirty days. The Vercel cron entry is removed at cutover.
 - A shared helper expresses the "counts as a real, live voucher" predicate (`deletedAt` unset and not `isTest`) so the two conditions are not re-typed at every call site.
 
 ### Admin data access
 
 - Production holds roughly one thousand vouchers growing at about fifty per month. At that volume the admin list loads the full filtered set in one reactive query and paginates and searches client-side, preserving the existing page-number UI and true substring matching. No Convex search index and no cursor pagination: both would trade correct `contains` semantics and an accurate page count for scale that is more than a decade away.
-- Summary endpoints require a bounded date range, defaulting to the current month, because they read every matching voucher and reduce in memory.
+- Summary endpoints always use a bounded date range because they read every matching voucher and reduce in memory. Omitting both bounds defaults to the current calendar month in Sao Paulo; supplying only one bound or explicitly requesting an unbounded range is refused.
 
 ### Test purchases
 
@@ -146,7 +146,7 @@ Settings:
 
 ### Data import
 
-- A standalone script reads Postgres through Prisma and writes through an internal Convex mutation, keyed on `code` so it can be re-run idempotently. It performs the `used` to `redeemed` normalisation, the multiplication to cents, the split of `expires_at` into `visitDate` and `expiresAt`, and the folding of `Referrer` rows into the embedded field. It is written as part of this work and dry-run against the development database, but not executed against production until cutover.
+- A standalone script reads Postgres through Prisma and writes through internal Convex mutations, keyed on Voucher Code for Vouchers and setting key for Site Settings so it can be re-run idempotently. It performs the `used` to `redeemed` normalisation, the multiplication to cents, the split of `expires_at` into `visitDate` and `expiresAt`, the folding of `Referrer` rows into the embedded field, and the conversion of legacy EAV Site Settings into typed values while preserving their audit fields. It is written as part of this work and dry-run against the development database, but not executed against production until cutover.
 
 ## Testing Decisions
 

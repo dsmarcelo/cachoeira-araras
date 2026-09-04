@@ -14,7 +14,7 @@ already states.
 `schema.prisma` itself is untouched, and the import script (ticket 14) keeps whatever Prisma
 access it needs to read the old database at cutover.
 
-**Blocked by:** 09, 10, 11, 12, 13
+**Blocked by:** 09, 10, 11, 12, 13, 14
 
 **Status:** ready-for-agent
 
@@ -26,3 +26,5 @@ access it needs to read the old database at cutover.
 - [ ] The Voucher Purchase Intake entry in `CONTEXT.md` no longer refers to server-owned
       `valid`.
 - [ ] `schema.prisma` and the production Postgres database are unchanged.
+- [ ] The ticket 14 import script still runs with its tooling-only Prisma access after the
+      application runtime wiring is removed.
