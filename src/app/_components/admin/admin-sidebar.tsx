@@ -21,6 +21,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import Image from "next/image";
+import { cn } from "@/lib/utils";
 
 type UserRole = "admin" | "employee";
 
@@ -93,32 +94,33 @@ export default function DashboardSidebar({ role }: { role: UserRole }) {
   };
 
   return (
-    <Sidebar>
-      <SidebarHeader className="flex items-center justify-center bg-background py-4">
+    <Sidebar className="border-r border-sidebar-border">
+      <SidebarHeader className="flex items-center justify-center bg-sidebar border-b border-sidebar-border py-4">
         <Image
           src="/logo_nome.png"
-          className="brightness-75 invert"
           alt="logo"
           width={60}
           height={60}
           unoptimized
+          className="h-auto w-[60px]"
         />
       </SidebarHeader>
-      <SidebarContent className="bg-background">
+      <SidebarContent className="bg-sidebar">
         <SidebarGroup>
           <SidebarMenu>
             {sidebarItems.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <SidebarMenuItem key={item.name}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild isActive={isActive}>
                     <Link
                       href={item.href}
-                      className={`flex items-center rounded-lg px-2 py-2 text-sm font-medium ${
+                      className={cn(
+                        "flex items-center rounded-lg px-2 py-2 text-sm font-medium transition-colors",
                         isActive
-                          ? "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground font-medium"
-                          : "text-muted-foreground hover:bg-muted"
-                      }`}
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+                          : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
+                      )}
                       onClick={handleMenuItemClick}
                     >
                       {item.icon}

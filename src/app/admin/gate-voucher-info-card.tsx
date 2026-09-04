@@ -89,15 +89,15 @@ export function GateVoucherInfoCard({ data, onClose, open }: props) {
       <DrawerContent>
         <DrawerHeader className="text-left max-h-[80dvh] overflow-y-scroll">
           <DrawerTitle onClick={() => navigator.clipboard.writeText(data.code ?? '')}>{`Voucher ${data.code}`}</DrawerTitle>
-          <DrawerDescription className="hover:bg-slate-100 rounded-md" onClick={() => navigator.clipboard.writeText(data.paymentId ?? '')}>
+          <DrawerDescription className="hover:bg-muted rounded-md transition-colors" onClick={() => navigator.clipboard.writeText(data.paymentId ?? '')}>
             {data.paymentId ? `ID de pagamento: ${data.paymentId}` : 'Nenhum pagamento'}
           </DrawerDescription>
           <div className="flex flex-col gap-1">
-            <h4 className="hover:bg-slate-100 rounded-md" onClick={() => navigator.clipboard.writeText(data.name)}>{truncateName(data.name)}</h4>
+            <h4 className="hover:bg-muted rounded-md transition-colors" onClick={() => navigator.clipboard.writeText(data.name)}>{truncateName(data.name)}</h4>
             <Link
               href={`https://wa.me/${data.phone}`}
               target="_blank"
-              className="hover:bg-slate-100 rounded-md"
+              className="hover:bg-muted rounded-md transition-colors"
               onClick={() => navigator.clipboard.writeText(data.phone)}>
               {formatPhone(data.phone)}
             </Link>
@@ -117,11 +117,11 @@ export function GateVoucherInfoCard({ data, onClose, open }: props) {
             </div>
           </div>
           <div className="flex flex-wrap gap-x-1" onClick={() => navigator.clipboard.writeText(data.preferenceId)}>
-            <p className="text-xs text-slate-500">{`Preferencia do pagamento:`}</p>
-            <p className="text-xs text-slate-500">{`${data.preferenceId}`}</p>
+            <p className="text-xs text-muted-foreground">{`Preferencia do pagamento:`}</p>
+            <p className="text-xs text-muted-foreground">{`${data.preferenceId}`}</p>
           </div>
-          <p className="text-xs text-center text-slate-500">Toque nos items acima para copiar
-            <span className="text-slate-500"><Copy className="inline-block w-3 h-3 ml-1" /></span>
+          <p className="text-xs text-center text-muted-foreground">Toque nos items acima para copiar
+            <span className="text-muted-foreground"><Copy className="inline-block w-3 h-3 ml-1" /></span>
           </p>
         </DrawerHeader>
         <DrawerFooter className="grid grid-cols-3 gap-2 pt-2">

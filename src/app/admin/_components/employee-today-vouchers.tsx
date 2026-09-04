@@ -32,16 +32,16 @@ function VoucherCard({
   return (
     <button
       type="button"
-      className={`w-full cursor-pointer px-2 py-2 text-left hover:bg-slate-50 ${dynamicClass}`}
+      className={`w-full cursor-pointer rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/50 ${dynamicClass}`}
       onClick={() => onClick(voucher)}
     >
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="font-medium">{voucher.name}</p>
-          <p className="text-base text-black">{voucher.code}</p>
+          <p className="font-medium text-foreground">{voucher.name}</p>
+          <p className="text-base font-mono text-foreground">{voucher.code}</p>
         </div>
         <div className="text-right">
-          <p className="font-medium">
+          <p className="font-medium text-muted-foreground">
             {formatQuantity({
               adults: voucher.adults,
               elderly: voucher.elderly,
@@ -72,7 +72,7 @@ export default function EmployeeTodayVouchers() {
   if (!vouchers.length) {
     return (
       <div className="py-8 text-center">
-        <p className="text-lg text-slate-500">Nenhum voucher para hoje</p>
+        <p className="text-lg text-muted-foreground">Nenhum voucher para hoje</p>
       </div>
     );
   }
@@ -83,7 +83,7 @@ export default function EmployeeTodayVouchers() {
   );
 
   return (
-    <div className="w-full rounded-lg border p-4">
+    <div className="w-full rounded-lg border border-border bg-card text-card-foreground p-4">
       <div className="space-y-8">
         <h2 className="text-center text-xl font-semibold">
           Vouchers para hoje:{" "}
@@ -92,7 +92,7 @@ export default function EmployeeTodayVouchers() {
 
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Confirmados ({validVouchers.length})</h3>
-          <div className="divide-y">
+          <div className="divide-y divide-border">
             {validVouchers.map((voucher) => (
               <VoucherCard
                 key={voucher.code}
@@ -105,10 +105,10 @@ export default function EmployeeTodayVouchers() {
 
         {pendingVouchers.length > 0 && (
           <div className="space-y-4">
-            <h3 className="text-lg font-medium text-amber-600">
+            <h3 className="text-lg font-medium text-amber-500 dark:text-amber-400">
               Pendentes ({pendingVouchers.length})
             </h3>
-            <div className="divide-y">
+            <div className="divide-y divide-border">
               {pendingVouchers.map((voucher) => (
                 <VoucherCard
                   key={voucher.code}

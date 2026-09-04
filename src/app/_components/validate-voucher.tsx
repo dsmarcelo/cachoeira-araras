@@ -94,7 +94,7 @@ export default function ValidateVoucher() {
           </form>
         </CardContent>
       </Card>
-      {message && <h3 className='text-black font-semibold text-center'>{message}</h3>}
+      {message && <h3 className='text-foreground font-semibold text-center'>{message}</h3>}
       {voucher?.status === 'valid' ?
         <Button type='button' onClick={handleRedeem} className='bg-green-500 font-semibold text-center'>Usar Voucher</Button>
         : null}

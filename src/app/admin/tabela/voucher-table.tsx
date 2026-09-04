@@ -109,7 +109,7 @@ export function VoucherTable({
   }, [table, windowWidth])
 
   return (
-    <div className="w-full max-w-7xl mx-auto py-4 sm:py-4 sm:px-8 rounded-lg shadow-md border space-y-4">
+    <div className="w-full max-w-7xl mx-auto py-4 sm:py-4 sm:px-8 rounded-lg shadow-md border border-border bg-card text-card-foreground space-y-4">
       <div className="flex flex-col gap-3 px-4 sm:px-0">
         <div className="flex flex-wrap items-center gap-3">
           <Select value={view} onValueChange={(value) => onViewChange(value as VoucherView)}>
@@ -170,7 +170,7 @@ export function VoucherTable({
       <div className="px-4 text-sm text-muted-foreground sm:px-0">
         {total} voucher(s) encontrado(s).
       </div>
-      <div className="border-y sm:border sm:rounded-lg w-full">
+      <div className="border-y border-border sm:border sm:rounded-lg w-full">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

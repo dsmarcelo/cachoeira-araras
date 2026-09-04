@@ -58,7 +58,7 @@ function FormCard({
   updatedAt?: number;
 }) {
   return (
-    <div className="rounded-lg border p-4 pt-2">
+    <div className="rounded-lg border border-border bg-card text-card-foreground p-4 pt-2">
       <div className="mb-4 flex flex-col">
         <h3 className="text-lg font-semibold">{label}</h3>
         {description && (
