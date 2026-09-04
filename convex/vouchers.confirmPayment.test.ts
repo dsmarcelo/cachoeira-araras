@@ -1,11 +1,22 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
-import { expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
+
+const testSecret = "test-only-shared-secret";
+const previousSecret = process.env.MERCADOPAGO_WEBHOOK_SERVICE_SECRET;
+
+beforeEach(() => {
+  process.env.MERCADOPAGO_WEBHOOK_SERVICE_SECRET = testSecret;
+});
+
+afterEach(() => {
+  process.env.MERCADOPAGO_WEBHOOK_SERVICE_SECRET = previousSecret;
+});
 
 function defaults() {
   return {
@@ -35,15 +46,28 @@ async function insertVoucher(
   return voucher;
 }
 
-function asAdmin(t: ReturnType<typeof convexTest>) {
-  return t.withIdentity({ "properties.role": "admin" });
+function confirmPaymentRequest(
+  body: Record<string, unknown>,
+  secret: string | undefined,
+) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (secret !== undefined) {
+    headers["x-webhook-secret"] = secret;
+  }
+  return {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  };
 }
 
 test("an approved payment flips a Pending voucher to valid", async () => {
   const t = convexTest(schema, modules);
   await insertVoucher(t);
 
-  const result = await asAdmin(t).mutation(api.vouchers.confirmPayment, {
+  const result = await t.mutation(internal.vouchers.confirmPayment, {
     code: "a1b2",
     paymentId: "pay-1",
     paymentStatus: "approved",
@@ -69,7 +93,7 @@ test("a non-approved payment status records the payment id but leaves the vouche
   const t = convexTest(schema, modules);
   await insertVoucher(t);
 
-  const result = await asAdmin(t).mutation(api.vouchers.confirmPayment, {
+  const result = await t.mutation(internal.vouchers.confirmPayment, {
     code: "a1b2",
     paymentId: "pay-1",
     paymentStatus: "in_process",
@@ -91,7 +115,7 @@ test("a repeated delivery for an already-confirmed voucher changes nothing and r
   const t = convexTest(schema, modules);
   await insertVoucher(t, { status: "valid", paymentId: "pay-1" });
 
-  const result = await asAdmin(t).mutation(api.vouchers.confirmPayment, {
+  const result = await t.mutation(internal.vouchers.confirmPayment, {
     code: "a1b2",
     paymentId: "pay-1",
     paymentStatus: "approved",
@@ -107,7 +131,7 @@ test("an already-redeemed voucher is never reverted", async () => {
   const t = convexTest(schema, modules);
   await insertVoucher(t, { status: "redeemed", paymentId: "pay-1" });
 
-  const result = await asAdmin(t).mutation(api.vouchers.confirmPayment, {
+  const result = await t.mutation(internal.vouchers.confirmPayment, {
     code: "a1b2",
     paymentId: "pay-1",
     paymentStatus: "approved",
@@ -128,7 +152,7 @@ test("a Test Voucher reports isTest so the caller suppresses ad conversions", as
   const t = convexTest(schema, modules);
   await insertVoucher(t, { isTest: true });
 
-  const result = await asAdmin(t).mutation(api.vouchers.confirmPayment, {
+  const result = await t.mutation(internal.vouchers.confirmPayment, {
     code: "a1b2",
     paymentId: "pay-1",
     paymentStatus: "approved",
@@ -140,7 +164,7 @@ test("a Test Voucher reports isTest so the caller suppresses ad conversions", as
 test("a payment for an unknown voucher code reports not_found", async () => {
   const t = convexTest(schema, modules);
 
-  const result = await asAdmin(t).mutation(api.vouchers.confirmPayment, {
+  const result = await t.mutation(internal.vouchers.confirmPayment, {
     code: "zzzz",
     paymentId: "pay-1",
     paymentStatus: "approved",
@@ -149,30 +173,74 @@ test("a payment for an unknown voucher code reports not_found", async () => {
   expect(result).toEqual({ outcome: "not_found" });
 });
 
-test("confirming a payment rejects an unauthenticated caller", async () => {
-  const t = convexTest(schema, modules);
-  await insertVoucher(t);
-
-  await expect(
-    t.mutation(api.vouchers.confirmPayment, {
-      code: "a1b2",
-      paymentId: "pay-1",
-      paymentStatus: "approved",
-    }),
-  ).rejects.toThrow(/401/);
+test("confirmPayment has no public entry point a signed-in caller can reach", () => {
+  // There is deliberately no `api.vouchers.confirmPayment` — only
+  // `internal.vouchers.confirmPayment`, callable exclusively from other
+  // Convex functions (here, the /webhooks/mercadopago/confirmPayment HTTP
+  // action). A browser session, admin or not, has no client-callable
+  // reference to hit.
+  expect("confirmPayment" in api.vouchers).toBe(false);
 });
 
-test("confirming a payment rejects a non-admin (employee) identity", async () => {
+test("the confirmPayment webhook door rejects a request with no shared secret", async () => {
   const t = convexTest(schema, modules);
   await insertVoucher(t);
 
-  await expect(
-    t
-      .withIdentity({ "properties.role": "employee" })
-      .mutation(api.vouchers.confirmPayment, {
-        code: "a1b2",
-        paymentId: "pay-1",
-        paymentStatus: "approved",
-      }),
-  ).rejects.toThrow(/403/);
+  const response = await t.fetch(
+    "/webhooks/mercadopago/confirmPayment",
+    confirmPaymentRequest(
+      { code: "a1b2", paymentId: "pay-1", paymentStatus: "approved" },
+      undefined,
+    ),
+  );
+
+  expect(response.status).toBe(401);
+
+  const stored = await t.run((ctx) =>
+    ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", "a1b2"))
+      .unique(),
+  );
+  expect(stored?.status).toBe("pending");
+});
+
+test("the confirmPayment webhook door rejects a wrong shared secret", async () => {
+  const t = convexTest(schema, modules);
+  await insertVoucher(t);
+
+  const response = await t.fetch(
+    "/webhooks/mercadopago/confirmPayment",
+    confirmPaymentRequest(
+      { code: "a1b2", paymentId: "pay-1", paymentStatus: "approved" },
+      "not-the-secret",
+    ),
+  );
+
+  expect(response.status).toBe(401);
+});
+
+test("the confirmPayment webhook door accepts the correct shared secret and confirms the payment", async () => {
+  const t = convexTest(schema, modules);
+  await insertVoucher(t);
+
+  const response = await t.fetch(
+    "/webhooks/mercadopago/confirmPayment",
+    confirmPaymentRequest(
+      { code: "a1b2", paymentId: "pay-1", paymentStatus: "approved" },
+      testSecret,
+    ),
+  );
+
+  expect(response.status).toBe(200);
+  const body: unknown = await response.json();
+  expect(body).toMatchObject({ outcome: "updated", becameValid: true });
+
+  const stored = await t.run((ctx) =>
+    ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", "a1b2"))
+      .unique(),
+  );
+  expect(stored?.status).toBe("valid");
 });

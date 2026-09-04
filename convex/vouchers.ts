@@ -7,10 +7,9 @@ import {
   action,
   internalMutation,
   internalQuery,
-  mutation,
   query,
 } from "./_generated/server";
-import { getRole, requireRole } from "./lib/auth";
+import { getRole } from "./lib/auth";
 import { createCheckoutPreference } from "./lib/mercadopago";
 import type { SettingValueMap } from "./lib/settings";
 import {
@@ -348,17 +347,20 @@ function summarizeForPaymentConfirmation(voucher: Doc<"vouchers">) {
 }
 
 /**
- * Confirms a Mercado Pago payment against the voucher it paid for. Called
- * only from the Mercado Pago webhook route (a thin Next.js adapter that has
- * already verified MP's HMAC signature before minting itself an admin
- * identity token — see src/server/convex-service.ts), never from a browser.
+ * Confirms a Mercado Pago payment against the voucher it paid for. Internal
+ * only — the sole caller is the `/webhooks/mercadopago/confirmPayment` HTTP
+ * action (convex/http.ts), reached from the Mercado Pago webhook route (a
+ * thin Next.js adapter that has already verified MP's HMAC signature) over a
+ * shared-secret door, never a Convex identity. There is deliberately no
+ * public `mutation` wrapping this: a signed-in admin session has no path to
+ * it at all.
  *
  * Idempotent: a repeated delivery for a voucher already `valid` or
  * `redeemed` changes nothing and reports `becameValid: false`, so the caller
  * sends no second WhatsApp message and fires no second conversion event. A
  * `redeemed` voucher is never reverted, regardless of `paymentStatus`.
  */
-export const confirmPayment = mutation({
+export const confirmPayment = internalMutation({
   args: {
     code: v.string(),
     paymentId: v.string(),
@@ -378,8 +380,6 @@ export const confirmPayment = mutation({
     v.object({ outcome: v.literal("not_found") }),
   ),
   handler: async (ctx, args) => {
-    await requireRole(ctx, "admin");
-
     const voucher = await ctx.db
       .query("vouchers")
       .withIndex("by_code", (q) => q.eq("code", args.code))

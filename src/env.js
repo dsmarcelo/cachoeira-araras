@@ -72,6 +72,10 @@ export const env = createEnv({
     // against; see convex/auth.config.ts.
     CONVEX_AUTH_PRIVATE_KEY_B64: z.string(),
     CONVEX_AUTH_PUBLIC_JWK: z.string(),
+    // Shared secret for the webhook route's server-to-server call into
+    // Convex (convex/http.ts). Must match the Convex deployment's own
+    // MERCADOPAGO_WEBHOOK_SERVICE_SECRET, set via `npx convex env set`.
+    MERCADOPAGO_WEBHOOK_SERVICE_SECRET: z.string(),
     FACEBOOK_ACCESS_TOKEN: z.string().optional(),
     FACEBOOK_PIXEL_ID: z.string().optional(),
     GOOGLE_ANALYTICS_API_SECRET: z.string().optional(),
@@ -148,6 +152,8 @@ export const env = createEnv({
     CRON_SECRET: process.env.CRON_SECRET,
     CONVEX_AUTH_PRIVATE_KEY_B64: process.env.CONVEX_AUTH_PRIVATE_KEY_B64,
     CONVEX_AUTH_PUBLIC_JWK: process.env.CONVEX_AUTH_PUBLIC_JWK,
+    MERCADOPAGO_WEBHOOK_SERVICE_SECRET:
+      process.env.MERCADOPAGO_WEBHOOK_SERVICE_SECRET,
     FACEBOOK_ACCESS_TOKEN: process.env.FACEBOOK_ACCESS_TOKEN,
     FACEBOOK_PIXEL_ID: process.env.FACEBOOK_PIXEL_ID,
     GOOGLE_ANALYTICS_API_SECRET: process.env.GOOGLE_ANALYTICS_API_SECRET,
