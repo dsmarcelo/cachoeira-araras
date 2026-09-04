@@ -1,12 +1,9 @@
 /// <reference types="vite/client" />
-import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
 
 import { getSaoPauloDateKey } from "../src/lib/utils/date";
 import { api } from "./_generated/api";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
+import { createConvexTest, withAuth } from "./test.setup";
 
 const today = getSaoPauloDateKey();
 
@@ -30,7 +27,7 @@ function defaults() {
 }
 
 async function insertVoucher(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createConvexTest>,
   overrides: Partial<ReturnType<typeof defaults>> = {},
 ) {
   const voucher = { ...defaults(), ...overrides };
@@ -39,10 +36,10 @@ async function insertVoucher(
 }
 
 test("the admin list excludes Test Vouchers", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t, { code: "real", name: "Ana" });
   await insertVoucher(t, { code: "test", name: "Beto", isTest: true });
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const asAdmin = await withAuth(t, "admin");
 
   const list = await asAdmin.query(api.vouchers.listAdmin, {});
 
@@ -50,10 +47,10 @@ test("the admin list excludes Test Vouchers", async () => {
 });
 
 test("the admin list narrows by status", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t, { code: "a", status: "valid" });
   await insertVoucher(t, { code: "b", status: "pending" });
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const asAdmin = await withAuth(t, "admin");
 
   const list = await asAdmin.query(api.vouchers.listAdmin, {
     status: "pending",
@@ -63,9 +60,9 @@ test("the admin list narrows by status", async () => {
 });
 
 test("the admin list narrows by creation-date range", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t, { code: "in-range" });
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const asAdmin = await withAuth(t, "admin");
 
   const now = Date.now();
   const withinRange = await asAdmin.query(api.vouchers.listAdmin, {
@@ -81,9 +78,9 @@ test("the admin list narrows by creation-date range", async () => {
 });
 
 test("an employee identity is rejected by every admin voucher function, including with a forged role argument", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t);
-  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+  const asEmployee = await withAuth(t, "employee");
   // `role` isn't a real arg on any of these functions, but a caller could
   // still try to smuggle one in; Convex's arg validators reject an unknown
   // key like this outright, and the handlers never read a client-supplied
@@ -112,7 +109,7 @@ test("an employee identity is rejected by every admin voucher function, includin
 });
 
 test("a public caller is rejected by every admin voucher function", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t);
 
   await expect(t.query(api.vouchers.listAdmin, {})).rejects.toThrow();
@@ -129,9 +126,9 @@ test("a public caller is rejected by every admin voucher function", async () => 
 });
 
 test("editing a voucher's status persists it", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t, { status: "pending" });
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const asAdmin = await withAuth(t, "admin");
 
   await asAdmin.mutation(api.vouchers.updateStatus, {
     code: "a1b2",
@@ -143,9 +140,9 @@ test("editing a voucher's status persists it", async () => {
 });
 
 test("soft-deleting removes a voucher from the main list and surfaces it in the deleted view; restoring reverses both", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t, { code: "a1b2" });
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const asAdmin = await withAuth(t, "admin");
 
   await asAdmin.mutation(api.vouchers.softDelete, { code: "a1b2" });
 

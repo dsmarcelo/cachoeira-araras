@@ -35,23 +35,13 @@ Crie um arquivo `.env` na raiz do projeto usando `.env.example` como base. O sch
 | `URL` | URL publica/base **unica** (`src/env.js`): app inteiro, **incluindo `back_urls` do Checkout Pro** (retorno apos pagamento) e links. Este valor vem sempre do `.env` (sem fallback automatico da Vercel). |
 | `MERCADOPAGO_TOKEN` | Access token do Mercado Pago usado para criar preferencias e consultar pagamentos. |
 | `CRON_SECRET` | Segredo usado no header `Authorization: Bearer <CRON_SECRET>` da rota `/api/cron`. |
+| `NEXT_PUBLIC_CONVEX_URL` | URL `.convex.cloud` do deployment remoto de desenvolvimento. |
+| `NEXT_PUBLIC_CONVEX_SITE_URL` | URL `.convex.site` do mesmo deployment, usada pelo proxy do Better Auth. |
+| `NEXT_PUBLIC_SITE_URL` | Origem do frontend. Localmente, `http://localhost:3000`. |
 
 **Producao vs tunel local (mesma chave `URL`):** defina explicitamente no `.env` a origem publica correta em cada ambiente. Para testar checkout com tunel (ngrok, Cloudflare Tunnel, etc.), no `.env` **local** use a origem HTTPS do tunel em `URL`, rode `pnpm dev` e crie a preferencia por esse backend — o Mercado Pago passa a redirecionar e enviar webhooks para o tunel. Nao e necessario definir `WEBHOOK_URL` quando a base publica for a mesma.
 
-### Obrigatorias em producao
-
-| Key | Uso |
-| --- | --- |
-| `NEXTAUTH_SECRET` | Segredo de sessao do NextAuth. Gere com `openssl rand -base64 32`. |
-| `ADMIN_PASSWORD_HASH` | Hash da senha do admin no formato `scrypt:<salt>:<derived-key-hex>`. |
-
 Em qualquer deploy (incluindo Vercel), `URL` deve ser definida explicitamente no `.env` com a origem publica correta do app.
-
-### Acesso interno opcional
-
-| Key | Uso |
-| --- | --- |
-| `EMPLOYEE_PASSWORD_HASH` | Hash da senha de funcionario. Se ausente, somente o acesso admin fica disponivel. |
 
 ### Pagamentos e webhooks
 
@@ -92,12 +82,20 @@ Use `pnpm test:payments` para rodar um teste E2E automatico sem agente de IA. O 
 
 ## Autenticacao do admin
 
-O acesso em `/admin` usa sessao do NextAuth com provider de credenciais.
+O acesso em `/admin` usa Better Auth com usuario e senha. Os dados e sessoes ficam no deployment remoto do Convex, inclusive durante o desenvolvimento local.
 
-- Defina `ADMIN_PASSWORD_HASH` no `.env`.
-- O formato esperado e `scrypt:<salt>:<derived-key-hex>`.
-- Para gerar o hash localmente, use o comando abaixo em PowerShell ou Bash:
+Configure o deployment Convex selecionado uma vez:
 
 ```bash
-pnpm admin:hash -- "sua-senha-admin"
+pnpm exec convex env set SITE_URL http://localhost:3000
+pnpm exec convex env set BETTER_AUTH_SECRET "<segredo-aleatorio-de-32-bytes>"
+pnpm exec convex dev --once
 ```
+
+Crie o primeiro admin pela funcao interna. O comando recusa a operacao quando ja existe qualquer usuario:
+
+```bash
+pnpm exec convex run authAdmin:createFirstAdmin '{"username":"admin","password":"uma-senha-longa"}'
+```
+
+Depois disso, o admin gerencia usuarios em `/admin/dashboard/usuarios`. Cada usuario altera o proprio acesso em `/admin/conta`.

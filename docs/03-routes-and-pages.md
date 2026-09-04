@@ -16,6 +16,8 @@
 - `/admin/dashboard/configuracoes` — gerenciamento de settings do site.
 - `/admin/dashboard/vendas` — área de vendas.
 - `/admin/dashboard/vouchers` — visão de vouchers.
+- `/admin/dashboard/usuarios` — criação e administração de acessos.
+- `/admin/conta` — alteração do próprio usuário e senha.
 - `/admin/dashboard/pagamentos` — consulta admin de pagamentos Mercado Pago por mês, com vínculo ao código do voucher.
 - `/admin/dashboard/referencias` — dados de referência/referrer.
 - `/admin/tabela` — tabela detalhada de vouchers.
@@ -26,7 +28,7 @@
 - `/api/trpc/[trpc]` — endpoint central do tRPC.
 - `/api/webhook` — webhook Mercado Pago (validação assinatura + atualização voucher).
 - `/api/cron` — rotinas de expiração/limpeza de vouchers (protegida por bearer token).
-- `/api/auth/[...nextauth]` — NextAuth handler.
+- `/api/auth/[...all]` — proxy do Better Auth para o deployment Convex.
 - `/api/pagamento/aprovado` — endpoint simples para validar params de callback.
 
 ## Rotas utilitárias/teste

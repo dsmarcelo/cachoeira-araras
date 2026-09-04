@@ -1,30 +1,27 @@
 import type { ActionCtx, MutationCtx, QueryCtx } from "../_generated/server";
 
+import { authComponent } from "../auth";
+
 /**
- * The two roles minted into the Convex identity token by
- * src/server/convex-auth-bridge.ts. Kept in sync with `UserRole` in
- * src/server/auth.ts (that file's literal is "employee", not "staff",
- * despite the phrase used elsewhere).
+ * Application roles. Better Auth stores its ordinary role as "user"; this
+ * adapter maps that value to the application's existing "employee" name.
  */
 export type UserRole = "admin" | "employee";
 
 /**
- * Reads the caller's verified role from the Convex identity, or `null` for
- * an unauthenticated caller. Custom JWT claims are nested under `properties`
- * (see convex/auth.config.ts + the token-minting route) and Convex exposes
- * them back under a dot-notation key — never trust a `role` function
- * argument instead of this.
+ * Reads the caller's current role from Better Auth. Looking the user up on
+ * every authorization check makes bans and role changes effective without
+ * trusting a stale client token or a role function argument.
  */
 export async function getRole(
   ctx: QueryCtx | MutationCtx | ActionCtx,
 ): Promise<UserRole | null> {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
+  const user = await authComponent.safeGetAuthUser(ctx);
+  if (!user || user.banned === true) {
     return null;
   }
 
-  const role = identity["properties.role"];
-  return role === "admin" || role === "employee" ? role : null;
+  return user.role === "admin" ? "admin" : "employee";
 }
 
 /** Throws unless the caller is signed in as `role` (or "admin", which can do anything "employee" can). */

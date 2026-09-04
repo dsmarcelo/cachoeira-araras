@@ -1,35 +1,34 @@
 /// <reference types="vite/client" />
-import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
 
 import { api } from "../_generated/api";
-import schema from "../schema";
+import { createConvexTest, withAuth } from "../test.setup";
 import { requireRole } from "./auth";
 
-const modules = import.meta.glob("../**/*.ts");
-
 test("a staff-only check rejects a public (unauthenticated) caller", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
 
-  await expect(
-    t.run((ctx) => requireRole(ctx, "employee")),
-  ).rejects.toThrow(/401/);
+  await expect(t.run((ctx) => requireRole(ctx, "employee"))).rejects.toThrow(
+    /401/,
+  );
 });
 
 test("a staff-only check accepts both an employee and an admin identity", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
+  const asEmployee = await withAuth(t, "employee");
+  const asAdmin = await withAuth(t, "admin");
 
   await expect(
-    t.withIdentity({ "properties.role": "employee" }).run((ctx) => requireRole(ctx, "employee")),
+    asEmployee.run((ctx) => requireRole(ctx, "employee")),
   ).resolves.toBe("employee");
   await expect(
-    t.withIdentity({ "properties.role": "admin" }).run((ctx) => requireRole(ctx, "employee")),
+    asAdmin.run((ctx) => requireRole(ctx, "employee")),
   ).resolves.toBe("admin");
 });
 
 test("an admin-only check rejects a staff (employee) identity", async () => {
-  const t = convexTest(schema, modules);
-  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+  const t = createConvexTest();
+  const asEmployee = await withAuth(t, "employee");
 
   await expect(
     asEmployee.run((ctx) => requireRole(ctx, "admin")),
@@ -37,7 +36,7 @@ test("an admin-only check rejects a staff (employee) identity", async () => {
 });
 
 test("a public function ignores a role argument if the args happen to include one", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
 
   // `settings.get` never accepts a role arg at all — this proves the public
   // read path works with no identity, regardless of what a caller might try
@@ -48,7 +47,7 @@ test("a public function ignores a role argument if the args happen to include on
 });
 
 test("an admin-only mutation rejects an unauthenticated caller", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
 
   await expect(
     t.mutation(api.settings.set, { key: "featureFlag", value: true }),
@@ -56,8 +55,8 @@ test("an admin-only mutation rejects an unauthenticated caller", async () => {
 });
 
 test("an admin-only mutation rejects a forged role claim from an employee identity", async () => {
-  const t = convexTest(schema, modules);
-  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+  const t = createConvexTest();
+  const asEmployee = await withAuth(t, "employee");
 
   await expect(
     asEmployee.mutation(api.settings.set, {
@@ -68,8 +67,8 @@ test("an admin-only mutation rejects a forged role claim from an employee identi
 });
 
 test("an admin-only mutation succeeds for an admin identity, and the write is visible to everyone", async () => {
-  const t = convexTest(schema, modules);
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const t = createConvexTest();
+  const asAdmin = await withAuth(t, "admin");
 
   await asAdmin.mutation(api.settings.set, {
     key: "featureFlag",

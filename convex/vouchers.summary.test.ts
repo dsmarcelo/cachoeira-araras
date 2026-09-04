@@ -1,11 +1,8 @@
 /// <reference types="vite/client" />
-import { convexTest } from "convex-test";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { api } from "./_generated/api";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
+import { createConvexTest, withAuth } from "./test.setup";
 
 function defaults() {
   return {
@@ -34,7 +31,7 @@ function defaults() {
  * out-of-order call wouldn't land on the requested day.
  */
 async function insertVoucherAt(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createConvexTest>,
   atMs: number,
   overrides: Partial<ReturnType<typeof defaults>> = {},
 ) {
@@ -64,7 +61,7 @@ afterEach(() => {
 });
 
 test("a bounded range returns voucher count, visitor count and revenue for that period, excluding a still-pending voucher", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucherAt(t, middayMs("2026-01-05"), {
     code: "in-1",
     status: "valid",
@@ -94,7 +91,7 @@ test("a bounded range returns voucher count, visitor count and revenue for that 
     priceCents: 7000,
   });
 
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const asAdmin = await withAuth(t, "admin");
   const summary = await asAdmin.query(api.vouchers.periodSummary, {
     from: "2026-01-01",
     to: "2026-01-31",
@@ -112,11 +109,11 @@ test("with both bounds omitted, the current calendar month in Sao Paulo is used"
   vi.useFakeTimers();
   vi.setSystemTime(middayMs("2026-03-15"));
   try {
-    const t = convexTest(schema, modules);
+    const t = createConvexTest();
     await t.run(async (ctx) =>
       ctx.db.insert("vouchers", { ...defaults(), code: "march" }),
     );
-    const asAdmin = t.withIdentity({ "properties.role": "admin" });
+    const asAdmin = await withAuth(t, "admin");
 
     const summary = await asAdmin.query(api.vouchers.periodSummary, {});
 
@@ -129,8 +126,8 @@ test("with both bounds omitted, the current calendar month in Sao Paulo is used"
 });
 
 test("a single bound is refused rather than scanning everything", async () => {
-  const t = convexTest(schema, modules);
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const t = createConvexTest();
+  const asAdmin = await withAuth(t, "admin");
 
   await expect(
     asAdmin.query(api.vouchers.periodSummary, { from: "2026-01-01" }),
@@ -141,8 +138,8 @@ test("a single bound is refused rather than scanning everything", async () => {
 });
 
 test("an explicitly unbounded range is refused rather than scanning everything", async () => {
-  const t = convexTest(schema, modules);
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const t = createConvexTest();
+  const asAdmin = await withAuth(t, "admin");
 
   await expect(
     asAdmin.query(api.vouchers.periodSummary, { from: null, to: null }),
@@ -156,7 +153,7 @@ test("an explicitly unbounded range is refused rather than scanning everything",
 });
 
 test("revenue totals are exact for a combination of odd prices", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   const prices = [1201, 3333, 999, 50, 17];
   for (const [index, priceCents] of prices.entries()) {
     await insertVoucherAt(t, middayMs("2026-01-10") + index, {
@@ -164,7 +161,7 @@ test("revenue totals are exact for a combination of odd prices", async () => {
       priceCents,
     });
   }
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const asAdmin = await withAuth(t, "admin");
 
   const summary = await asAdmin.query(api.vouchers.periodSummary, {
     from: "2026-01-01",
@@ -177,7 +174,7 @@ test("revenue totals are exact for a combination of odd prices", async () => {
 });
 
 test("daily figures break the range down by day", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucherAt(t, middayMs("2026-01-05"), {
     code: "d1",
     priceCents: 5000,
@@ -195,7 +192,7 @@ test("daily figures break the range down by day", async () => {
     elderly: 1,
   });
 
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const asAdmin = await withAuth(t, "admin");
   const days = await asAdmin.query(api.vouchers.dailyBreakdown, {
     from: "2026-01-01",
     to: "2026-01-31",
@@ -215,7 +212,7 @@ test("daily figures break the range down by day", async () => {
 });
 
 test("a Test Voucher inside the range changes no figure", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucherAt(t, middayMs("2026-01-05"), {
     code: "real",
     priceCents: 5000,
@@ -228,7 +225,7 @@ test("a Test Voucher inside the range changes no figure", async () => {
     isTest: true,
   });
 
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const asAdmin = await withAuth(t, "admin");
   const summary = await asAdmin.query(api.vouchers.periodSummary, {
     from: "2026-01-01",
     to: "2026-01-31",
@@ -241,12 +238,16 @@ test("a Test Voucher inside the range changes no figure", async () => {
   expect(summary.voucherCount).toBe(1);
   expect(summary.revenueCents).toBe(5000);
   expect(days).toEqual([
-    expect.objectContaining({ date: "2026-01-05", voucherCount: 1, revenueCents: 5000 }),
+    expect.objectContaining({
+      date: "2026-01-05",
+      voucherCount: 1,
+      revenueCents: 5000,
+    }),
   ]);
 });
 
 test("soft-deleted vouchers are excluded", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucherAt(t, middayMs("2026-01-05"), {
     code: "real",
     priceCents: 5000,
@@ -266,7 +267,7 @@ test("soft-deleted vouchers are excluded", async () => {
     }
   });
 
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const asAdmin = await withAuth(t, "admin");
   const summary = await asAdmin.query(api.vouchers.periodSummary, {
     from: "2026-01-01",
     to: "2026-01-31",
@@ -277,9 +278,9 @@ test("soft-deleted vouchers are excluded", async () => {
 });
 
 test("a staff-role caller cannot reach either summary, including with a forged role argument", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucherAt(t, middayMs("2026-01-05"), { code: "a1b2" });
-  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+  const asEmployee = await withAuth(t, "employee");
   const forged = { role: "admin" } as unknown as Record<string, never>;
 
   await expect(

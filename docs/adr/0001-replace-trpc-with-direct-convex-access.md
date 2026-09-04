@@ -1,6 +1,6 @@
 # Replace tRPC with direct Convex access
 
-Status: accepted
+Status: superseded by ADR 0002
 
 This app was scaffolded from the T3 stack, so tRPC sits between the browser and the
 server for every read and write. Moving the backend to Convex, we removed tRPC

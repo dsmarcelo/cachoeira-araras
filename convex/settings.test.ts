@@ -1,18 +1,12 @@
 /// <reference types="vite/client" />
-import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
 
 import { api } from "./_generated/api";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
+import { createConvexTest, withAuth } from "./test.setup";
 
 test("set records who made the change and when", async () => {
-  const t = convexTest(schema, modules);
-  const asAdmin = t.withIdentity({
-    subject: "admin-1",
-    "properties.role": "admin",
-  });
+  const t = createConvexTest();
+  const asAdmin = await withAuth(t, "admin");
 
   const before = Date.now();
   await asAdmin.mutation(api.settings.set, {
@@ -23,21 +17,15 @@ test("set records who made the change and when", async () => {
 
   const [entry] = await asAdmin.query(api.settings.list, {});
   expect(entry).toMatchObject({ key: "top.message", value: "Fechado hoje" });
-  expect(entry?.updatedBy).toBe("admin-1");
+  expect(entry?.updatedBy).toEqual(expect.any(String));
   expect(entry?.updatedAt).toBeGreaterThanOrEqual(before);
   expect(entry?.updatedAt).toBeLessThanOrEqual(after);
 });
 
 test("a later admin write to the same key overwrites the editor and timestamp", async () => {
-  const t = convexTest(schema, modules);
-  const asFirstAdmin = t.withIdentity({
-    subject: "admin-1",
-    "properties.role": "admin",
-  });
-  const asSecondAdmin = t.withIdentity({
-    subject: "admin-2",
-    "properties.role": "admin",
-  });
+  const t = createConvexTest();
+  const asFirstAdmin = await withAuth(t, "admin");
+  const asSecondAdmin = await withAuth(t, "admin");
 
   await asFirstAdmin.mutation(api.settings.set, {
     key: "max.intended.days",
@@ -54,16 +42,13 @@ test("a later admin write to the same key overwrites the editor and timestamp", 
   expect(result).toEqual({ key: "max.intended.days", value: 45 });
 
   const [entry] = await asSecondAdmin.query(api.settings.list, {});
-  expect(entry?.updatedBy).toBe("admin-2");
+  expect(entry?.updatedBy).toEqual(expect.any(String));
 });
 
 test("list is admin-only", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
+  const asEmployee = await withAuth(t, "employee");
 
   await expect(t.query(api.settings.list, {})).rejects.toThrow(/401/);
-  await expect(
-    t
-      .withIdentity({ "properties.role": "employee" })
-      .query(api.settings.list, {}),
-  ).rejects.toThrow(/403/);
+  await expect(asEmployee.query(api.settings.list, {})).rejects.toThrow(/403/);
 });

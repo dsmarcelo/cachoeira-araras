@@ -41,18 +41,6 @@ export const env = createEnv({
   },
 
   server: {
-    NEXTAUTH_SECRET:
-      process.env.NODE_ENV === "production"
-        ? z.string()
-        : z.string().optional(),
-    ADMIN_PASSWORD_HASH:
-      process.env.NODE_ENV === "production"
-        ? z.string()
-        : z.string().optional(),
-    EMPLOYEE_PASSWORD_HASH:
-      process.env.NODE_ENV === "production"
-        ? z.string().optional()
-        : z.string().optional(),
     URL: z.preprocess(resolvePublicBaseUrl, z.string().url()),
     DATABASE_URL: z.string(),
     MERCADOPAGO_TOKEN: z.string(),
@@ -64,13 +52,6 @@ export const env = createEnv({
       process.env.NODE_ENV === "production"
         ? z.string()
         : z.string().optional(),
-    // Auth bridge: signs the short-lived Convex identity token minted from
-    // the NextAuth session. Base64-encoded PKCS8 PEM so a single-line env
-    // var can hold it. Public counterpart (CONVEX_AUTH_PUBLIC_JWK) is served
-    // at /.well-known/jwks.json for Convex's customJwt provider to verify
-    // against; see convex/auth.config.ts.
-    CONVEX_AUTH_PRIVATE_KEY_B64: z.string(),
-    CONVEX_AUTH_PUBLIC_JWK: z.string(),
     // Shared secret for the webhook route's server-to-server call into
     // Convex (convex/http.ts). Must match the Convex deployment's own
     // MERCADOPAGO_WEBHOOK_SERVICE_SECRET, set via `npx convex env set`.
@@ -96,6 +77,8 @@ export const env = createEnv({
   client: {
     // NEXT_PUBLIC_CLIENTVAR: z.string(),
     NEXT_PUBLIC_CONVEX_URL: z.string().url(),
+    NEXT_PUBLIC_CONVEX_SITE_URL: z.string().url(),
+    NEXT_PUBLIC_SITE_URL: z.string().url(),
     NEXT_PUBLIC_MAX_INTENDED_DAYS: z.coerce.number().default(30),
     NEXT_PUBLIC_VOUCHER_PRICE: z.coerce.number().default(50),
     NEXT_PUBLIC_POOL_VOUCHER_PRICE: z.coerce.number().default(70),
@@ -140,16 +123,11 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
-    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
-    ADMIN_PASSWORD_HASH: process.env.ADMIN_PASSWORD_HASH,
-    EMPLOYEE_PASSWORD_HASH: process.env.EMPLOYEE_PASSWORD_HASH,
     DATABASE_URL: process.env.DATABASE_URL,
     URL: process.env.URL,
     MERCADOPAGO_TOKEN: process.env.MERCADOPAGO_TOKEN,
     WEBHOOK_URL: process.env.WEBHOOK_URL,
     WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
-    CONVEX_AUTH_PRIVATE_KEY_B64: process.env.CONVEX_AUTH_PRIVATE_KEY_B64,
-    CONVEX_AUTH_PUBLIC_JWK: process.env.CONVEX_AUTH_PUBLIC_JWK,
     MERCADOPAGO_WEBHOOK_SERVICE_SECRET:
       process.env.MERCADOPAGO_WEBHOOK_SERVICE_SECRET,
     FACEBOOK_ACCESS_TOKEN: process.env.FACEBOOK_ACCESS_TOKEN,
@@ -209,6 +187,8 @@ export const env = createEnv({
     NEXT_PUBLIC_INFO_REDEIRO_IMAGE:
       process.env.NEXT_PUBLIC_INFO_REDEIRO_IMAGE,
     NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
+    NEXT_PUBLIC_CONVEX_SITE_URL: process.env.NEXT_PUBLIC_CONVEX_SITE_URL,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
     NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL:
       process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL,

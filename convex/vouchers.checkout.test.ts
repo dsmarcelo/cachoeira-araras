@@ -1,12 +1,9 @@
 /// <reference types="vite/client" />
-import { convexTest } from "convex-test";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { api } from "./_generated/api";
 import type * as voucherCodeModule from "./lib/voucherCode";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
+import { createConvexTest, withAuth } from "./test.setup";
 
 interface CheckoutPreferenceStubInput {
   code: string;
@@ -21,9 +18,12 @@ interface CheckoutPreferenceStubResult {
 // per the testing decision in the migration spec: nothing else is stubbed,
 // so checkout runs its real validation, code generation, and database work
 // against convex-test's in-memory backend.
-const createCheckoutPreference = vi.fn<
-  (input: CheckoutPreferenceStubInput) => Promise<CheckoutPreferenceStubResult>
->();
+const createCheckoutPreference =
+  vi.fn<
+    (
+      input: CheckoutPreferenceStubInput,
+    ) => Promise<CheckoutPreferenceStubResult>
+  >();
 vi.mock("./lib/mercadopago", () => ({
   createCheckoutPreference: (input: CheckoutPreferenceStubInput) =>
     createCheckoutPreference(input),
@@ -76,8 +76,8 @@ function validArgs(overrides: Record<string, unknown> = {}) {
 }
 
 test("charges the server-derived price regardless of what a client sends", async () => {
-  const t = convexTest(schema, modules);
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const t = createConvexTest();
+  const asAdmin = await withAuth(t, "admin");
   await asAdmin.mutation(api.settings.set, {
     key: "voucher.price",
     value: 5000,
@@ -92,7 +92,7 @@ test("charges the server-derived price regardless of what a client sends", async
 });
 
 test("a past visit date is refused with an actionable reason", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   const past = new Date("2020-01-01T12:00:00-03:00").getTime();
 
   await expect(
@@ -102,8 +102,8 @@ test("a past visit date is refused with an actionable reason", async () => {
 });
 
 test("a visit date beyond the booking window is refused with an actionable reason", async () => {
-  const t = convexTest(schema, modules);
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const t = createConvexTest();
+  const asAdmin = await withAuth(t, "admin");
   await asAdmin.mutation(api.settings.set, {
     key: "max.intended.days",
     value: 5,
@@ -111,16 +111,13 @@ test("a visit date beyond the booking window is refused with an actionable reaso
   const farFuture = new Date("2030-01-01T12:00:00-03:00").getTime();
 
   await expect(
-    t.action(
-      api.vouchers.startCheckout,
-      validArgs({ visitDateMs: farFuture }),
-    ),
+    t.action(api.vouchers.startCheckout, validArgs({ visitDateMs: farFuture })),
   ).rejects.toThrow(/limite permitido/);
 });
 
 test("a disabled day is refused with an actionable reason", async () => {
-  const t = convexTest(schema, modules);
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const t = createConvexTest();
+  const asAdmin = await withAuth(t, "admin");
   const dateKey = "2026-09-10";
   await asAdmin.mutation(api.settings.set, {
     key: "disabled.days",
@@ -133,7 +130,7 @@ test("a disabled day is refused with an actionable reason", async () => {
 });
 
 test("a phone that already holds a valid voucher is refused at checkout", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await t.run(async (ctx) => {
     await ctx.db.insert("vouchers", {
       code: "abcd",
@@ -159,8 +156,8 @@ test("a phone that already holds a valid voucher is refused at checkout", async 
 });
 
 test("quantity limits and per-entry-type toggles from settings are honoured", async () => {
-  const t = convexTest(schema, modules);
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const t = createConvexTest();
+  const asAdmin = await withAuth(t, "admin");
   await asAdmin.mutation(api.settings.set, {
     key: "enable.voucher.buy",
     value: false,
@@ -172,23 +169,22 @@ test("quantity limits and per-entry-type toggles from settings are honoured", as
 });
 
 test("test mode is refused for an unauthenticated visitor, even though they asserted it themselves, and no voucher is created", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
 
   await expect(
-    t.action(
-      api.vouchers.startCheckout,
-      validArgs({ testMode: true }),
-    ),
+    t.action(api.vouchers.startCheckout, validArgs({ testMode: true })),
   ).rejects.toThrow(/equipe autorizada/);
   expect(createCheckoutPreference).not.toHaveBeenCalled();
 
-  const vouchers = await t.run(async (ctx) => ctx.db.query("vouchers").collect());
+  const vouchers = await t.run(async (ctx) =>
+    ctx.db.query("vouchers").collect(),
+  );
   expect(vouchers).toHaveLength(0);
 });
 
 test("test mode charges one cent for a signed-in staff member, and the stored voucher carries the server-set Test Voucher flag", async () => {
-  const t = convexTest(schema, modules);
-  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+  const t = createConvexTest();
+  const asEmployee = await withAuth(t, "employee");
 
   const result = await asEmployee.action(
     api.vouchers.startCheckout,
@@ -207,7 +203,7 @@ test("test mode charges one cent for a signed-in staff member, and the stored vo
 });
 
 test("the voucher is left Pending with visitDate set to the day the customer chose", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
 
   const result = await t.action(api.vouchers.startCheckout, validArgs());
 
@@ -222,7 +218,7 @@ test("the voucher is left Pending with visitDate set to the day the customer cho
 });
 
 test("a code collision retries with a fresh code instead of erroring, and produces exactly one voucher", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
 
   // A voucher already sits under the first code the (mocked, deterministic)
   // generator will produce, simulating a concurrent checkout that won the

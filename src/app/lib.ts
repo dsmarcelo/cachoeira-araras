@@ -1,34 +1,28 @@
 "use server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { api as convexApi } from "../../convex/_generated/api";
 import { api } from "@/trpc/server";
 import { type VoucherSchema } from "@/lib/voucher/types";
 import { formateDateDayMonthYear, formatPhone, formatToBRL } from "@/lib/utils";
 import { formatVoucherUrl } from "@/lib/utils/utils";
-import {
-  getCurrentUserRole as getCurrentSessionRole,
-  getServerAuthSession,
-  type UserRole,
-} from "@/server/auth";
+import { fetchAuthQuery } from "@/lib/auth-server";
 import { findVoucherByCode } from "@/server/voucher";
 
 export async function isLoggedIn(): Promise<boolean> {
-  const role = await getCurrentSessionRole();
-  return role !== null;
+  return (await getCurrentUser()) !== null;
 }
 
-export async function getCurrentUserRole(): Promise<UserRole | null> {
-  return await getCurrentSessionRole();
+export async function getCurrentUserRole() {
+  return (await getCurrentUser())?.role ?? null;
+}
+
+async function getCurrentUser() {
+  return await fetchAuthQuery(convexApi.auth.currentUser);
 }
 
 export async function requireStaff() {
-  const session = await getServerAuthSession();
-
-  if (!session?.user) {
-    return null;
-  }
-
-  return session.user;
+  return await getCurrentUser();
 }
 
 export async function requireAdmin() {

@@ -1,16 +1,20 @@
 "use client";
 
 import React, { type ReactNode, useTransition } from "react";
-import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { authClient } from "@/lib/auth-client";
 
 export default function AdminHeader({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   function handleLogout() {
     startTransition(async () => {
-      await signOut({ callbackUrl: "/admin" });
+      await authClient.signOut();
+      router.replace("/admin");
+      router.refresh();
     });
   }
 

@@ -1,10 +1,13 @@
 import { httpRouter } from "convex/server";
 
 import { internal } from "./_generated/api";
+import { authComponent, createAuth } from "./auth";
 import { httpAction } from "./_generated/server";
 import { verifyServiceSecret } from "./lib/serviceAuth";
 
 const http = httpRouter();
+
+authComponent.registerRoutes(http, createAuth);
 
 /**
  * Confirms a Mercado Pago payment against the voucher it paid for. The only

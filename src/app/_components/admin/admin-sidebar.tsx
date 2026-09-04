@@ -1,6 +1,13 @@
 "use client";
 
-import { Cog, CreditCard, FlaskConical, Ticket } from "lucide-react";
+import {
+  CircleUserRound,
+  Cog,
+  CreditCard,
+  FlaskConical,
+  Ticket,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -14,7 +21,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import Image from "next/image";
-import type { UserRole } from "@/server/auth";
+
+type UserRole = "admin" | "employee";
 
 const adminSidebarItems = [
   {
@@ -38,9 +46,19 @@ const adminSidebarItems = [
     href: "/admin/dashboard/configuracoes",
   },
   {
+    name: "Usuarios",
+    icon: <Users className="h-5 w-5" />,
+    href: "/admin/dashboard/usuarios",
+  },
+  {
     name: "Compra Teste",
     icon: <FlaskConical className="h-5 w-5" />,
     href: "/admin/compra-teste",
+  },
+  {
+    name: "Minha conta",
+    icon: <CircleUserRound className="h-5 w-5" />,
+    href: "/admin/conta",
   },
 ];
 
@@ -54,6 +72,11 @@ const employeeSidebarItems = [
     name: "Compra Teste",
     icon: <FlaskConical className="h-5 w-5" />,
     href: "/admin/compra-teste",
+  },
+  {
+    name: "Minha conta",
+    icon: <CircleUserRound className="h-5 w-5" />,
+    href: "/admin/conta",
   },
 ];
 

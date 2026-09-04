@@ -9,6 +9,7 @@ import { GoogleTagManager } from "@next/third-parties/google";
 import { Suspense } from "react";
 import FacebookPixel from "@/app/_components/FacebookPixel";
 import { env } from "@/env";
+import { getToken } from "@/lib/auth-server";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -26,13 +27,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const initialToken = await getToken();
+
   return (
     <html lang="pt-BR" className={`${inter.variable}`}>
       <body className="min-h-screen bg-background">
-        <ConvexClientProvider>
+        <ConvexClientProvider initialToken={initialToken}>
           <TRPCReactProvider>{children}</TRPCReactProvider>
         </ConvexClientProvider>
         <Toaster />

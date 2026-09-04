@@ -9,11 +9,21 @@
 
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 
-import { getServerAuthSession } from "@/server/auth";
-import { USER_ROLES } from "@/server/auth";
+import { api } from "../../../convex/_generated/api";
+import { fetchAuthQuery } from "@/lib/auth-server";
 import { db } from "@/server/db";
+
+const USER_ROLES = ["admin", "employee"] as const;
+const currentUserSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    username: z.string(),
+    role: z.enum(USER_ROLES),
+  })
+  .nullable();
 
 /**
  * 1. CONTEXT
@@ -28,11 +38,13 @@ import { db } from "@/server/db";
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  const session = await getServerAuthSession();
+  const user = currentUserSchema.parse(
+    await fetchAuthQuery(api.auth.currentUser),
+  );
 
   return {
     db,
-    session,
+    session: user ? { user } : null,
     ...opts,
   };
 };

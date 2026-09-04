@@ -1,12 +1,9 @@
 /// <reference types="vite/client" />
-import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
 
 import { getSaoPauloDateKey } from "../src/lib/utils/date";
 import { api } from "./_generated/api";
-import schema from "./schema";
-
-const modules = import.meta.glob("./**/*.ts");
+import { createConvexTest, withAuth } from "./test.setup";
 
 const today = getSaoPauloDateKey();
 const yesterday = getSaoPauloDateKey(
@@ -33,7 +30,7 @@ function defaults() {
 }
 
 async function insertVoucher(
-  t: ReturnType<typeof convexTest>,
+  t: ReturnType<typeof createConvexTest>,
   overrides: Partial<ReturnType<typeof defaults>> = {},
 ) {
   const voucher = { ...defaults(), ...overrides };
@@ -42,29 +39,29 @@ async function insertVoucher(
 }
 
 test("the gate list shows today's real vouchers and hides Test Vouchers", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t, { code: "real", name: "Ana" });
   await insertVoucher(t, { code: "test", name: "Beto", isTest: true });
   await insertVoucher(t, { code: "gone", name: "Caio", visitDate: yesterday });
 
-  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+  const asEmployee = await withAuth(t, "employee");
   const list = await asEmployee.query(api.vouchers.listToday, {});
 
   expect(list.map((v) => v.code)).toEqual(["real"]);
 });
 
 test("a public caller cannot read the gate list", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t);
 
   await expect(t.query(api.vouchers.listToday, {})).rejects.toThrow();
 });
 
 test("the admin gate list carries payment identifiers that listToday omits", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t, { code: "real", name: "Ana", paymentId: "pay-1" });
 
-  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const asAdmin = await withAuth(t, "admin");
   const [employeeRow] = await asAdmin.query(api.vouchers.listToday, {});
   const [adminRow] = await asAdmin.query(api.vouchers.listTodayAdmin, {});
 
@@ -74,9 +71,9 @@ test("the admin gate list carries payment identifiers that listToday omits", asy
 });
 
 test("an employee identity is rejected by listTodayAdmin", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t);
-  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+  const asEmployee = await withAuth(t, "employee");
 
   await expect(
     asEmployee.query(api.vouchers.listTodayAdmin, {}),
@@ -84,16 +81,16 @@ test("an employee identity is rejected by listTodayAdmin", async () => {
 });
 
 test("a public caller cannot read the admin gate list", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t);
 
   await expect(t.query(api.vouchers.listTodayAdmin, {})).rejects.toThrow();
 });
 
 test("redeeming a valid voucher for today succeeds and is then terminal", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t);
-  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+  const asEmployee = await withAuth(t, "employee");
 
   const result = await asEmployee.mutation(api.vouchers.redeemByCode, {
     code: "a1b2",
@@ -106,9 +103,9 @@ test("redeeming a valid voucher for today succeeds and is then terminal", async 
 });
 
 test("redeeming a Test Voucher by code works even though it's hidden from the list", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t, { code: "test", isTest: true });
-  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+  const asEmployee = await withAuth(t, "employee");
 
   const result = await asEmployee.mutation(api.vouchers.redeemByCode, {
     code: "test",
@@ -117,9 +114,9 @@ test("redeeming a Test Voucher by code works even though it's hidden from the li
 });
 
 test("redeeming a voucher outside today's operational window is refused", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t, { visitDate: yesterday });
-  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+  const asEmployee = await withAuth(t, "employee");
 
   await expect(
     asEmployee.mutation(api.vouchers.redeemByCode, { code: "a1b2" }),
@@ -127,9 +124,9 @@ test("redeeming a voucher outside today's operational window is refused", async 
 });
 
 test("redeeming a Pending voucher is refused", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t, { status: "pending" });
-  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+  const asEmployee = await withAuth(t, "employee");
 
   await expect(
     asEmployee.mutation(api.vouchers.redeemByCode, { code: "a1b2" }),
@@ -137,7 +134,7 @@ test("redeeming a Pending voucher is refused", async () => {
 });
 
 test("a public caller cannot redeem", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t);
 
   await expect(
@@ -146,14 +143,14 @@ test("a public caller cannot redeem", async () => {
 });
 
 test("reactivating moves expiresAt and leaves visitDate untouched", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   const originalExpiresAt = Date.now() - 1000 * 60 * 60 * 24;
   await insertVoucher(t, {
     status: "redeemed",
     visitDate: yesterday,
     expiresAt: originalExpiresAt,
   });
-  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+  const asEmployee = await withAuth(t, "employee");
 
   const result = await asEmployee.mutation(api.vouchers.reactivate, {
     code: "a1b2",
@@ -174,7 +171,7 @@ test("reactivating moves expiresAt and leaves visitDate untouched", async () => 
 });
 
 test("a public caller cannot reactivate", async () => {
-  const t = convexTest(schema, modules);
+  const t = createConvexTest();
   await insertVoucher(t);
 
   await expect(
