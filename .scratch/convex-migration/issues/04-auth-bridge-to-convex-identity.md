@@ -13,14 +13,14 @@ encrypted, so it cannot be handed over directly.
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Logging in as admin and as staff each results in Convex functions seeing that role.
-- [ ] Logging out, or never logging in, results in no identity rather than a stale one.
-- [ ] The client refreshes the short-lived token without the user noticing an expiry.
-- [ ] A public function called with a `role` argument present ignores it entirely.
-- [ ] A staff-only function rejects a public caller; an admin-only function rejects a staff
+- [x] Logging in as admin and as staff each results in Convex functions seeing that role.
+- [x] Logging out, or never logging in, results in no identity rather than a stale one.
+- [x] The client refreshes the short-lived token without the user noticing an expiry.
+- [x] A public function called with a `role` argument present ignores it entirely.
+- [x] A staff-only function rejects a public caller; an admin-only function rejects a staff
       caller; both reject a forged role argument.
-- [ ] Role is never read from a function argument anywhere in the codebase.
-- [ ] The redundant `USER_ROLES.includes(role)` check from the tRPC layer is not reproduced;
+- [x] Role is never read from a function argument anywhere in the codebase.
+- [x] The redundant `USER_ROLES.includes(role)` check from the tRPC layer is not reproduced;
       it was equivalent to the authenticated check it wrapped.

@@ -9,12 +9,12 @@ Cut from `main`, merged into the Convex branch.
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The orphaned duplicate test purchase form component is deleted.
-- [ ] The three legacy components are deleted.
-- [ ] Nothing imports any deleted file; the build and typecheck pass.
-- [ ] A single helper answers the operational-day question in the Sao Paulo zone, and is the
+- [x] The orphaned duplicate test purchase form component is deleted.
+- [x] The three legacy components are deleted.
+- [x] Nothing imports any deleted file; the build and typecheck pass.
+- [x] A single helper answers the operational-day question in the Sao Paulo zone, and is the
       only place that conversion is written.
-- [ ] Existing callers that computed the day inline use the helper instead.
-- [ ] No change to `schema.prisma` or to any data.
+- [x] Existing callers that computed the day inline use the helper instead.
+- [x] No change to `schema.prisma` or to any data.

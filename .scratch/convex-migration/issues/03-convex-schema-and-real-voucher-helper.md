@@ -19,14 +19,14 @@ Voucher conditions are never re-typed at a call site.
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A Convex development deployment is provisioned. No production deployment, no Vercel
+- [x] A Convex development deployment is provisioned. No production deployment, no Vercel
       environment variables, no build-command change.
-- [ ] Vouchers and settings can be written and read back in every shape the domain uses,
+- [x] Vouchers and settings can be written and read back in every shape the domain uses,
       demonstrated by `convex-test`.
-- [ ] `visitDate` and `expiresAt` are independently settable and independently readable.
-- [ ] Prices are integers in cents everywhere in the schema.
-- [ ] The "counts as a real, live voucher" helper exists and excludes both soft-deleted and
+- [x] `visitDate` and `expiresAt` are independently settable and independently readable.
+- [x] Prices are integers in cents everywhere in the schema.
+- [x] The "counts as a real, live voucher" helper exists and excludes both soft-deleted and
       Test Vouchers.
-- [ ] No change to `schema.prisma` or the production Postgres database.
+- [x] No change to `schema.prisma` or the production Postgres database.

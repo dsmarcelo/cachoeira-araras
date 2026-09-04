@@ -12,11 +12,11 @@ Ships to `main`. Code only.
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] An approved payment at the nominal test price fires no Facebook Pixel and no Google Ads
+- [x] An approved payment at the nominal test price fires no Facebook Pixel and no Google Ads
       conversion event.
-- [ ] An approved payment at any real price still fires both, unchanged.
-- [ ] WhatsApp delivery is unaffected either way.
-- [ ] No change to `schema.prisma`, to the database, or to any stored row.
-- [ ] The guard is written so it is obvious at cutover that it is to be removed.
+- [x] An approved payment at any real price still fires both, unchanged.
+- [x] WhatsApp delivery is unaffected either way.
+- [x] No change to `schema.prisma`, to the database, or to any stored row.
+- [x] The guard is written so it is obvious at cutover that it is to be removed.
