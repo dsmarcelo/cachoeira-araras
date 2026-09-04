@@ -9,10 +9,10 @@ purchase-to-entry path stays exercisable.
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Entering a valid code with no session returns that voucher's status.
-- [ ] Entering an unknown code reports not-found rather than erroring.
-- [ ] A soft-deleted voucher is not returned.
-- [ ] A Test Voucher is returned when fetched by its code.
-- [ ] The response carries nothing a stranger holding a guessed code should not see.
+- [x] Entering a valid code with no session returns that voucher's status.
+- [x] Entering an unknown code reports not-found rather than erroring.
+- [x] A soft-deleted voucher is not returned.
+- [x] A Test Voucher is returned when fetched by its code.
+- [x] The response carries nothing a stranger holding a guessed code should not see.
