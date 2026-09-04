@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_mercadopago from "../lib/mercadopago.js";
@@ -15,6 +16,7 @@ import type * as lib_serviceAuth from "../lib/serviceAuth.js";
 import type * as lib_settings from "../lib/settings.js";
 import type * as lib_voucherCode from "../lib/voucherCode.js";
 import type * as lib_voucherPurchase from "../lib/voucherPurchase.js";
+import type * as maintenance from "../maintenance.js";
 import type * as settings from "../settings.js";
 import type * as vouchers from "../vouchers.js";
 
@@ -25,6 +27,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  crons: typeof crons;
   http: typeof http;
   "lib/auth": typeof lib_auth;
   "lib/mercadopago": typeof lib_mercadopago;
@@ -32,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   "lib/settings": typeof lib_settings;
   "lib/voucherCode": typeof lib_voucherCode;
   "lib/voucherPurchase": typeof lib_voucherPurchase;
+  maintenance: typeof maintenance;
   settings: typeof settings;
   vouchers: typeof vouchers;
 }>;

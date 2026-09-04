@@ -64,7 +64,6 @@ export const env = createEnv({
       process.env.NODE_ENV === "production"
         ? z.string()
         : z.string().optional(),
-    CRON_SECRET: z.string(),
     // Auth bridge: signs the short-lived Convex identity token minted from
     // the NextAuth session. Base64-encoded PKCS8 PEM so a single-line env
     // var can hold it. Public counterpart (CONVEX_AUTH_PUBLIC_JWK) is served
@@ -149,7 +148,6 @@ export const env = createEnv({
     MERCADOPAGO_TOKEN: process.env.MERCADOPAGO_TOKEN,
     WEBHOOK_URL: process.env.WEBHOOK_URL,
     WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
-    CRON_SECRET: process.env.CRON_SECRET,
     CONVEX_AUTH_PRIVATE_KEY_B64: process.env.CONVEX_AUTH_PRIVATE_KEY_B64,
     CONVEX_AUTH_PUBLIC_JWK: process.env.CONVEX_AUTH_PUBLIC_JWK,
     MERCADOPAGO_WEBHOOK_SERVICE_SECRET:
