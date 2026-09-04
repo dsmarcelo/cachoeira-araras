@@ -1,5 +1,6 @@
 "use client";
-import { api } from "@/trpc/react";
+import { useAction, useQuery } from "convex/react";
+import { api as convexApi } from "../../../convex/_generated/api";
 import React, { useEffect, useState } from "react";
 import type { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { voucherFormSchema } from "@/lib/voucher/types";
-import { cn, formatPaymentUrl, formatPhone } from "@/lib/utils";
+import { cn, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import {
   addCookieVoucher,
@@ -39,102 +40,70 @@ export default function VoucherForm({
   const [isLoading, setIsLoading] = useState(false);
   const [code, setCode] = useState("");
   const [init_point, setInitPoint] = useState("");
-  const [payment_sucess_url, setPaymentSuccessUrl] = useState("");
   const [referrerURL, setReferrerURL] = useState<string | null>(null);
 
-  const utils = api.useUtils();
+  // A live Convex query: a settings change made in the admin page reaches
+  // this open form without a reload.
+  const settings = useQuery(convexApi.settings.getAll);
+  const startCheckout = useAction(convexApi.vouchers.startCheckout);
 
-  // Get all settings from database using a single query
-  const settingsQuery = api.settings.getAll.useQuery();
+  // Reactive payment status: the moment the Mercado Pago webhook confirms
+  // this voucher (convex/vouchers.ts confirmPayment), this subscription
+  // updates on its own — no polling, no reload.
+  const voucherStatus = useQuery(
+    convexApi.vouchers.getByCode,
+    code ? { code } : "skip",
+  );
+  const payment_sucess_url =
+    voucherStatus && voucherStatus.status !== "pending"
+      ? `/pagamento?external_reference=${code}`
+      : "";
 
-  // Destructure settings with defaults
+  // Destructure settings with defaults; prices are stored in cents and
+  // converted to reais here, the one boundary where that conversion happens
+  // on the way into the UI.
   const {
     "disabled.days": disabledDays = [],
     "max.intended.days": maxIntendedDays = 60,
     "form.message": formMessage = "",
-    "voucher.price": voucherPrice = 50,
-    "voucher.pool.price": poolVoucherPrice = 70,
+    "voucher.price": voucherPriceCents = 5000,
     "voucher.max.quantity.adults": maxAdults = 20,
-    "voucher.max.quantity.elderly": maxElderly = 20,
-    "voucher.max.quantity.adults.pool": maxAdultsPool = 20,
-    "voucher.max.quantity.elderly.pool": maxElderlyPool = 20,
     "enable.voucher.buy": enableVoucherBuy = true,
-    "enable.voucher.pool.buy": enablePoolVoucherBuy = true,
-    "enable.voucher.half-price.buy": enableHalfPriceVoucherBuy = true,
-    "enable.voucher.half-price.pool.buy": enableHalfPricePoolVoucherBuy = false,
-  } = settingsQuery.data ?? {};
-  const elderlyVoucherPrice = voucherPrice / 2;
-  const poolElderlyVoucherPrice = poolVoucherPrice / 2;
-
-  async function checkPaymentStatus(code: string) {
-    const reconciliation = await utils.voucher.reconcilePublicPaymentStatus.fetch({
-      code,
-    });
-    if (reconciliation.status === "paid" && reconciliation.successUrl) {
-      setPaymentSuccessUrl(reconciliation.successUrl);
-      return;
-    }
-
-    const voucher = await utils.voucher.getPublicStatusByCode.fetch({ code });
-    if (!voucher) return deleteCookieVoucher();
-
-    if (voucher.status !== "pending" && voucher.payment_id) {
-      const url = formatPaymentUrl(voucher.preference_id, voucher.payment_id);
-      setPaymentSuccessUrl(url);
-    }
-
-    const preference = await utils.mercadopago.getPublicPreference.fetch({
-      preference_id: voucher.preference_id,
-    });
-
-    if (preference.init_point) {
-      setInitPoint(preference.init_point);
-    }
-  }
+  } = settings ?? {};
+  const voucherPrice = voucherPriceCents / 100;
 
   useEffect(() => {
     // Avoid an extra Edge request by reading the referrer on the client directly
-    const checkReferrer = async () => {
-      try {
-        const ref = document.referrer || null;
-        setReferrerURL(ref);
-      } catch {
-        setReferrerURL(null);
-      }
-    };
+    try {
+      setReferrerURL(document.referrer || null);
+    } catch {
+      setReferrerURL(null);
+    }
 
-    async function getPreference() {
-      if (code) {
-        return await checkPaymentStatus(code);
-      }
+    async function restoreCookieVoucher() {
       const cookieVoucher = await getCookieVoucher();
-      setCode(cookieVoucher ?? "");
-      if (cookieVoucher) {
-        await checkPaymentStatus(cookieVoucher);
-      }
+      if (!cookieVoucher) return;
+      setCode(cookieVoucher.code);
+      setInitPoint(cookieVoucher.initPoint);
     }
 
-    void checkReferrer();
+    void restoreCookieVoucher();
+    // Runs once on mount: the reactive Convex query above takes over from
+    // here for anything that used to require re-fetching on visibility change.
+  }, []);
 
-    function handleVisibilityChange() {
-      if (document.visibilityState === "visible") {
-        void getPreference();
-      }
+  useEffect(() => {
+    // A voucher whose code no longer resolves (soft-deleted, or the cookie
+    // is stale) shouldn't keep a dead code around client-side.
+    if (code && voucherStatus === null) {
+      void deleteCookieVoucher();
+      setCode("");
+      setInitPoint("");
     }
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Cleanup the event listener on component unmount
-    void getPreference();
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settingsQuery]);
+  }, [code, voucherStatus]);
 
   type FormSchema = z.infer<typeof voucherFormSchema>;
-  const startCheckout = api.voucher.startCheckout.useMutation();
+  const [checkoutFailed, setCheckoutFailed] = useState(false);
 
   const {
     register,
@@ -156,10 +125,7 @@ export default function VoucherForm({
   const formValues = useWatch({ control });
   const totalPrice = testMode
     ? 0.01
-    : (formValues.adults ?? 0) * voucherPrice +
-      (formValues.elderly ?? 0) * elderlyVoucherPrice +
-      (formValues.adults_pool ?? 0) * poolVoucherPrice +
-      (formValues.elderly_pool ?? 0) * poolElderlyVoucherPrice;
+    : (formValues.adults ?? 0) * voucherPrice;
 
   function normalizePhone(value: string) {
     return value.replace(/\D/g, "");
@@ -177,31 +143,7 @@ export default function VoucherForm({
         description: "Compra de voucher normal está desativada",
       });
     }
-    if (
-      !enablePoolVoucherBuy &&
-      (data.adults_pool > 0 || data.elderly_pool > 0)
-    ) {
-      return toast({
-        title: "Indisponível",
-        description: "Compra de voucher com piscina está desativada",
-      });
-    }
-    if (!enableHalfPriceVoucherBuy && data.elderly > 0) {
-      return toast({
-        title: "Indisponível",
-        description: "Compra de voucher meia entrada está desativada",
-      });
-    }
-    if (!enableHalfPricePoolVoucherBuy && data.elderly_pool > 0) {
-      return toast({
-        title: "Indisponível",
-        description: "Compra de voucher meia entrada com piscina está desativada",
-      });
-    }
-    if (
-      data.adults + data.elderly + data.adults_pool + data.elderly_pool ===
-      0
-    ) {
+    if (data.adults === 0) {
       return toast({
         title: "Erro",
         description: "Verifique a quantidade de pessoas",
@@ -209,22 +151,24 @@ export default function VoucherForm({
     }
     try {
       setIsLoading(true);
-      const checkout = await startCheckout.mutateAsync({
+      setCheckoutFailed(false);
+      const checkout = await startCheckout({
         name: data.name,
         phone: data.phone,
         adults: data.adults,
-        elderly: data.elderly,
-        adults_pool: data.adults_pool,
-        elderly_pool: data.elderly_pool,
-        intendedDate: data.intendedDate,
+        elderly: 0,
+        adultsPool: 0,
+        elderlyPool: 0,
+        visitDateMs: data.intendedDate.getTime(),
         testMode,
         referrerUrl: referrerURL,
       });
       setCode(checkout.code);
-      await addCookieVoucher(checkout.code);
+      await addCookieVoucher(checkout.code, checkout.initPoint);
       setInitPoint(checkout.initPoint);
       setIsLoading(false);
     } catch (error) {
+      setCheckoutFailed(true);
       console.error(error);
       setIsLoading(false);
       return toast({
@@ -249,8 +193,8 @@ export default function VoucherForm({
     );
   }
 
-  // Check if all voucher purchase options are disabled
-  if (!enableVoucherBuy && !enablePoolVoucherBuy && !enableHalfPriceVoucherBuy && !enableHalfPricePoolVoucherBuy) {
+  // The public form now exposes only the standard voucher purchase option.
+  if (!enableVoucherBuy) {
     return (
       <div className="mx-auto w-full bg-dark-blue">
         <div className="border-none bg-dark-blue p-4 text-primary-50">
@@ -333,8 +277,8 @@ export default function VoucherForm({
                 <>
                   <div className="flex items-center justify-between gap-2 py-4">
                     <Label className="">
-                      <p className="text-base font-bold">Inteira</p>
-                      <p className="text-sm">(de 9 a 59 anos)</p>
+                      <p className="text-base font-bold">Voucher</p>
+                      <p className="text-sm">Day Use</p>
                       <p className="text-sm">
                         R$ {voucherPrice.toFixed(2).replace(".", ",")}
                       </p>
@@ -361,113 +305,6 @@ export default function VoucherForm({
                     )}
                   </div>
 
-                  {enableHalfPriceVoucherBuy && (
-                    <div className="space-y-4 py-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label className="flex flex-col">
-                          <p className="text-base font-bold">Meia</p>
-                          <p className="text-sm">(+60 anos e especiais)</p>
-                          <p className="text-sm">
-                            R${" "}
-                            {elderlyVoucherPrice.toFixed(2).replace(".", ",")}
-                          </p>
-                        </Label>
-                        <div className="w-fit">
-                          <Controller
-                            name="elderly"
-                            control={control}
-                            render={({ field }) => (
-                              <NumberInput
-                                id="elderly"
-                                minValue={0}
-                                maxValue={maxElderly}
-                                selectedValue={field.value}
-                                onChange={field.onChange}
-                              />
-                            )}
-                          />
-                        </div>
-                      </div>
-                        {(formValues.elderly ?? 0) > 0 && (
-                          <p className="text-base font-medium text-yellow-950 bg-yellow-50 rounded-md px-3 py-2">
-                            Necessário apresentar documento de identificação
-                          </p>
-                        )}
-                      {errors.elderly && (
-                        <p className="text-base font-medium text-red-400">
-                          {errors.elderly?.message}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {enablePoolVoucherBuy && (
-                <>
-                  <div className="flex items-center justify-between gap-2 py-4">
-                    <Label className="flex flex-col">
-                      <p className="text-base font-bold">Área da Piscina</p>
-                      <p className="text-sm">
-                        R$ {poolVoucherPrice.toFixed(2).replace(".", ",")}
-                      </p>
-                    </Label>
-                    <div className="w-fit">
-                      <Controller
-                        name="adults_pool"
-                        control={control}
-                        render={({ field }) => (
-                          <NumberInput
-                            id="adults_pool"
-                            minValue={0}
-                            maxValue={maxAdultsPool}
-                            selectedValue={field.value}
-                            onChange={field.onChange}
-                          />
-                        )}
-                      />
-                    </div>
-                    {errors.adults_pool && (
-                      <p className="text-base font-medium text-red-400">
-                        {errors.adults_pool?.message}
-                      </p>
-                    )}
-                  </div>
-
-                  {enableHalfPricePoolVoucherBuy && (
-                    <div className="flex items-center justify-between gap-2 py-4">
-                      <Label className="flex flex-col">
-                        <p className="text-base font-bold">Meia (Piscina)</p>
-                        <p className="text-sm">(+60 anos e especiais)</p>
-                        <p className="text-sm">
-                          R${" "}
-                          {poolElderlyVoucherPrice
-                            .toFixed(2)
-                            .replace(".", ",")}
-                        </p>
-                      </Label>
-                      <div className="w-fit">
-                        <Controller
-                          name="elderly_pool"
-                          control={control}
-                          render={({ field }) => (
-                            <NumberInput
-                              id="elderly_pool"
-                              minValue={0}
-                              maxValue={maxElderlyPool}
-                              selectedValue={field.value}
-                              onChange={field.onChange}
-                            />
-                          )}
-                        />
-                      </div>
-                      {errors.elderly_pool && (
-                        <p className="text-base font-medium text-red-400">
-                          {errors.elderly_pool?.message}
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </>
               )}
             </div>
@@ -560,7 +397,7 @@ export default function VoucherForm({
             )}
           </Button>
         </form>
-        {startCheckout.isError && (
+        {checkoutFailed && (
           <div className="my-4 flex flex-col justify-center space-y-2 text-lg font-medium text-red-500">
             <p>Erro ao criar o voucher, tente novamente!</p>
             <Button onClick={() => location.reload()} className="h-20">

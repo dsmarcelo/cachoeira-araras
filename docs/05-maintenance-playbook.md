@@ -48,8 +48,8 @@ Antes de merge/deploy:
 ## Variáveis de ambiente críticas
 
 - Banco e app: `DATABASE_URL`, `URL`.
-- Auth e sessão: `NEXTAUTH_SECRET`; a URL base vem de `URL` quando `NEXTAUTH_URL` nao estiver definida.
-- Pagamento: `MERCADOPAGO_TOKEN`, `URL`, `WEBHOOK_URL`.
+- Auth e sessão: `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CONVEX_SITE_URL` e `NEXT_PUBLIC_SITE_URL` no Next.js; `SITE_URL` e `BETTER_AUTH_SECRET` no deployment Convex.
+- Pagamento e checkout: `MERCADOPAGO_TOKEN`, `MERCADOPAGO_WEBHOOK_SERVICE_SECRET`, `URL` e `WEBHOOK_URL` no deployment Convex; `MERCADOPAGO_TOKEN`, `URL`, `WEBHOOK_URL` e `WEBHOOK_SECRET` no Next.js.
 - Manutenção: `CRON_SECRET`.
 - Tracking opcional: Meta/Google Ads.
 - Monitoramento opcional: `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`.

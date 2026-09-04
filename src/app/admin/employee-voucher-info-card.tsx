@@ -1,5 +1,7 @@
 "use client";
 
+import { useMutation } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { useTransition } from "react";
 import Link from "next/link";
 
@@ -13,24 +15,18 @@ import {
   DrawerOverlay,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { redeemVoucher, activateVoucher } from "@/app/lib";
 import { formatQuantity, formatVoucherStatus } from "@/lib/voucher";
 import { formatPhone } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
-import type { RouterOutputs } from "@/trpc/react";
+import { api } from "../../../convex/_generated/api";
 
-type EmployeeVoucher =
-  RouterOutputs["voucher"]["getTodayOperationalVouchers"][number];
+type EmployeeVoucher = FunctionReturnType<typeof api.vouchers.listToday>[number];
 
-function formatVoucherDate(date: Date | null | undefined) {
-  if (!date) {
-    return "Sem data";
-  }
-
+function formatVoucherDate(ms: number) {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "full",
     timeZone: "America/Sao_Paulo",
-  }).format(new Date(date));
+  }).format(new Date(ms));
 }
 
 export default function EmployeeVoucherInfoCard({
@@ -43,24 +39,36 @@ export default function EmployeeVoucherInfoCard({
   open: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
+  const redeemByCode = useMutation(api.vouchers.redeemByCode);
+  const reactivate = useMutation(api.vouchers.reactivate);
 
   function handleRedeemVoucher() {
     startTransition(async () => {
-      await redeemVoucher(data.code);
-      toast({
-        title: "Voucher resgatado com sucesso",
-      });
-      window.location.reload();
+      try {
+        await redeemByCode({ code: data.code });
+        toast({ title: "Voucher resgatado com sucesso" });
+        onClose();
+      } catch (error) {
+        toast({
+          title: error instanceof Error ? error.message : "Erro ao usar voucher",
+          variant: "destructive",
+        });
+      }
     });
   }
 
   function handleActivateVoucher() {
     startTransition(async () => {
-      await activateVoucher(data.code);
-      toast({
-        title: "Voucher ativado com sucesso",
-      });
-      window.location.reload();
+      try {
+        await reactivate({ code: data.code });
+        toast({ title: "Voucher ativado com sucesso" });
+        onClose();
+      } catch (error) {
+        toast({
+          title: error instanceof Error ? error.message : "Erro ao ativar voucher",
+          variant: "destructive",
+        });
+      }
     });
   }
 
@@ -83,13 +91,13 @@ export default function EmployeeVoucherInfoCard({
               {formatQuantity({
                 adults: data.adults,
                 elderly: data.elderly,
-                adults_pool: data.adults_pool,
-                elderly_pool: data.elderly_pool,
+                adults_pool: data.adultsPool,
+                elderly_pool: data.elderlyPool,
               })}
             </p>
             <div>{formatVoucherStatus(data.status)}</div>
             <p>{`Criado em: ${formatVoucherDate(data.createdAt)}`}</p>
-            <p>{`Válido para: ${formatVoucherDate(data.expires_at)}`}</p>
+            <p>{`Válido para: ${formatVoucherDate(data.expiresAt)}`}</p>
           </div>
         </DrawerHeader>
         <DrawerFooter className="grid grid-cols-3 gap-2 pt-2">

@@ -1,5 +1,7 @@
 "use client";
 
+import { useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -8,10 +10,9 @@ import { useState } from "react";
 import EmployeeVoucherInfoCard from "../employee-voucher-info-card";
 import { formatQuantity } from "@/lib/voucher";
 import { getBrazilianDate } from "@/lib/utils/date";
-import { api, type RouterOutputs } from "@/trpc/react";
+import { api } from "../../../../convex/_generated/api";
 
-type EmployeeVoucher =
-  RouterOutputs["voucher"]["getTodayOperationalVouchers"][number];
+type EmployeeVoucher = FunctionReturnType<typeof api.vouchers.listToday>[number];
 
 function VoucherCard({
   voucher,
@@ -31,21 +32,21 @@ function VoucherCard({
   return (
     <button
       type="button"
-      className={`w-full cursor-pointer px-2 py-2 text-left hover:bg-slate-50 ${dynamicClass}`}
+      className={`w-full cursor-pointer rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/50 ${dynamicClass}`}
       onClick={() => onClick(voucher)}
     >
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="font-medium">{voucher.name}</p>
-          <p className="text-base text-black">{voucher.code}</p>
+          <p className="font-medium text-foreground">{voucher.name}</p>
+          <p className="text-base font-mono text-foreground">{voucher.code}</p>
         </div>
         <div className="text-right">
-          <p className="font-medium">
+          <p className="font-medium text-muted-foreground">
             {formatQuantity({
               adults: voucher.adults,
               elderly: voucher.elderly,
-              adults_pool: voucher.adults_pool,
-              elderly_pool: voucher.elderly_pool,
+              adults_pool: voucher.adultsPool,
+              elderly_pool: voucher.elderlyPool,
             })}
           </p>
         </div>
@@ -58,10 +59,9 @@ export default function EmployeeTodayVouchers() {
   const [selectedVoucher, setSelectedVoucher] =
     useState<EmployeeVoucher | null>(null);
   const today = getBrazilianDate();
-  const { data: vouchers, isLoading } =
-    api.voucher.getTodayOperationalVouchers.useQuery();
+  const vouchers = useQuery(api.vouchers.listToday, {});
 
-  if (isLoading) {
+  if (vouchers === undefined) {
     return (
       <div className="flex h-32 w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -69,10 +69,10 @@ export default function EmployeeTodayVouchers() {
     );
   }
 
-  if (!vouchers?.length) {
+  if (!vouchers.length) {
     return (
       <div className="py-8 text-center">
-        <p className="text-lg text-slate-500">Nenhum voucher para hoje</p>
+        <p className="text-lg text-muted-foreground">Nenhum voucher para hoje</p>
       </div>
     );
   }
@@ -83,7 +83,7 @@ export default function EmployeeTodayVouchers() {
   );
 
   return (
-    <div className="w-full rounded-lg border p-4">
+    <div className="w-full rounded-lg border border-border bg-card text-card-foreground p-4">
       <div className="space-y-8">
         <h2 className="text-center text-xl font-semibold">
           Vouchers para hoje:{" "}
@@ -92,10 +92,10 @@ export default function EmployeeTodayVouchers() {
 
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Confirmados ({validVouchers.length})</h3>
-          <div className="divide-y">
+          <div className="divide-y divide-border">
             {validVouchers.map((voucher) => (
               <VoucherCard
-                key={voucher.id}
+                key={voucher.code}
                 voucher={voucher}
                 onClick={setSelectedVoucher}
               />
@@ -105,13 +105,13 @@ export default function EmployeeTodayVouchers() {
 
         {pendingVouchers.length > 0 && (
           <div className="space-y-4">
-            <h3 className="text-lg font-medium text-amber-600">
+            <h3 className="text-lg font-medium text-amber-500 dark:text-amber-400">
               Pendentes ({pendingVouchers.length})
             </h3>
-            <div className="divide-y">
+            <div className="divide-y divide-border">
               {pendingVouchers.map((voucher) => (
                 <VoucherCard
-                  key={voucher.id}
+                  key={voucher.code}
                   voucher={voucher}
                   onClick={setSelectedVoucher}
                 />

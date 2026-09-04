@@ -41,18 +41,6 @@ export const env = createEnv({
   },
 
   server: {
-    NEXTAUTH_SECRET:
-      process.env.NODE_ENV === "production"
-        ? z.string()
-        : z.string().optional(),
-    ADMIN_PASSWORD_HASH:
-      process.env.NODE_ENV === "production"
-        ? z.string()
-        : z.string().optional(),
-    EMPLOYEE_PASSWORD_HASH:
-      process.env.NODE_ENV === "production"
-        ? z.string().optional()
-        : z.string().optional(),
     URL: z.preprocess(resolvePublicBaseUrl, z.string().url()),
     DATABASE_URL: z.string(),
     MERCADOPAGO_TOKEN: z.string(),
@@ -64,7 +52,10 @@ export const env = createEnv({
       process.env.NODE_ENV === "production"
         ? z.string()
         : z.string().optional(),
-    CRON_SECRET: z.string(),
+    // Shared secret for the webhook route's server-to-server call into
+    // Convex (convex/http.ts). Must match the Convex deployment's own
+    // MERCADOPAGO_WEBHOOK_SERVICE_SECRET, set via `npx convex env set`.
+    MERCADOPAGO_WEBHOOK_SERVICE_SECRET: z.string(),
     FACEBOOK_ACCESS_TOKEN: z.string().optional(),
     FACEBOOK_PIXEL_ID: z.string().optional(),
     GOOGLE_ANALYTICS_API_SECRET: z.string().optional(),
@@ -85,6 +76,9 @@ export const env = createEnv({
    */
   client: {
     // NEXT_PUBLIC_CLIENTVAR: z.string(),
+    NEXT_PUBLIC_CONVEX_URL: z.string().url(),
+    NEXT_PUBLIC_CONVEX_SITE_URL: z.string().url(),
+    NEXT_PUBLIC_SITE_URL: z.string().url(),
     NEXT_PUBLIC_MAX_INTENDED_DAYS: z.coerce.number().default(30),
     NEXT_PUBLIC_VOUCHER_PRICE: z.coerce.number().default(50),
     NEXT_PUBLIC_POOL_VOUCHER_PRICE: z.coerce.number().default(70),
@@ -99,6 +93,26 @@ export const env = createEnv({
       .min(0)
       .max(1)
       .optional(),
+    NEXT_PUBLIC_INFO_CACHOEIRA_TITLE: z.string().optional(),
+    NEXT_PUBLIC_INFO_CACHOEIRA_DESCRIPTION: z.string().optional(),
+    NEXT_PUBLIC_INFO_CACHOEIRA_IMAGE: z.string().optional(),
+    NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_TITLE: z.string().optional(),
+    NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_DESCRIPTION: z
+      .string()
+      .optional(),
+    NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_IMAGE: z.string().optional(),
+    NEXT_PUBLIC_INFO_PISCINA_TITLE: z.string().optional(),
+    NEXT_PUBLIC_INFO_PISCINA_DESCRIPTION: z.string().optional(),
+    NEXT_PUBLIC_INFO_PISCINA_IMAGE: z.string().optional(),
+    NEXT_PUBLIC_INFO_PRAIA_TITLE: z.string().optional(),
+    NEXT_PUBLIC_INFO_PRAIA_DESCRIPTION: z.string().optional(),
+    NEXT_PUBLIC_INFO_PRAIA_IMAGE: z.string().optional(),
+    NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_TITLE: z.string().optional(),
+    NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_DESCRIPTION: z.string().optional(),
+    NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_IMAGE: z.string().optional(),
+    NEXT_PUBLIC_INFO_REDEIRO_TITLE: z.string().optional(),
+    NEXT_PUBLIC_INFO_REDEIRO_DESCRIPTION: z.string().optional(),
+    NEXT_PUBLIC_INFO_REDEIRO_IMAGE: z.string().optional(),
     NEXT_PUBLIC_VERCEL_URL: z.string().optional(),
     NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
   },
@@ -109,15 +123,13 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
-    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
-    ADMIN_PASSWORD_HASH: process.env.ADMIN_PASSWORD_HASH,
-    EMPLOYEE_PASSWORD_HASH: process.env.EMPLOYEE_PASSWORD_HASH,
     DATABASE_URL: process.env.DATABASE_URL,
     URL: process.env.URL,
     MERCADOPAGO_TOKEN: process.env.MERCADOPAGO_TOKEN,
     WEBHOOK_URL: process.env.WEBHOOK_URL,
     WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
-    CRON_SECRET: process.env.CRON_SECRET,
+    MERCADOPAGO_WEBHOOK_SERVICE_SECRET:
+      process.env.MERCADOPAGO_WEBHOOK_SERVICE_SECRET,
     FACEBOOK_ACCESS_TOKEN: process.env.FACEBOOK_ACCESS_TOKEN,
     FACEBOOK_PIXEL_ID: process.env.FACEBOOK_PIXEL_ID,
     GOOGLE_ANALYTICS_API_SECRET: process.env.GOOGLE_ANALYTICS_API_SECRET,
@@ -140,6 +152,43 @@ export const env = createEnv({
     NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
     NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE:
       process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE,
+    NEXT_PUBLIC_INFO_CACHOEIRA_TITLE:
+      process.env.NEXT_PUBLIC_INFO_CACHOEIRA_TITLE,
+    NEXT_PUBLIC_INFO_CACHOEIRA_DESCRIPTION:
+      process.env.NEXT_PUBLIC_INFO_CACHOEIRA_DESCRIPTION,
+    NEXT_PUBLIC_INFO_CACHOEIRA_IMAGE:
+      process.env.NEXT_PUBLIC_INFO_CACHOEIRA_IMAGE,
+    NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_TITLE:
+      process.env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_TITLE,
+    NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_DESCRIPTION:
+      process.env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_DESCRIPTION,
+    NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_IMAGE:
+      process.env.NEXT_PUBLIC_INFO_RESTAURANTE_BAR_PE_DE_SERRA_IMAGE,
+    NEXT_PUBLIC_INFO_PISCINA_TITLE:
+      process.env.NEXT_PUBLIC_INFO_PISCINA_TITLE,
+    NEXT_PUBLIC_INFO_PISCINA_DESCRIPTION:
+      process.env.NEXT_PUBLIC_INFO_PISCINA_DESCRIPTION,
+    NEXT_PUBLIC_INFO_PISCINA_IMAGE:
+      process.env.NEXT_PUBLIC_INFO_PISCINA_IMAGE,
+    NEXT_PUBLIC_INFO_PRAIA_TITLE: process.env.NEXT_PUBLIC_INFO_PRAIA_TITLE,
+    NEXT_PUBLIC_INFO_PRAIA_DESCRIPTION:
+      process.env.NEXT_PUBLIC_INFO_PRAIA_DESCRIPTION,
+    NEXT_PUBLIC_INFO_PRAIA_IMAGE: process.env.NEXT_PUBLIC_INFO_PRAIA_IMAGE,
+    NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_TITLE:
+      process.env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_TITLE,
+    NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_DESCRIPTION:
+      process.env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_DESCRIPTION,
+    NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_IMAGE:
+      process.env.NEXT_PUBLIC_INFO_BAR_PE_NA_AREIA_IMAGE,
+    NEXT_PUBLIC_INFO_REDEIRO_TITLE:
+      process.env.NEXT_PUBLIC_INFO_REDEIRO_TITLE,
+    NEXT_PUBLIC_INFO_REDEIRO_DESCRIPTION:
+      process.env.NEXT_PUBLIC_INFO_REDEIRO_DESCRIPTION,
+    NEXT_PUBLIC_INFO_REDEIRO_IMAGE:
+      process.env.NEXT_PUBLIC_INFO_REDEIRO_IMAGE,
+    NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
+    NEXT_PUBLIC_CONVEX_SITE_URL: process.env.NEXT_PUBLIC_CONVEX_SITE_URL,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
     NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL:
       process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL,

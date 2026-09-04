@@ -48,3 +48,9 @@ yarn-error.log*
 
 # idea files
 .idea
+
+# image optimization backups and sources
+/public/images/antigas/
+/public/images/novas/
+/public/images/principais/
+.env*

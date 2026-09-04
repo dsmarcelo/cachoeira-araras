@@ -6,22 +6,18 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel"
-import Image from "next/image"
+import { OptimizedImage } from "@/components/ui/optimized-image"
 import { motion } from "framer-motion"
 
 export function MiniImageCarousel() {
   const getImages = () => {
-    const cQuantity = 2;
-    const bQuantity = 3;
-    const images = [];
-
-    for (let i = 0; i < cQuantity; i++) {
-      images.push(`/images/cachoeira/${i + 1}.jpg`);
-    };
-    for (let i = 0; i < bQuantity; i++) {
-      images.push(`/images/bar/${i + 1}.jpg`);
-    };
-    return images;
+    return [
+      "/images/mini-cachoeira-1.avif",
+      "/images/mini-cachoeira-2.avif",
+      "/images/mini-bar-1.avif",
+      "/images/mini-bar-2.avif",
+      "/images/mini-bar-3.avif",
+    ];
   }
 
   return (
@@ -41,9 +37,9 @@ export function MiniImageCarousel() {
             {getImages().map((image, index) => (
               <CarouselItem key={index} className="w-full max-h-[80vh] aspect-square sm:basis-1/2 lg:basis-1/3">
                 <div className="w-full h-full relative">
-                  <Image
+                  <OptimizedImage
                     src={image}
-                    alt="Imagem"
+                    alt="Foto da Cachoeira das Araras"
                     fill
                     quality={60}
                     className="transition object-cover rounded-xl hover:scale-[98%]"

@@ -1,5 +1,5 @@
 import "@/styles/globals.css";
-import { TRPCReactProvider } from "@/trpc/react";
+import { ConvexClientProvider } from "@/app/ConvexClientProvider";
 import { Toaster } from "@/components/ui/toaster";
 import { Inter } from "next/font/google";
 import { type Metadata } from "next";
@@ -8,6 +8,7 @@ import { GoogleTagManager } from "@next/third-parties/google";
 import { Suspense } from "react";
 import FacebookPixel from "@/app/_components/FacebookPixel";
 import { env } from "@/env";
+import { getToken } from "@/lib/auth-server";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -25,13 +26,17 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const initialToken = await getToken();
+
   return (
     <html lang="pt-BR" className={`${inter.variable}`}>
-      <body>
-        <TRPCReactProvider>{children}</TRPCReactProvider>
+      <body className="min-h-screen bg-background">
+        <ConvexClientProvider initialToken={initialToken}>
+          {children}
+        </ConvexClientProvider>
         <Toaster />
         {/* Only enable Analytics if explicitly allowed to avoid Edge requests to /_vercel/insights */}
         {env.NEXT_PUBLIC_ENABLE_ANALYTICS ? <Analytics /> : null}

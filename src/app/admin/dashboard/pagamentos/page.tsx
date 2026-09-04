@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useAction } from "convex/react";
+import { api } from "../../../../../convex/_generated/api";
 import { Copy, CreditCard, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,7 +31,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatPhone, formatToBRL } from "@/lib/utils";
-import { api } from "@/trpc/react";
 
 type PaymentStatus =
   | "all"
@@ -122,8 +123,9 @@ function getMatchLabel(matchSource: AdminPayment["matchSource"]) {
 }
 
 function getMatchClassName(matchSource: AdminPayment["matchSource"]) {
-  if (matchSource === "unmatched") return "bg-yellow-100 text-yellow-800";
-  return "bg-green-100 text-green-800";
+  if (matchSource === "unmatched")
+    return "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/70 dark:text-yellow-300 dark:border dark:border-yellow-800/50";
+  return "bg-green-100 text-green-800 dark:bg-green-950/70 dark:text-green-300 dark:border dark:border-green-800/50";
 }
 
 async function copyToClipboard(value: string | null) {
@@ -222,8 +224,105 @@ export default function AdminPaymentsPage() {
     [month, page, search, status],
   );
 
-  const paymentsQuery = api.mercadopago.listAdminPaymentsByMonth.useQuery(filters);
-  const summaryQuery = api.mercadopago.getAdminPaymentsMonthSummary.useQuery({ month });
+  const listAdminPayments = useAction(api.mercadopago.listAdminPaymentsByMonth);
+  const getAdminPaymentsMonthSummary = useAction(
+    api.mercadopago.getAdminPaymentsMonthSummary,
+  );
+
+  const [paymentsQuery, setPaymentsQuery] = useState<{
+    data: {
+      items: AdminPayment[];
+      page: number;
+      pageCount: number;
+      pageSize: number;
+      searchMode: "exact_payment_id" | "current_page" | "mercado_pago";
+      total: number;
+    } | null;
+    isLoading: boolean;
+    isFetching: boolean;
+    isError: boolean;
+  }>({
+    data: null,
+    isLoading: true,
+    isFetching: false,
+    isError: false,
+  });
+
+  const [summaryQuery, setSummaryQuery] = useState<{
+    data: {
+      approvedAmount: number;
+      approvedCount: number;
+      incomplete: boolean;
+      scanLimit: number;
+    } | null;
+    isLoading: boolean;
+    isError: boolean;
+  }>({
+    data: null,
+    isLoading: true,
+    isError: false,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    setPaymentsQuery((prev) => ({
+      ...prev,
+      isLoading: !prev.data,
+      isFetching: true,
+      isError: false,
+    }));
+
+    listAdminPayments(filters)
+      .then((data) => {
+        if (cancelled) return;
+        setPaymentsQuery({
+          data,
+          isLoading: false,
+          isFetching: false,
+          isError: false,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPaymentsQuery((prev) => ({
+          ...prev,
+          isLoading: false,
+          isFetching: false,
+          isError: true,
+        }));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filters, listAdminPayments]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSummaryQuery((prev) => ({ ...prev, isLoading: !prev.data, isError: false }));
+
+    getAdminPaymentsMonthSummary({ month })
+      .then((data) => {
+        if (cancelled) return;
+        setSummaryQuery({
+          data,
+          isLoading: false,
+          isError: false,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSummaryQuery((prev) => ({
+          ...prev,
+          isLoading: false,
+          isError: true,
+        }));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [month, getAdminPaymentsMonthSummary]);
 
   const payments = paymentsQuery.data?.items ?? [];
   const pageCount = paymentsQuery.data?.pageCount ?? 0;
@@ -337,7 +436,7 @@ export default function AdminPaymentsPage() {
         )}
       </div>
 
-      <div className="hidden rounded-md border md:block">
+      <div className="hidden rounded-md border border-border bg-card text-card-foreground md:block">
         <Table>
           <TableHeader>
             <TableRow>

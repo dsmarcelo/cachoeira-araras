@@ -1,34 +1,23 @@
 "use server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { api } from "@/trpc/server";
-import { type VoucherSchema } from "@/lib/voucher/types";
-import { formateDateDayMonthYear, formatPhone, formatToBRL } from "@/lib/utils";
-import { formatVoucherUrl } from "@/lib/utils/utils";
-import {
-  getCurrentUserRole as getCurrentSessionRole,
-  getServerAuthSession,
-  type UserRole,
-} from "@/server/auth";
-import { findVoucherByCode } from "@/server/voucher";
+import { api as convexApi } from "../../convex/_generated/api";
+import { fetchAuthQuery } from "@/lib/auth-server";
 
 export async function isLoggedIn(): Promise<boolean> {
-  const role = await getCurrentSessionRole();
-  return role !== null;
+  return (await getCurrentUser()) !== null;
 }
 
-export async function getCurrentUserRole(): Promise<UserRole | null> {
-  return await getCurrentSessionRole();
+export async function getCurrentUserRole() {
+  return (await getCurrentUser())?.role ?? null;
+}
+
+async function getCurrentUser() {
+  return await fetchAuthQuery(convexApi.auth.currentUser);
 }
 
 export async function requireStaff() {
-  const session = await getServerAuthSession();
-
-  if (!session?.user) {
-    return null;
-  }
-
-  return session.user;
+  return await getCurrentUser();
 }
 
 export async function requireAdmin() {
@@ -45,68 +34,44 @@ export async function requireAdmin() {
   return user;
 }
 
-export async function addCookieVoucher(code: string) {
+const VOUCHER_COOKIE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 40;
+
+/**
+ * Persists the voucher a visitor just started paying for, plus the Mercado
+ * Pago checkout link for it, so a page reload (or returning the next day)
+ * can resume the same in-progress checkout without a server round trip.
+ * Payment status itself is never cached here — the voucher form reads that
+ * live from Convex (`vouchers.getByCode`) instead.
+ */
+export async function addCookieVoucher(code: string, initPoint: string) {
   // Next.js 16 exposes request cookies asynchronously. Resolve the store once
   // per server action so future cookie option changes stay centralized here.
   const cookieStore = await cookies();
 
-  cookieStore.set("voucher", code, {
-    expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 40),
-  });
+  const expires = new Date(Date.now() + VOUCHER_COOKIE_MAX_AGE_MS);
+  cookieStore.set("voucher", code, { expires });
+  cookieStore.set("voucher_init_point", initPoint, { expires });
 }
 
-export async function getCookieVoucher(): Promise<string | null> {
+export async function getCookieVoucher(): Promise<{
+  code: string;
+  initPoint: string;
+} | null> {
   // Awaiting `cookies()` is required in Next.js 16 and keeps this helper safe
   // to call from Server Components, Server Actions, and Route Handlers.
   const cookieStore = await cookies();
   const code = cookieStore.get("voucher")?.value;
-  if (code) {
-    return code;
+  if (!code) {
+    return null;
   }
-  return null;
+  const initPoint = cookieStore.get("voucher_init_point")?.value ?? "";
+  return { code, initPoint };
 }
 
 export async function deleteCookieVoucher() {
   const cookieStore = await cookies();
   cookieStore.delete("voucher");
-}
-
-export async function deleteVoucher(code: string) {
-  const res = api.voucher.delete({ code });
-  // if (!res) return console.error("Voucher não encontrado");
-  return res;
-}
-
-export async function redeemVoucher(voucherCode: string) {
-  if (!voucherCode) return console.error("Erro ao usar voucher");
-  const res = await api.voucher.redeemTodayVoucher({
-    code: voucherCode,
-  });
-  return res;
-}
-
-export async function activateVoucher(code: string) {
-  const oldVoucher = await findVoucherByCode(code);
-  if (!oldVoucher) return console.error("Voucher não encontrado");
-
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const currentExpiry = oldVoucher.expires_at;
-
-    // Only update if expires_at is less than today or null
-    const shouldUpdateExpiry = !currentExpiry || currentExpiry < today;
-
-    const voucher = await api.voucher.activateTodayVoucher({
-      code,
-      refreshExpiry: shouldUpdateExpiry,
-    });
-    if (!voucher) console.error("Failed to update voucher");
-    return voucher;
-  } catch (error) {
-    console.error("Error updating voucher:", error);
-    throw error;
-  }
+  cookieStore.delete("voucher_init_point");
 }
 
 export async function getReferrer() {
@@ -118,85 +83,4 @@ export async function getReferrer() {
     return referrer;
   }
   return null;
-}
-
-export async function createReferrer(voucherCode: string, referrerURL: string) {
-  let referrer: string;
-
-  switch (true) {
-    case referrerURL.includes("fbclid"):
-      referrer = "Facebook";
-      break;
-    case referrerURL.includes("gclid"):
-      referrer = "Google";
-      break;
-    case referrerURL.includes("igshid"):
-      referrer = "Instagram";
-      break;
-    case referrerURL.includes("mail.google"):
-      referrer = "Gmail";
-      break;
-    default:
-      referrer = "";
-      break;
-  }
-
-  const referrerResponse = api.referrer.create({
-    referrer,
-    voucherCode,
-    url: referrerURL,
-  });
-
-  return referrerResponse;
-}
-
-export async function sendWhatsappMessage(voucher: VoucherSchema) {
-  console.log("🚀 ~ sendWhatsappMessage ~ sendWhatsappMessage:");
-  const maxRetries = 3;
-  const retryDelay = 10000;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const body = `Olá 👋, obrigado por comprar seu voucher 🎫 na Cachoeira das Araras!
-
-Aqui estão algumas informações sobre o seu voucher:
-
-      Código: *${voucher.code}*
-      Nome: ${voucher.name}
-      Telefone: ${formatPhone(voucher.phone)}
-      Validade: ${voucher.expires_at ? formateDateDayMonthYear(voucher.expires_at) : "-"}
-      Entradas: ${voucher.adults} inteiras e ${voucher.elderly} meias
-      Valor: ${formatToBRL(voucher.price)}
-
-      ${voucher.payment_id ? `🌐 ${formatVoucherUrl(voucher.code, voucher.payment_id)}` : "-"}
-
-Entrada permitida entre 07h e 17h.
-
-Aproveite esse paraíso natural!`;
-
-      const res = await api.notification.sendWhatsAppMessage({
-        body,
-        phone: voucher.phone,
-      });
-
-      if (!res) {
-        throw new Error("Erro ao enviar mensagem WhatsApp");
-      }
-
-      return res;
-    } catch (error) {
-      console.error(
-        `Erro ao enviar mensagem WhatsApp (tentativa ${attempt}):`,
-        error,
-      );
-
-      if (attempt < maxRetries) {
-        console.log(`Tentando novamente em ${retryDelay / 1000} segundos...`);
-        await new Promise((resolve) => setTimeout(resolve, retryDelay));
-      } else {
-        console.error("Falha ao enviar mensagem após várias tentativas.");
-        throw error;
-      }
-    }
-  }
 }

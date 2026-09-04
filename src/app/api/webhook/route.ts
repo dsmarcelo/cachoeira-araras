@@ -11,9 +11,15 @@ import {
   verifyMercadoPagoWebhookSignature,
 } from "@/server/mercadopago-webhook";
 import { getMercadoPagoPayment } from "@/server/mercadopago";
-import { processVoucherPaymentWebhook } from "@/server/voucher";
+import { callConvexService } from "@/server/convex-service";
+import { sendVoucherConfirmationWhatsApp } from "@/server/voucher-whatsapp";
 import { capturePaymentFlowException } from "@/lib/sentry/payment";
-// import { sendWhatsappMessage } from "@/app/lib";
+import type { FunctionReturnType } from "convex/server";
+import type { internal } from "../../../../convex/_generated/api";
+
+type ConfirmPaymentResult = FunctionReturnType<
+  typeof internal.vouchers.confirmPayment
+>;
 
 function isValidSignature(
   request_id: string | null,
@@ -93,6 +99,48 @@ function logBadRequest(error: string, context: WebhookRequestLogContext) {
     sourceNews: context.sourceNews,
     path: context.path,
   });
+}
+
+/**
+ * Confirms a Mercado Pago payment against the Convex voucher it paid for.
+ * Calls the `/webhooks/mercadopago/confirmPayment` Convex HTTP action as a
+ * trusted server-to-server caller, authenticated by a shared secret rather
+ * than a Convex identity (this route has already verified MP's HMAC
+ * signature by the time this runs — see `callConvexService`), then sends the
+ * one WhatsApp message a fresh confirmation produces. Whether an ad
+ * conversion event should follow is reported back via
+ * `shouldSendConversionEvents`, which is only true the first time a real
+ * (non-Test) voucher is confirmed.
+ */
+async function confirmVoucherPaymentViaConvex({
+  code,
+  paymentId,
+  paymentStatus,
+}: {
+  code: string;
+  paymentId: string;
+  paymentStatus: string | null | undefined;
+}) {
+  const result = await callConvexService<ConfirmPaymentResult>(
+    "/webhooks/mercadopago/confirmPayment",
+    { code, paymentId, paymentStatus: paymentStatus ?? null },
+  );
+
+  if (result.outcome === "not_found") {
+    return {
+      outcome: "not_found" as const,
+      shouldSendConversionEvents: false as const,
+    };
+  }
+
+  if (result.becameValid) {
+    await sendVoucherConfirmationWhatsApp(result.voucher);
+  }
+
+  return {
+    outcome: result.outcome,
+    shouldSendConversionEvents: result.becameValid && !result.isTest,
+  };
 }
 
 async function sendPaymentConversionEvents(
@@ -181,7 +229,7 @@ export async function POST(request: NextRequest) {
       dataId: dataID,
       type,
       getPayment: getMercadoPagoPayment,
-      processVoucherPayment: processVoucherPaymentWebhook,
+      processVoucherPayment: confirmVoucherPaymentViaConvex,
       sendConversionEvents: sendPaymentConversionEvents,
     });
 
