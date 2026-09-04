@@ -171,7 +171,7 @@ test("quantity limits and per-entry-type toggles from settings are honoured", as
   ).rejects.toThrow(/desativada/);
 });
 
-test("test mode is refused for an unauthenticated visitor", async () => {
+test("test mode is refused for an unauthenticated visitor, even though they asserted it themselves, and no voucher is created", async () => {
   const t = convexTest(schema, modules);
 
   await expect(
@@ -180,9 +180,13 @@ test("test mode is refused for an unauthenticated visitor", async () => {
       validArgs({ testMode: true }),
     ),
   ).rejects.toThrow(/equipe autorizada/);
+  expect(createCheckoutPreference).not.toHaveBeenCalled();
+
+  const vouchers = await t.run(async (ctx) => ctx.db.query("vouchers").collect());
+  expect(vouchers).toHaveLength(0);
 });
 
-test("test mode charges one cent for a signed-in staff member", async () => {
+test("test mode charges one cent for a signed-in staff member, and the stored voucher carries the server-set Test Voucher flag", async () => {
   const t = convexTest(schema, modules);
   const asEmployee = t.withIdentity({ "properties.role": "employee" });
 
@@ -192,6 +196,14 @@ test("test mode charges one cent for a signed-in staff member", async () => {
   );
 
   expect(result.priceCents).toBe(1);
+
+  const stored = await t.run(async (ctx) =>
+    ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", result.code))
+      .unique(),
+  );
+  expect(stored?.isTest).toBe(true);
 });
 
 test("the voucher is left Pending with visitDate set to the day the customer chose", async () => {

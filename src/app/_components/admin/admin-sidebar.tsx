@@ -1,6 +1,6 @@
 "use client";
 
-import { Cog, CreditCard, Ticket } from "lucide-react";
+import { Cog, CreditCard, FlaskConical, Ticket } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -37,6 +37,11 @@ const adminSidebarItems = [
     icon: <Cog className="h-5 w-5" />,
     href: "/admin/dashboard/configuracoes",
   },
+  {
+    name: "Compra Teste",
+    icon: <FlaskConical className="h-5 w-5" />,
+    href: "/admin/compra-teste",
+  },
 ];
 
 const employeeSidebarItems = [
@@ -44,6 +49,11 @@ const employeeSidebarItems = [
     name: "Validar Voucher",
     icon: <Ticket className="h-5 w-5" />,
     href: "/admin",
+  },
+  {
+    name: "Compra Teste",
+    icon: <FlaskConical className="h-5 w-5" />,
+    href: "/admin/compra-teste",
   },
 ];
 
