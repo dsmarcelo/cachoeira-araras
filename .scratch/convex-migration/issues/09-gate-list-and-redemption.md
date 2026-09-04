@@ -17,13 +17,13 @@ purchase-to-entry path can be verified.
 
 **Blocked by:** 04, 07
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The list shows today's expected vouchers and updates live on payment confirmation.
-- [ ] "Today" begins and ends at midnight Sao Paulo time regardless of server timezone.
-- [ ] Typing a valid code redeems it; the voucher is then visibly terminal and a second
+- [x] The list shows today's expected vouchers and updates live on payment confirmation.
+- [x] "Today" begins and ends at midnight Sao Paulo time regardless of server timezone.
+- [x] Typing a valid code redeems it; the voucher is then visibly terminal and a second
       attempt is refused.
-- [ ] Redeeming outside today's operational window is refused with a clear reason.
-- [ ] Reactivating changes `expiresAt` and leaves `visitDate` untouched.
-- [ ] A Test Voucher is absent from the list and redeemable by typing its code.
-- [ ] A public caller cannot read the list or redeem anything.
+- [x] Redeeming outside today's operational window is refused with a clear reason.
+- [x] Reactivating changes `expiresAt` and leaves `visitDate` untouched.
+- [x] A Test Voucher is absent from the list and redeemable by typing its code.
+- [x] A public caller cannot read the list or redeem anything.

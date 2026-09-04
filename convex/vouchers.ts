@@ -7,9 +7,10 @@ import {
   action,
   internalMutation,
   internalQuery,
+  mutation,
   query,
 } from "./_generated/server";
-import { getRole } from "./lib/auth";
+import { getRole, requireRole } from "./lib/auth";
 import { createCheckoutPreference } from "./lib/mercadopago";
 import type { SettingValueMap } from "./lib/settings";
 import {
@@ -434,5 +435,144 @@ export const confirmPayment = internalMutation({
         paymentId: args.paymentId,
       }),
     };
+  },
+});
+
+const gateVoucherValidator = v.object({
+  code: v.string(),
+  name: v.string(),
+  phone: v.string(),
+  status: v.union(
+    v.literal("pending"),
+    v.literal("valid"),
+    v.literal("redeemed"),
+    v.literal("expired"),
+  ),
+  adults: v.number(),
+  elderly: v.number(),
+  adultsPool: v.number(),
+  elderlyPool: v.number(),
+  visitDate: v.string(),
+  expiresAt: v.number(),
+});
+
+function summarizeForGate(voucher: Doc<"vouchers">) {
+  return {
+    code: voucher.code,
+    name: voucher.name,
+    phone: voucher.phone,
+    status: voucher.status,
+    adults: voucher.adults,
+    elderly: voucher.elderly,
+    adultsPool: voucher.adultsPool,
+    elderlyPool: voucher.elderlyPool,
+    visitDate: voucher.visitDate,
+    expiresAt: voucher.expiresAt,
+  };
+}
+
+/**
+ * The vouchers gate staff expect to see today, keyed on `visitDate` in the
+ * Sao Paulo calendar (so the operational day rolls over at Sao Paulo
+ * midnight, not at 21:00 on a UTC server). Staff-only (admin or employee): a
+ * public caller gets a 401 rather than any data. Test Vouchers are excluded
+ * via `countsAsRealVoucher` — they stay redeemable by code (`redeemByCode`
+ * below), just absent from this operational view. An ordinary reactive
+ * query, so a payment confirmed by the webhook while staff are looking at
+ * the screen appears without a refresh.
+ */
+export const listToday = query({
+  args: {},
+  returns: v.array(gateVoucherValidator),
+  handler: async (ctx) => {
+    await requireRole(ctx, "employee");
+
+    const today = getSaoPauloDateKey();
+    const vouchers = await ctx.db
+      .query("vouchers")
+      .withIndex("by_visitDate", (q) => q.eq("visitDate", today))
+      .collect();
+
+    return vouchers
+      .filter(countsAsRealVoucher)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(summarizeForGate);
+  },
+});
+
+/**
+ * Redeems a voucher by code at the gate. Staff-only. Refuses (rather than
+ * silently no-opping) a voucher that is already `redeemed`, so a second
+ * attempt cannot admit the same party twice; refuses anything not currently
+ * `valid`; and refuses a voucher whose `visitDate` isn't today in Sao Paulo,
+ * so nobody is admitted on the wrong day. Deliberately does not filter Test
+ * Vouchers: they must stay redeemable by code so the full purchase-to-entry
+ * path can be verified.
+ */
+export const redeemByCode = mutation({
+  args: { code: v.string() },
+  returns: v.object({ code: v.string(), status: v.literal("redeemed") }),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "employee");
+
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (!voucher || voucher.deletedAt !== undefined) {
+      throw new Error("Voucher não encontrado.");
+    }
+
+    if (voucher.status === "redeemed") {
+      throw new Error("Este voucher já foi utilizado.");
+    }
+
+    if (voucher.status !== "valid") {
+      throw new Error("Este voucher não está disponível para uso.");
+    }
+
+    const today = getSaoPauloDateKey();
+    if (voucher.visitDate !== today) {
+      throw new Error("Este voucher não é válido para o dia de hoje.");
+    }
+
+    await ctx.db.patch(voucher._id, { status: "redeemed" });
+
+    return { code: voucher.code, status: "redeemed" as const };
+  },
+});
+
+/**
+ * Reactivates a voucher when a customer has a legitimate reason. Staff-only.
+ * Moves only `expiresAt`, extending it to the end of today in Sao Paulo, and
+ * sets `status` back to `valid`; `visitDate` — the day the customer
+ * originally chose — is never touched, which is the whole point: the old
+ * schema conflated the two fields, so reactivating used to silently rewrite
+ * the customer's visit date and corrupt reporting.
+ */
+export const reactivate = mutation({
+  args: { code: v.string() },
+  returns: v.object({
+    code: v.string(),
+    status: v.literal("valid"),
+    expiresAt: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "employee");
+
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (!voucher || voucher.deletedAt !== undefined) {
+      throw new Error("Voucher não encontrado.");
+    }
+
+    const expiresAt = endOfSaoPauloDayMs(getSaoPauloDateKey());
+    await ctx.db.patch(voucher._id, { status: "valid", expiresAt });
+
+    return { code: voucher.code, status: "valid" as const, expiresAt };
   },
 });

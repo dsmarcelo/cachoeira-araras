@@ -8,8 +8,10 @@
  * @module
  */
 
+import type * as http from "../http.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_mercadopago from "../lib/mercadopago.js";
+import type * as lib_serviceAuth from "../lib/serviceAuth.js";
 import type * as lib_settings from "../lib/settings.js";
 import type * as lib_voucherCode from "../lib/voucherCode.js";
 import type * as lib_voucherPurchase from "../lib/voucherPurchase.js";
@@ -23,8 +25,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  http: typeof http;
   "lib/auth": typeof lib_auth;
   "lib/mercadopago": typeof lib_mercadopago;
+  "lib/serviceAuth": typeof lib_serviceAuth;
   "lib/settings": typeof lib_settings;
   "lib/voucherCode": typeof lib_voucherCode;
   "lib/voucherPurchase": typeof lib_voucherPurchase;
