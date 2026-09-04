@@ -6,14 +6,10 @@ import { FaArrowLeft } from 'react-icons/fa'
 import { toast } from '@/components/ui/use-toast'
 import { motion } from 'framer-motion'
 import DeleteVoucherCookieBtn from './delete-voucher-cookie-btn'
-import { RefreshCcw } from 'lucide-react'
-import { api } from '@/trpc/react'
 
 export default function VoucherCreatedCard(
   { code, init_point, redirectToPayment, setCode, payment_success_url }:
     { code: string, init_point: string, redirectToPayment: () => void, setCode: React.Dispatch<React.SetStateAction<string>>, payment_success_url: string }) {
-
-  const utils = api.useUtils();
 
   async function handleClick(showToast = true) {
     setCode('')
@@ -45,38 +41,6 @@ export default function VoucherCreatedCard(
     )
   }
 
-  async function checkPaymentStatus() {
-    const reconciliation = await utils.voucher.reconcilePublicPaymentStatus.fetch({
-      code,
-    });
-
-    if (reconciliation.status === "paid" && reconciliation.successUrl) {
-      location.href = reconciliation.successUrl;
-      return;
-    }
-
-    const voucher = await utils.voucher.getPublicStatusByCode.fetch({ code });
-    if (!voucher) return location.reload();
-    if (!voucher.payment_id || voucher.status === "pending") {
-      redirectToPayment();
-      return;
-    }
-
-    location.href = payment_success_url;
-  }
-
-  function AlreadyPayedButton() {
-    return (
-      <div className="flex flex-col gap-4 text-center text-lg">
-        Ja finalizou o pagamento? Clique no botão abaixo para atualizar a pagina
-        <Button className="w-full h-16 text-xl rounded-xl" onClick={() => location.reload()}>
-          <RefreshCcw className='mr-2 h-4 w-4' />
-          Atualizar página
-        </Button>
-      </div>
-    )
-  }
-
   return (
     <motion.div
       className='p-4'
@@ -91,13 +55,12 @@ export default function VoucherCreatedCard(
             <Button className='bg-positive-green h-14 text-xl w-full' onClick={() => window.open(payment_success_url)}>Visualizar voucher</Button>
           </div>) : (
           <div className='flex flex-col gap-6'>
-            <div className='w-12'><DeleteVoucherCookieBtn label='Voltar' refresh={true} message='Se você já pagou e ainda não está vendo o botão para visualizar o voucher, atualize a pagina e tente novamente.' /></div>
+            <div className='w-12'><DeleteVoucherCookieBtn label='Voltar' refresh={true} message='Se você já pagou, essa tela atualiza sozinha assim que recebermos a confirmação — não é necessário atualizar a página.' /></div>
             <p className='text-primary-100 font-medium'>Voucher criado com sucesso! Guarde o codigo abaixo, finalize o pagamento clicando no botão abaixo e volte ao site para utiliza-lo:</p>
             <h2 className='text-7xl font-bold text-center text-primary-50'>{code}</h2>
-            <Button onClick={checkPaymentStatus} className='bg-positive-green rounded-xl text-center h-14 text-xl w-full flex justify-center items-center font-medium text-primary-50'>
+            <Button onClick={redirectToPayment} className='bg-positive-green rounded-xl text-center h-14 text-xl w-full flex justify-center items-center font-medium text-primary-50'>
               <p className='translate-y-[-2px]'>Finalizar pagamento</p>
             </Button>
-            <AlreadyPayedButton />
           </div>
         )}
       </div>

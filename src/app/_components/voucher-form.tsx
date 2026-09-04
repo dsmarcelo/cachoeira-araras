@@ -1,5 +1,4 @@
 "use client";
-import { api } from "@/trpc/react";
 import { useAction, useQuery } from "convex/react";
 import { api as convexApi } from "../../../convex/_generated/api";
 import React, { useEffect, useState } from "react";
@@ -11,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { voucherFormSchema } from "@/lib/voucher/types";
-import { cn, formatPaymentUrl, formatPhone } from "@/lib/utils";
+import { cn, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import {
   addCookieVoucher,
@@ -41,15 +40,24 @@ export default function VoucherForm({
   const [isLoading, setIsLoading] = useState(false);
   const [code, setCode] = useState("");
   const [init_point, setInitPoint] = useState("");
-  const [payment_sucess_url, setPaymentSuccessUrl] = useState("");
   const [referrerURL, setReferrerURL] = useState<string | null>(null);
-
-  const utils = api.useUtils();
 
   // A live Convex query: a settings change made in the admin page reaches
   // this open form without a reload.
   const settings = useQuery(convexApi.settings.getAll);
   const startCheckout = useAction(convexApi.vouchers.startCheckout);
+
+  // Reactive payment status: the moment the Mercado Pago webhook confirms
+  // this voucher (convex/vouchers.ts confirmPayment), this subscription
+  // updates on its own — no polling, no reload.
+  const voucherStatus = useQuery(
+    convexApi.vouchers.getByCode,
+    code ? { code } : "skip",
+  );
+  const payment_sucess_url =
+    voucherStatus && voucherStatus.status !== "pending"
+      ? `/voucher?code=${code}`
+      : "";
 
   // Destructure settings with defaults; prices are stored in cents and
   // converted to reais here, the one boundary where that conversion happens
@@ -64,72 +72,35 @@ export default function VoucherForm({
   } = settings ?? {};
   const voucherPrice = voucherPriceCents / 100;
 
-  async function checkPaymentStatus(code: string) {
-    const reconciliation = await utils.voucher.reconcilePublicPaymentStatus.fetch({
-      code,
-    });
-    if (reconciliation.status === "paid" && reconciliation.successUrl) {
-      setPaymentSuccessUrl(reconciliation.successUrl);
-      return;
-    }
-
-    const voucher = await utils.voucher.getPublicStatusByCode.fetch({ code });
-    if (!voucher) return deleteCookieVoucher();
-
-    if (voucher.status !== "pending" && voucher.payment_id) {
-      const url = formatPaymentUrl(voucher.preference_id, voucher.payment_id);
-      setPaymentSuccessUrl(url);
-    }
-
-    const preference = await utils.mercadopago.getPublicPreference.fetch({
-      preference_id: voucher.preference_id,
-    });
-
-    if (preference.init_point) {
-      setInitPoint(preference.init_point);
-    }
-  }
-
   useEffect(() => {
     // Avoid an extra Edge request by reading the referrer on the client directly
-    const checkReferrer = async () => {
-      try {
-        const ref = document.referrer || null;
-        setReferrerURL(ref);
-      } catch {
-        setReferrerURL(null);
-      }
-    };
+    try {
+      setReferrerURL(document.referrer || null);
+    } catch {
+      setReferrerURL(null);
+    }
 
-    async function getPreference() {
-      if (code) {
-        return await checkPaymentStatus(code);
-      }
+    async function restoreCookieVoucher() {
       const cookieVoucher = await getCookieVoucher();
-      setCode(cookieVoucher ?? "");
-      if (cookieVoucher) {
-        await checkPaymentStatus(cookieVoucher);
-      }
+      if (!cookieVoucher) return;
+      setCode(cookieVoucher.code);
+      setInitPoint(cookieVoucher.initPoint);
     }
 
-    void checkReferrer();
+    void restoreCookieVoucher();
+    // Runs once on mount: the reactive Convex query above takes over from
+    // here for anything that used to require re-fetching on visibility change.
+  }, []);
 
-    function handleVisibilityChange() {
-      if (document.visibilityState === "visible") {
-        void getPreference();
-      }
+  useEffect(() => {
+    // A voucher whose code no longer resolves (soft-deleted, or the cookie
+    // is stale) shouldn't keep a dead code around client-side.
+    if (code && voucherStatus === null) {
+      void deleteCookieVoucher();
+      setCode("");
+      setInitPoint("");
     }
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Cleanup the event listener on component unmount
-    void getPreference();
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings]);
+  }, [code, voucherStatus]);
 
   type FormSchema = z.infer<typeof voucherFormSchema>;
   const [checkoutFailed, setCheckoutFailed] = useState(false);
@@ -193,7 +164,7 @@ export default function VoucherForm({
         referrerUrl: referrerURL,
       });
       setCode(checkout.code);
-      await addCookieVoucher(checkout.code);
+      await addCookieVoucher(checkout.code, checkout.initPoint);
       setInitPoint(checkout.initPoint);
       setIsLoading(false);
     } catch (error) {

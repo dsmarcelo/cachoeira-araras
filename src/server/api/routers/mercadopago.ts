@@ -1,8 +1,4 @@
-import {
-  adminProcedure,
-  createTRPCRouter,
-  publicProcedure,
-} from "@/server/api/trpc";
+import { adminProcedure, createTRPCRouter } from "@/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/env";
 import { z } from "zod";
@@ -289,28 +285,6 @@ export const mercadopagoRouter = createTRPCRouter({
       }
       const data = (await res.json()) as PreferenceResponse;
       return data;
-    }),
-  getPublicPreference: publicProcedure
-    .input(z.object({ preference_id: z.string() }))
-    .query<{ init_point: string | null }>(async ({ input }) => {
-      const url = `https://api.mercadopago.com/checkout/preferences/${input.preference_id}`;
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${env.MERCADOPAGO_TOKEN}`,
-        },
-      });
-
-      if (!res.ok) {
-        return {
-          init_point: null,
-        };
-      }
-
-      const data = (await res.json()) as PreferenceResponse;
-
-      return {
-        init_point: data.init_point ?? null,
-      };
     }),
   getPreferenceByEReference: adminProcedure
     .input(z.object({ external_reference: z.string().max(4) }))

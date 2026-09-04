@@ -18,16 +18,16 @@ they can try again later.
 
 **Blocked by:** 07
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] An approved payment flips the voucher to valid, and an open payment-status page reflects
+- [x] An approved payment flips the voucher to valid, and an open payment-status page reflects
       it without a reload.
-- [ ] A repeated delivery for an already-confirmed voucher changes nothing and fires no second
+- [x] A repeated delivery for an already-confirmed voucher changes nothing and fires no second
       conversion event.
-- [ ] A delivery for an already-redeemed voucher does not revert it.
-- [ ] The WhatsApp message sends once and carries code, Visit Date, entry counts and amount.
-- [ ] A Test Voucher fires no Facebook Pixel and no Google Ads conversion event, and still
+- [x] A delivery for an already-redeemed voucher does not revert it.
+- [x] The WhatsApp message sends once and carries code, Visit Date, entry counts and amount.
+- [x] A Test Voucher fires no Facebook Pixel and no Google Ads conversion event, and still
       sends its WhatsApp message.
-- [ ] An abandoned or failed payment does not block the same phone number from buying later.
-- [ ] The existing webhook test suite is retained, with its payment-processing dependency
+- [x] An abandoned or failed payment does not block the same phone number from buying later.
+- [x] The existing webhook test suite is retained, with its payment-processing dependency
       repointed at the Convex side.

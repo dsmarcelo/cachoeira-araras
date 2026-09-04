@@ -11,9 +11,10 @@ import {
   verifyMercadoPagoWebhookSignature,
 } from "@/server/mercadopago-webhook";
 import { getMercadoPagoPayment } from "@/server/mercadopago";
-import { processVoucherPaymentWebhook } from "@/server/voucher";
+import { getConvexServiceClient } from "@/server/convex-service";
+import { sendVoucherConfirmationWhatsApp } from "@/server/voucher-whatsapp";
 import { capturePaymentFlowException } from "@/lib/sentry/payment";
-// import { sendWhatsappMessage } from "@/app/lib";
+import { api } from "../../../../convex/_generated/api";
 
 function isValidSignature(
   request_id: string | null,
@@ -95,14 +96,46 @@ function logBadRequest(error: string, context: WebhookRequestLogContext) {
   });
 }
 
-// THROWAWAY: staff test purchases use the nominal R$0,01 price to exercise the
-// real payment path, but that isn't a real sale and shouldn't be reported to ad
-// platforms as one. Deleted at cutover, when ticket 13's server-set `isTest`
-// flag on the Voucher becomes the real (non-price-based) way to detect this.
-const NOMINAL_TEST_PURCHASE_AMOUNT = 0.01;
+/**
+ * Confirms a Mercado Pago payment against the Convex voucher it paid for.
+ * Calls the `vouchers.confirmPayment` mutation as a trusted server-to-server
+ * caller (this route has already verified MP's HMAC signature by the time
+ * this runs — see `getConvexServiceClient`), then sends the one WhatsApp
+ * message a fresh confirmation produces. Whether an ad conversion event
+ * should follow is reported back via `shouldSendConversionEvents`, which is
+ * only true the first time a real (non-Test) voucher is confirmed.
+ */
+async function confirmVoucherPaymentViaConvex({
+  code,
+  paymentId,
+  paymentStatus,
+}: {
+  code: string;
+  paymentId: string;
+  paymentStatus: string | null | undefined;
+}) {
+  const client = await getConvexServiceClient("mercadopago-webhook");
+  const result = await client.mutation(api.vouchers.confirmPayment, {
+    code,
+    paymentId,
+    paymentStatus: paymentStatus ?? null,
+  });
 
-function isNominalTestPurchase(payment: PaymentResponse): boolean {
-  return payment.transaction_amount === NOMINAL_TEST_PURCHASE_AMOUNT;
+  if (result.outcome === "not_found") {
+    return {
+      outcome: "not_found" as const,
+      shouldSendConversionEvents: false as const,
+    };
+  }
+
+  if (result.becameValid) {
+    await sendVoucherConfirmationWhatsApp(result.voucher);
+  }
+
+  return {
+    outcome: result.outcome,
+    shouldSendConversionEvents: result.becameValid && !result.isTest,
+  };
 }
 
 async function sendPaymentConversionEvents(
@@ -114,13 +147,6 @@ async function sendPaymentConversionEvents(
   }
 
   const paymentPayload = payment as PaymentResponse;
-
-  if (isNominalTestPurchase(paymentPayload)) {
-    console.log(
-      `Skipping ad conversion events for nominal test purchase ${payment_id}`,
-    );
-    return;
-  }
 
   // Send Facebook Pixel conversion event for approved payments
   try {
@@ -198,7 +224,7 @@ export async function POST(request: NextRequest) {
       dataId: dataID,
       type,
       getPayment: getMercadoPagoPayment,
-      processVoucherPayment: processVoucherPaymentWebhook,
+      processVoucherPayment: confirmVoucherPaymentViaConvex,
       sendConversionEvents: sendPaymentConversionEvents,
     });
 

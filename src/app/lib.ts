@@ -45,30 +45,44 @@ export async function requireAdmin() {
   return user;
 }
 
-export async function addCookieVoucher(code: string) {
+const VOUCHER_COOKIE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 40;
+
+/**
+ * Persists the voucher a visitor just started paying for, plus the Mercado
+ * Pago checkout link for it, so a page reload (or returning the next day)
+ * can resume the same in-progress checkout without a server round trip.
+ * Payment status itself is never cached here — the voucher form reads that
+ * live from Convex (`vouchers.getByCode`) instead.
+ */
+export async function addCookieVoucher(code: string, initPoint: string) {
   // Next.js 16 exposes request cookies asynchronously. Resolve the store once
   // per server action so future cookie option changes stay centralized here.
   const cookieStore = await cookies();
 
-  cookieStore.set("voucher", code, {
-    expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 40),
-  });
+  const expires = new Date(Date.now() + VOUCHER_COOKIE_MAX_AGE_MS);
+  cookieStore.set("voucher", code, { expires });
+  cookieStore.set("voucher_init_point", initPoint, { expires });
 }
 
-export async function getCookieVoucher(): Promise<string | null> {
+export async function getCookieVoucher(): Promise<{
+  code: string;
+  initPoint: string;
+} | null> {
   // Awaiting `cookies()` is required in Next.js 16 and keeps this helper safe
   // to call from Server Components, Server Actions, and Route Handlers.
   const cookieStore = await cookies();
   const code = cookieStore.get("voucher")?.value;
-  if (code) {
-    return code;
+  if (!code) {
+    return null;
   }
-  return null;
+  const initPoint = cookieStore.get("voucher_init_point")?.value ?? "";
+  return { code, initPoint };
 }
 
 export async function deleteCookieVoucher() {
   const cookieStore = await cookies();
   cookieStore.delete("voucher");
+  cookieStore.delete("voucher_init_point");
 }
 
 export async function deleteVoucher(code: string) {

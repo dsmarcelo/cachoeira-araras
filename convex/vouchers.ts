@@ -7,9 +7,10 @@ import {
   action,
   internalMutation,
   internalQuery,
+  mutation,
   query,
 } from "./_generated/server";
-import { getRole } from "./lib/auth";
+import { getRole, requireRole } from "./lib/auth";
 import { createCheckoutPreference } from "./lib/mercadopago";
 import type { SettingValueMap } from "./lib/settings";
 import {
@@ -312,5 +313,126 @@ export const insertPendingVoucher = internalMutation({
     });
 
     return { ok: true };
+  },
+});
+
+/** The subset of a voucher a payment confirmation caller needs: the WhatsApp
+ * message it sends and the conversion event it may fire both read from this,
+ * never the raw document. */
+const paymentConfirmationVoucherValidator = v.object({
+  code: v.string(),
+  name: v.string(),
+  phone: v.string(),
+  adults: v.number(),
+  elderly: v.number(),
+  adultsPool: v.number(),
+  elderlyPool: v.number(),
+  priceCents: v.number(),
+  visitDate: v.string(),
+  expiresAt: v.number(),
+});
+
+function summarizeForPaymentConfirmation(voucher: Doc<"vouchers">) {
+  return {
+    code: voucher.code,
+    name: voucher.name,
+    phone: voucher.phone,
+    adults: voucher.adults,
+    elderly: voucher.elderly,
+    adultsPool: voucher.adultsPool,
+    elderlyPool: voucher.elderlyPool,
+    priceCents: voucher.priceCents,
+    visitDate: voucher.visitDate,
+    expiresAt: voucher.expiresAt,
+  };
+}
+
+/**
+ * Confirms a Mercado Pago payment against the voucher it paid for. Called
+ * only from the Mercado Pago webhook route (a thin Next.js adapter that has
+ * already verified MP's HMAC signature before minting itself an admin
+ * identity token — see src/server/convex-service.ts), never from a browser.
+ *
+ * Idempotent: a repeated delivery for a voucher already `valid` or
+ * `redeemed` changes nothing and reports `becameValid: false`, so the caller
+ * sends no second WhatsApp message and fires no second conversion event. A
+ * `redeemed` voucher is never reverted, regardless of `paymentStatus`.
+ */
+export const confirmPayment = mutation({
+  args: {
+    code: v.string(),
+    paymentId: v.string(),
+    paymentStatus: v.union(v.string(), v.null()),
+  },
+  returns: v.union(
+    v.object({
+      outcome: v.union(
+        v.literal("redeemed"),
+        v.literal("already_processed"),
+        v.literal("updated"),
+      ),
+      becameValid: v.boolean(),
+      isTest: v.boolean(),
+      voucher: paymentConfirmationVoucherValidator,
+    }),
+    v.object({ outcome: v.literal("not_found") }),
+  ),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (!voucher) {
+      return { outcome: "not_found" as const };
+    }
+
+    if (voucher.status === "redeemed") {
+      return {
+        outcome: "redeemed" as const,
+        becameValid: false,
+        isTest: voucher.isTest,
+        voucher: summarizeForPaymentConfirmation(voucher),
+      };
+    }
+
+    if (voucher.status === "valid") {
+      return {
+        outcome: "already_processed" as const,
+        becameValid: false,
+        isTest: voucher.isTest,
+        voucher: summarizeForPaymentConfirmation(voucher),
+      };
+    }
+
+    if (args.paymentStatus !== "approved") {
+      // Record the payment id so it's correlated even though the voucher
+      // isn't confirmed valid yet; no conversion event, no WhatsApp message.
+      await ctx.db.patch(voucher._id, { paymentId: args.paymentId });
+      return {
+        outcome: "updated" as const,
+        becameValid: false,
+        isTest: voucher.isTest,
+        voucher: summarizeForPaymentConfirmation(voucher),
+      };
+    }
+
+    await ctx.db.patch(voucher._id, {
+      status: "valid",
+      paymentId: args.paymentId,
+    });
+
+    return {
+      outcome: "updated" as const,
+      becameValid: true,
+      isTest: voucher.isTest,
+      voucher: summarizeForPaymentConfirmation({
+        ...voucher,
+        status: "valid",
+        paymentId: args.paymentId,
+      }),
+    };
   },
 });
