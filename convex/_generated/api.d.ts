@@ -10,6 +10,7 @@
 
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
+import type * as import_ from "../import.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_mercadopago from "../lib/mercadopago.js";
 import type * as lib_serviceAuth from "../lib/serviceAuth.js";
@@ -29,6 +30,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   http: typeof http;
+  import: typeof import_;
   "lib/auth": typeof lib_auth;
   "lib/mercadopago": typeof lib_mercadopago;
   "lib/serviceAuth": typeof lib_serviceAuth;

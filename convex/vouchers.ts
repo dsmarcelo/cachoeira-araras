@@ -1,6 +1,10 @@
 import { v } from "convex/values";
 
-import { getSaoPauloDateKey } from "../src/lib/utils/date";
+import {
+  endOfSaoPauloDayMs,
+  getSaoPauloDateKey,
+  startOfSaoPauloDayMs,
+} from "../src/lib/utils/date";
 import { api, internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import {
@@ -88,30 +92,17 @@ export const getByCode = query({
 
 const maxVoucherCodeAttempts = 10;
 
-const referrerValidator = v.object({ source: v.string(), url: v.string() });
+export const referrerValidator = v.object({
+  source: v.string(),
+  url: v.string(),
+});
 
-const voucherStatusValidator = v.union(
+export const voucherStatusValidator = v.union(
   v.literal("pending"),
   v.literal("valid"),
   v.literal("redeemed"),
   v.literal("expired"),
 );
-
-/**
- * A visit date is one Sao Paulo calendar day, end to end: the voucher stops
- * being redeemable at the end of the day the customer chose. Sao Paulo has
- * used a fixed UTC-3 offset since Brazil abolished daylight saving in 2019,
- * matching the same fixed-offset assumption already made elsewhere in this
- * codebase (see the month-range helper in the Mercado Pago admin router).
- */
-function endOfSaoPauloDayMs(dateKey: string): number {
-  const [year, month, day] = dateKey.split("-").map(Number) as [
-    number,
-    number,
-    number,
-  ];
-  return Date.UTC(year, month - 1, day, 3, 0, 0, 0) + 24 * 60 * 60 * 1000 - 1;
-}
 
 function buildReferrer(
   referrerUrl: string | null | undefined,
@@ -786,20 +777,6 @@ export const restore = mutation({
 // range: both bounds omitted defaults to the current calendar month in Sao
 // Paulo, but supplying only one bound or explicitly passing `null` for both
 // is refused rather than scanning the whole table.
-
-/**
- * The start of a Sao Paulo calendar day, in epoch ms. The mirror image of
- * `endOfSaoPauloDayMs` above; see its comment for the fixed UTC-3 offset
- * assumption.
- */
-function startOfSaoPauloDayMs(dateKey: string): number {
-  const [year, month, day] = dateKey.split("-").map(Number) as [
-    number,
-    number,
-    number,
-  ];
-  return Date.UTC(year, month - 1, day, 3, 0, 0, 0);
-}
 
 /** The first and last day (as date keys) of the current calendar month in Sao Paulo. */
 function currentSaoPauloMonthRange(): { fromKey: string; toKey: string } {

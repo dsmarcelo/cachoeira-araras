@@ -14,6 +14,7 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "dev": "next dev --turbopack",
+    "import:postgres-to-convex": "node --disable-warning=ExperimentalWarning --env-file=.env.local scripts/import-postgres-to-convex/run.ts",
     "preinstall": "npx only-allow pnpm",
     "password:hash": "node --disable-warning=ExperimentalWarning scripts/generateAdminPasswordHash.ts",
     "postinstall": "prisma generate",
@@ -21,6 +22,7 @@
     "test:webhook": "node --import ts-node/register --test src/server/mercadopago-webhook.test.ts",
     "test:payments": "node scripts/payment-e2e/run-payment-e2e.mjs",
     "test:convex": "vitest run",
+    "test:import": "vitest run --config vitest.config.scripts.ts",
     "type-check": "tsc --noEmit",
     "start": "next start"
   },
