@@ -4,7 +4,7 @@
 conversion. Today every approved payment reports one, so ad optimisation is being trained on
 one-centavo sales.
 
-This is deliberately disposable. Ticket 13 introduces the server-set Test Voucher flag, which
+This is deliberately disposable. Ticket 12 introduces the server-set Test Voucher flag, which
 is the real fix; this guard is deleted there. It is optional: worth shipping if cutover is
 weeks away, skippable if it is days.
 

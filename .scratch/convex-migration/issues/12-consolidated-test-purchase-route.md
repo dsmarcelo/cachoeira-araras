@@ -1,4 +1,4 @@
-# 13: Consolidated test purchase route
+# 12: Consolidated test purchase route
 
 **What to build:** Staff buy a voucher for R$0,01 through the real Mercado Pago integration
 from one predictable URL under the admin tree, verifying production credentials, webhook

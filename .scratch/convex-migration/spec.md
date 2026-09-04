@@ -67,7 +67,7 @@ Existing data stays in Postgres and is imported in a single cutover. Nothing abo
 33. As an admin, I want each setting change to record who made it and when, so that a surprising change can be traced.
 34. As an admin, I want settings changes to take effect for visitors immediately, so that a price change or a closure is honoured at once.
 35. As an admin, I want referrer attribution visible per voucher, so that I can see which channel produced a sale.
-36. As an admin, I want to send a WhatsApp message to a customer, so that I can resend a lost voucher.
+36. As an admin, I want clicking a customer's phone number to open that customer's WhatsApp conversation, so that I can contact them without an in-app messaging integration.
 
 ### Staff testing the purchase flow
 
@@ -169,6 +169,7 @@ Prior art in the repo: `voucher-purchase.test.ts`, `voucher-purchase-intake.test
 
 ## Out of Scope
 
+- Manually sending WhatsApp messages from the admin UI, including a resend action. The broader WhatsApp integration will be redesigned in a later update; opening a customer's conversation from their phone-number link remains in scope.
 - Executing the data import against production. Written and dry-run here; run at cutover.
 - Creating a Convex production deployment, setting Vercel environment variables, or changing the build command.
 - Any modification to `schema.prisma` or the production Postgres database.

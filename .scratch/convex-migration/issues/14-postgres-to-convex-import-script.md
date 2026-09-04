@@ -1,4 +1,4 @@
-# 15: Postgres to Convex import script
+# 14: Postgres to Convex import script
 
 **What to build:** One scripted, re-runnable step that carries the existing production data
 into Convex, so cutover is not a manual data-entry exercise. It reads Postgres and writes

@@ -24,5 +24,7 @@ accurate page count for scale more than a decade away.
 - [ ] Editing a status persists it; soft-deleting removes the voucher from the main list.
 - [ ] Soft-deleted vouchers are viewable separately.
 - [ ] Referrer source is visible for a voucher that has one.
+- [ ] Clicking a customer's phone number opens that customer's WhatsApp conversation in a
+      new tab; no message is sent by the app.
 - [ ] Test Vouchers do not appear in the admin list.
 - [ ] A staff-role caller cannot reach any of it.

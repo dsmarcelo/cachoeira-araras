@@ -1,4 +1,4 @@
-# 16: Contract — delete tRPC, the Prisma runtime, and superseded code
+# 15: Contract — delete tRPC, the Prisma runtime, and superseded code
 
 **What to build:** The app runs entirely on Convex, with the RPC layer and the ORM removed
 rather than left dormant. A future reader finds a T3 app with no tRPC in it and, thanks to
@@ -11,10 +11,10 @@ test suite superseded by function-boundary tests once its injection seam collaps
 validators are the source of truth, per the repository's rule against documenting what code
 already states.
 
-`schema.prisma` itself is untouched, and the import script (ticket 15) keeps whatever Prisma
+`schema.prisma` itself is untouched, and the import script (ticket 14) keeps whatever Prisma
 access it needs to read the old database at cutover.
 
-**Blocked by:** 09, 10, 11, 12, 13, 14
+**Blocked by:** 09, 10, 11, 12, 13
 
 **Status:** ready-for-agent
 

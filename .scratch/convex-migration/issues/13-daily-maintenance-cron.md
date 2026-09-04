@@ -1,4 +1,4 @@
-# 14: Daily maintenance cron
+# 13: Daily maintenance cron
 
 **What to build:** Once a day, without anyone doing anything: vouchers past their Expiry become
 expired, stale pending vouchers are soft-deleted, and Test Vouchers older than thirty days are
