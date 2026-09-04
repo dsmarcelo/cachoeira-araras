@@ -9,6 +9,7 @@ import {
   internalQuery,
   mutation,
   query,
+  type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
 import { getRole, requireRole } from "./lib/auth";
@@ -88,6 +89,13 @@ export const getByCode = query({
 const maxVoucherCodeAttempts = 10;
 
 const referrerValidator = v.object({ source: v.string(), url: v.string() });
+
+const voucherStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("valid"),
+  v.literal("redeemed"),
+  v.literal("expired"),
+);
 
 /**
  * A visit date is one Sao Paulo calendar day, end to end: the voucher stops
@@ -639,5 +647,134 @@ export const reactivate = mutation({
     await ctx.db.patch(voucher._id, { status: "valid", expiresAt });
 
     return { code: voucher.code, status: "valid" as const, expiresAt };
+  },
+});
+
+/**
+ * Every real voucher (excludes Test Vouchers and soft-deleted rows), for the
+ * admin table. No cursor pagination and no search index: production holds
+ * roughly a thousand vouchers growing at about fifty a month, so the full
+ * filtered set is loaded in one reactive query and the browser paginates and
+ * substring-searches it — the only way to get true `contains` semantics and
+ * an accurate page count at this scale (see the spec's "Admin data access").
+ * Status and creation-date-range filters run here so the returned set — and
+ * therefore the client's page count — already reflects them; substring
+ * search stays client-side since it isn't representable as an index range.
+ * Admin-only: an employee identity is rejected, same as `listTodayAdmin`.
+ */
+export const listAdmin = query({
+  args: {
+    status: v.optional(voucherStatusValidator),
+    createdAfter: v.optional(v.number()),
+    createdBefore: v.optional(v.number()),
+  },
+  returns: v.array(gateVoucherAdminValidator),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const vouchers = await ctx.db.query("vouchers").collect();
+
+    return vouchers
+      .filter(countsAsRealVoucher)
+      .filter((voucher) => args.status === undefined || voucher.status === args.status)
+      .filter(
+        (voucher) =>
+          args.createdAfter === undefined ||
+          voucher._creationTime >= args.createdAfter,
+      )
+      .filter(
+        (voucher) =>
+          args.createdBefore === undefined ||
+          voucher._creationTime <= args.createdBefore,
+      )
+      .sort((a, b) => b._creationTime - a._creationTime)
+      .map(summarizeForGateAdmin);
+  },
+});
+
+/**
+ * Soft-deleted vouchers, for the admin's separate audit/restore view — the
+ * mirror image of `countsAsRealVoucher`'s `deletedAt` check: everything
+ * `listAdmin` hides for being deleted, this shows. Test Vouchers are
+ * included here (unlike `listAdmin`) since a soft-deleted Test Voucher is
+ * still something an admin may want to audit or restore. Admin-only.
+ */
+export const listDeleted = query({
+  args: {},
+  returns: v.array(gateVoucherAdminValidator),
+  handler: async (ctx) => {
+    await requireRole(ctx, "admin");
+
+    const vouchers = await ctx.db.query("vouchers").collect();
+
+    return vouchers
+      .filter((voucher) => voucher.deletedAt !== undefined)
+      .sort((a, b) => b._creationTime - a._creationTime)
+      .map(summarizeForGateAdmin);
+  },
+});
+
+/** Looks up a voucher by code or throws, shared by the admin correction mutations below. */
+async function requireVoucherByCode(
+  ctx: MutationCtx,
+  code: string,
+): Promise<Doc<"vouchers">> {
+  const voucher = await ctx.db
+    .query("vouchers")
+    .withIndex("by_code", (q) => q.eq("code", code))
+    .unique();
+
+  if (!voucher) {
+    throw new Error("Voucher não encontrado.");
+  }
+  return voucher;
+}
+
+/**
+ * Corrects a voucher's status when something needs fixing. Admin-only,
+ * unlike `redeemByCode`/`reactivate` which employees can also reach — this
+ * is a direct override rather than an operational action, so it stays
+ * restricted to the role that can also soft-delete and restore.
+ */
+export const updateStatus = mutation({
+  args: { code: v.string(), status: voucherStatusValidator },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const voucher = await requireVoucherByCode(ctx, args.code);
+    await ctx.db.patch(voucher._id, { status: args.status });
+    return null;
+  },
+});
+
+/**
+ * Soft-deletes a voucher: reversible, and removes it from `listAdmin` (via
+ * `countsAsRealVoucher`) while keeping it visible in `listDeleted`.
+ * Admin-only.
+ */
+export const softDelete = mutation({
+  args: { code: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const voucher = await requireVoucherByCode(ctx, args.code);
+    await ctx.db.patch(voucher._id, { deletedAt: Date.now() });
+    return null;
+  },
+});
+
+/** Restores a soft-deleted voucher back into `listAdmin`. Admin-only. */
+export const restore = mutation({
+  args: { code: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const voucher = await requireVoucherByCode(ctx, args.code);
+    // Convex `patch` removes a field entirely when set to `undefined`.
+    await ctx.db.patch(voucher._id, { deletedAt: undefined });
+    return null;
   },
 });

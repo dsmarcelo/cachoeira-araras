@@ -15,16 +15,16 @@ accurate page count for scale more than a decade away.
 
 **Blocked by:** 04, 07
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Searching a fragment of a code, a name, or a phone finds the matching vouchers.
-- [ ] Status and creation-date-range filters narrow the list, and the page count reflects the
+- [x] Searching a fragment of a code, a name, or a phone finds the matching vouchers.
+- [x] Status and creation-date-range filters narrow the list, and the page count reflects the
       filtered set.
-- [ ] A payment confirmed elsewhere appears in the open table without a refresh.
-- [ ] Editing a status persists it; soft-deleting removes the voucher from the main list.
-- [ ] Soft-deleted vouchers are viewable separately and can be restored to the main list.
-- [ ] Referrer source is visible for a voucher that has one.
-- [ ] Clicking a customer's phone number opens that customer's WhatsApp conversation in a
+- [x] A payment confirmed elsewhere appears in the open table without a refresh.
+- [x] Editing a status persists it; soft-deleting removes the voucher from the main list.
+- [x] Soft-deleted vouchers are viewable separately and can be restored to the main list.
+- [x] Referrer source is visible for a voucher that has one.
+- [x] Clicking a customer's phone number opens that customer's WhatsApp conversation in a
       new tab; no message is sent by the app.
-- [ ] Test Vouchers do not appear in the admin list.
-- [ ] A staff-role caller cannot reach any of it.
+- [x] Test Vouchers do not appear in the admin list.
+- [x] A staff-role caller cannot reach any of it.

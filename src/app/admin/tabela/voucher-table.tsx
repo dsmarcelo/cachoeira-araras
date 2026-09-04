@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import * as React from "react"
 import {
@@ -6,10 +6,8 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
-  type SortingState,
-  getSortedRowModel,
-  type VisibilityState,
   type Row,
+  type VisibilityState,
 } from "@tanstack/react-table"
 
 import {
@@ -20,12 +18,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 
 import {
   Select,
@@ -37,30 +29,37 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ListFilter, Search } from "lucide-react"
-import { VoucherInfoCard } from "../voucher-info-card"
+import { Search } from "lucide-react"
+import { useWindowWidth } from "@/lib/utils"
+import { VoucherInfoCard, type AdminVoucher } from "../voucher-info-card"
 import { DataTablePagination } from "./table-pagination"
-import { type CompleteVoucherSchema } from "@/lib/voucher/types"
 
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[]
-  data: TData[]
+export type VoucherView = "active" | "deleted"
+
+interface DataTableProps {
+  columns: ColumnDef<AdminVoucher>[]
+  data: AdminVoucher[]
   total: number
   page: number
   pageSize: number
   pageCount: number
   status: string
   search: string
+  view: VoucherView
+  dateFrom: string
+  dateTo: string
   isLoading?: boolean
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
   onStatusChange: (status: string) => void
   onSearchChange: (search: string) => void
+  onViewChange: (view: VoucherView) => void
+  onDateFromChange: (value: string) => void
+  onDateToChange: (value: string) => void
 }
 
-export function VoucherTable<TData, TValue>({
+export function VoucherTable({
   columns,
   data,
   total,
@@ -69,55 +68,31 @@ export function VoucherTable<TData, TValue>({
   pageCount,
   status,
   search,
+  view,
+  dateFrom,
+  dateTo,
   isLoading = false,
   onPageChange,
   onPageSizeChange,
   onStatusChange,
   onSearchChange,
-}: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = React.useState<SortingState>([{
-    id: 'id',
-    desc: true,
-  }])
+  onViewChange,
+  onDateFromChange,
+  onDateToChange,
+}: DataTableProps) {
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
-  const [selectedRow, setSelectedRow] = React.useState<Row<TData>>()
-
-  const handleClick = (row: Row<TData>) => {
-    setSelectedRow(row)
-  }
-
-  const useWindowWidth = (): number => {
-    const [windowWidth, setWindowWidth] = React.useState<number>(1024)
-
-    React.useEffect(() => {
-      const handleResize = () => {
-        setWindowWidth(window.innerWidth)
-      }
-
-      handleResize()
-      window.addEventListener('resize', handleResize)
-
-      return () => {
-        window.removeEventListener('resize', handleResize)
-      }
-    }, [])
-
-    return windowWidth
-  }
+  const [selectedRow, setSelectedRow] = React.useState<Row<AdminVoucher>>()
 
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    onSortingChange: setSorting,
-    getSortedRowModel: getSortedRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     manualPagination: true,
     pageCount,
     state: {
       columnVisibility,
-      sorting,
       pagination: {
         pageIndex: page - 1,
         pageSize,
@@ -125,29 +100,30 @@ export function VoucherTable<TData, TValue>({
     },
   })
 
-  const windowwidth = useWindowWidth()
+  const windowWidth = useWindowWidth()
 
   React.useEffect(() => {
-    if (windowwidth < 768) {
-      table.getColumn("id")?.toggleVisibility(false)
-      table.getColumn("name")?.toggleVisibility(true)
-      table.getColumn("phone")?.toggleVisibility(false)
-      table.getColumn("expires_at")?.toggleVisibility(true)
-      table.getColumn("actions")?.toggleVisibility(false)
-    } else {
-      table.getColumn("id")?.toggleVisibility(false)
-      table.getColumn("name")?.toggleVisibility(true)
-      table.getColumn("phone")?.toggleVisibility(true)
-      table.getColumn("expires_at")?.toggleVisibility(true)
-      table.getColumn("actions")?.toggleVisibility(true)
-    }
-  }, [table, windowwidth])
+    const narrow = windowWidth < 768
+    table.getColumn("phone")?.toggleVisibility(!narrow)
+    table.getColumn("referrer")?.toggleVisibility(!narrow)
+  }, [table, windowWidth])
 
   return (
     <div className="w-full max-w-7xl mx-auto py-4 sm:py-4 sm:px-8 rounded-lg shadow-md border space-y-4">
-      <div className="flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-0">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Select value={status} onValueChange={onStatusChange}>
+      <div className="flex flex-col gap-3 px-4 sm:px-0">
+        <div className="flex flex-wrap items-center gap-3">
+          <Select value={view} onValueChange={(value) => onViewChange(value as VoucherView)}>
+            <SelectTrigger className="h-8 w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="active">Vouchers</SelectItem>
+                <SelectItem value="deleted">Excluídos</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <Select value={status} onValueChange={onStatusChange} disabled={view === "deleted"}>
             <SelectTrigger className="h-8 w-36">
               <SelectValue placeholder="Filtrar status" />
             </SelectTrigger>
@@ -171,40 +147,25 @@ export function VoucherTable<TData, TValue>({
               onChange={(event) => onSearchChange(event.target.value)}
             />
           </div>
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <span>Criado de</span>
+            <Input
+              type="date"
+              className="h-8 w-36"
+              value={dateFrom}
+              disabled={view === "deleted"}
+              onChange={(event) => onDateFromChange(event.target.value)}
+            />
+            <span>até</span>
+            <Input
+              type="date"
+              className="h-8 w-36"
+              value={dateTo}
+              disabled={view === "deleted"}
+              onChange={(event) => onDateToChange(event.target.value)}
+            />
+          </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              className="h-8 gap-1 text-sm font-normal"
-              size="sm"
-            >
-              <ListFilter className="h-3.5 w-3.5" />
-              Filtrar Colunas
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="bg-white">
-            {table
-              .getAllColumns()
-              .filter(
-                (column) => column.getCanHide()
-              )
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                )
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
       <div className="px-4 text-sm text-muted-foreground sm:px-0">
         {total} voucher(s) encontrado(s).
@@ -240,8 +201,8 @@ export function VoucherTable<TData, TValue>({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                  onClick={() => handleClick(row)}
+                  className="cursor-pointer"
+                  onClick={() => setSelectedRow(row)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -271,7 +232,8 @@ export function VoucherTable<TData, TValue>({
       />
       {selectedRow && (
         <VoucherInfoCard
-          data={selectedRow.original as CompleteVoucherSchema}
+          data={selectedRow.original}
+          isDeleted={view === "deleted"}
           open={!!selectedRow}
           onClose={() => setSelectedRow(undefined)}
         />
