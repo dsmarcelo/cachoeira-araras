@@ -155,7 +155,7 @@ export default function AccountSettings({ username }: { username: string }) {
                 id="new-password"
                 type="password"
                 autoComplete="new-password"
-                minLength={10}
+                minLength={5}
                 maxLength={128}
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
@@ -169,7 +169,7 @@ export default function AccountSettings({ username }: { username: string }) {
                 id="confirm-password"
                 type="password"
                 autoComplete="new-password"
-                minLength={10}
+                minLength={5}
                 maxLength={128}
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}

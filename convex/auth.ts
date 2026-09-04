@@ -28,7 +28,7 @@ export function createAuthOptions(ctx: GenericCtx<DataModel>) {
     emailAndPassword: {
       enabled: true,
       disableSignUp: true,
-      minPasswordLength: 10,
+      minPasswordLength: 5,
       maxPasswordLength: 128,
     },
     trustedOrigins: [siteUrl],

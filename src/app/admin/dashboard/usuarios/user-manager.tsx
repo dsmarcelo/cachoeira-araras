@@ -199,7 +199,7 @@ function CreateUserForm({ onCreated }: { onCreated: () => Promise<void> }) {
               id="new-user-password"
               type="password"
               autoComplete="new-password"
-              minLength={10}
+              minLength={5}
               maxLength={128}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -363,19 +363,19 @@ function UserEditor({
             id={`password-${user.id}`}
             type="password"
             autoComplete="new-password"
-            minLength={10}
+            minLength={5}
             maxLength={128}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             disabled={isPending || user.banned}
-            placeholder="Mínimo de 10 caracteres"
+            placeholder="Mínimo de 5 caracteres"
           />
         </div>
         <Button
           type="button"
           variant="outline"
           onClick={resetPassword}
-          disabled={isPending || user.banned || password.length < 10}
+          disabled={isPending || user.banned || password.length < 5}
         >
           Redefinir senha
         </Button>
