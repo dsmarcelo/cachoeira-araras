@@ -9,6 +9,7 @@ import {
   internalQuery,
   mutation,
   query,
+  type QueryCtx,
 } from "./_generated/server";
 import { getRole, requireRole } from "./lib/auth";
 import { createCheckoutPreference } from "./lib/mercadopago";
@@ -454,6 +455,7 @@ const gateVoucherValidator = v.object({
   elderlyPool: v.number(),
   visitDate: v.string(),
   expiresAt: v.number(),
+  createdAt: v.number(),
 });
 
 function summarizeForGate(voucher: Doc<"vouchers">) {
@@ -468,18 +470,40 @@ function summarizeForGate(voucher: Doc<"vouchers">) {
     elderlyPool: voucher.elderlyPool,
     visitDate: voucher.visitDate,
     expiresAt: voucher.expiresAt,
+    createdAt: voucher._creationTime,
   };
 }
 
 /**
- * The vouchers gate staff expect to see today, keyed on `visitDate` in the
- * Sao Paulo calendar (so the operational day rolls over at Sao Paulo
- * midnight, not at 21:00 on a UTC server). Staff-only (admin or employee): a
- * public caller gets a 401 rather than any data. Test Vouchers are excluded
- * via `countsAsRealVoucher` — they stay redeemable by code (`redeemByCode`
- * below), just absent from this operational view. An ordinary reactive
- * query, so a payment confirmed by the webhook while staff are looking at
- * the screen appears without a refresh.
+ * Today's real vouchers (excludes Test Vouchers and soft-deleted rows), keyed
+ * on `visitDate` in the Sao Paulo calendar so the operational day rolls over
+ * at Sao Paulo midnight, not at 21:00 on a UTC server. Shared by both
+ * `listToday` and `listTodayAdmin` so the day/index/filter logic lives in one
+ * place.
+ */
+async function todaysRealVouchers(ctx: { db: QueryCtx["db"] }) {
+  const today = getSaoPauloDateKey();
+  const vouchers = await ctx.db
+    .query("vouchers")
+    .withIndex("by_visitDate", (q) => q.eq("visitDate", today))
+    .collect();
+
+  return vouchers
+    .filter(countsAsRealVoucher)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * The vouchers gate staff expect to see today. Staff-only (admin or
+ * employee): a public caller gets a 401 rather than any data. Test Vouchers
+ * are excluded via `countsAsRealVoucher` — they stay redeemable by code
+ * (`redeemByCode` below), just absent from this operational view. An
+ * ordinary reactive query, so a payment confirmed by the webhook while staff
+ * are looking at the screen appears without a refresh.
+ *
+ * Deliberately PII-minimal: this is the query an employee session can reach.
+ * Payment identifiers (`paymentId`, `preferenceId`) and referrer live only in
+ * `listTodayAdmin`, which is admin-gated.
  */
 export const listToday = query({
   args: {},
@@ -487,16 +511,57 @@ export const listToday = query({
   handler: async (ctx) => {
     await requireRole(ctx, "employee");
 
-    const today = getSaoPauloDateKey();
-    const vouchers = await ctx.db
-      .query("vouchers")
-      .withIndex("by_visitDate", (q) => q.eq("visitDate", today))
-      .collect();
+    const vouchers = await todaysRealVouchers(ctx);
+    return vouchers.map(summarizeForGate);
+  },
+});
 
-    return vouchers
-      .filter(countsAsRealVoucher)
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(summarizeForGate);
+const gateVoucherAdminValidator = v.object({
+  code: v.string(),
+  name: v.string(),
+  phone: v.string(),
+  status: v.union(
+    v.literal("pending"),
+    v.literal("valid"),
+    v.literal("redeemed"),
+    v.literal("expired"),
+  ),
+  adults: v.number(),
+  elderly: v.number(),
+  adultsPool: v.number(),
+  elderlyPool: v.number(),
+  visitDate: v.string(),
+  expiresAt: v.number(),
+  createdAt: v.number(),
+  paymentId: v.optional(v.string()),
+  preferenceId: v.string(),
+  referrer: v.optional(referrerValidator),
+});
+
+function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
+  return {
+    ...summarizeForGate(voucher),
+    paymentId: voucher.paymentId,
+    preferenceId: voucher.preferenceId,
+    referrer: voucher.referrer,
+  };
+}
+
+/**
+ * The admin variant of `listToday`: same today/Sao Paulo/Test-Voucher rules,
+ * plus the payment identifiers and referrer the admin gate card's "Detalhes
+ * do pagamento" section needs. Admin-only — an employee identity is rejected
+ * here even though it can read `listToday`, so an employee session has no
+ * path to a payment id or preference id.
+ */
+export const listTodayAdmin = query({
+  args: {},
+  returns: v.array(gateVoucherAdminValidator),
+  handler: async (ctx) => {
+    await requireRole(ctx, "admin");
+
+    const vouchers = await todaysRealVouchers(ctx);
+    return vouchers.map(summarizeForGateAdmin);
   },
 });
 

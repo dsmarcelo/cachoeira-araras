@@ -27,3 +27,12 @@ purchase-to-entry path can be verified.
 - [x] Reactivating changes `expiresAt` and leaves `visitDate` untouched.
 - [x] A Test Voucher is absent from the list and redeemable by typing its code.
 - [x] A public caller cannot read the list or redeem anything.
+
+Boxes 1 and 6 were ticked before the gate-page UI (`today-vouchers.tsx`,
+`employee-today-vouchers.tsx`, and the redeem/reactivate buttons in the two
+voucher info cards) was actually wired onto `listToday` / `listTodayAdmin` /
+`redeemByCode` / `reactivate`. They stayed on tRPC/Prisma, which ticket 07
+stopped writing to, so the gate list showed nothing real. Fixed by wiring
+those components directly onto Convex (`useQuery`/`useMutation`), and by
+adding an admin-only `listTodayAdmin` query so the admin gate card's payment
+details stay unreachable from an employee session.

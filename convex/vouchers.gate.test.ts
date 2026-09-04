@@ -27,6 +27,7 @@ function defaults() {
     visitDate: today,
     expiresAt: Date.now() + 1000 * 60 * 60 * 24,
     preferenceId: "pref-1",
+    paymentId: undefined as string | undefined,
     isTest: false,
   };
 }
@@ -57,6 +58,36 @@ test("a public caller cannot read the gate list", async () => {
   await insertVoucher(t);
 
   await expect(t.query(api.vouchers.listToday, {})).rejects.toThrow();
+});
+
+test("the admin gate list carries payment identifiers that listToday omits", async () => {
+  const t = convexTest(schema, modules);
+  await insertVoucher(t, { code: "real", name: "Ana", paymentId: "pay-1" });
+
+  const asAdmin = t.withIdentity({ "properties.role": "admin" });
+  const [employeeRow] = await asAdmin.query(api.vouchers.listToday, {});
+  const [adminRow] = await asAdmin.query(api.vouchers.listTodayAdmin, {});
+
+  expect(employeeRow && "paymentId" in employeeRow).toBe(false);
+  expect(adminRow?.paymentId).toBe("pay-1");
+  expect(adminRow?.preferenceId).toBe("pref-1");
+});
+
+test("an employee identity is rejected by listTodayAdmin", async () => {
+  const t = convexTest(schema, modules);
+  await insertVoucher(t);
+  const asEmployee = t.withIdentity({ "properties.role": "employee" });
+
+  await expect(
+    asEmployee.query(api.vouchers.listTodayAdmin, {}),
+  ).rejects.toThrow();
+});
+
+test("a public caller cannot read the admin gate list", async () => {
+  const t = convexTest(schema, modules);
+  await insertVoucher(t);
+
+  await expect(t.query(api.vouchers.listTodayAdmin, {})).rejects.toThrow();
 });
 
 test("redeeming a valid voucher for today succeeds and is then terminal", async () => {

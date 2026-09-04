@@ -328,35 +328,6 @@ export const voucherRouter = createTRPCRouter({
     });
   }),
 
-  getTodayOperationalVouchers: staffProcedure.query(async ({ ctx }) => {
-    return await ctx.db.voucher.findMany({
-      where: getTodayVoucherWhere(),
-      orderBy: [
-        {
-          status: "asc",
-        },
-        {
-          name: "asc",
-        },
-      ],
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        code: true,
-        adults: true,
-        elderly: true,
-        adults_pool: true,
-        elderly_pool: true,
-        valid: true,
-        status: true,
-        expires_at: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-  }),
-
   update: adminProcedure
     .input(
       z.object({
