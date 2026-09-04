@@ -16,22 +16,20 @@ access it needs to read the old database at cutover.
 
 **Blocked by:** 09, 10, 11, 12, 13, 14
 
-**Status:** partially done — see note below
+**Status:** done
 
-- [ ] No tRPC router, client, provider or route handler remains; nothing imports one.
-      NOT fully done. `/admin/dashboard/pagamentos` (Mercado Pago admin payments screen)
-      has no Convex equivalent: it enriches Mercado Pago API results with a Prisma voucher
-      lookup by code (`enrichPaymentsWithVoucherData` in
-      `src/server/api/routers/mercadopago.ts`). Per the ticket's own instruction not to
-      silently delete a working admin feature with no Convex replacement, I left the
-      `mercadopago` tRPC router, its client/provider/route handler, and `src/server/db.ts`
-      (Prisma client) in place for that one screen and documented the exception in
-      ADR-0001. Every other router (`voucher`, `notification`, `referrer`), all dead
-      call sites, and every other Prisma-backed runtime path were deleted — see report.
+- [x] No tRPC router, client, provider or route handler remains; nothing imports one.
+      The last remaining procedure (`/admin/dashboard/pagamentos` Mercado Pago payment listing
+      and voucher enrichment) has been ported to Convex actions (`convex/mercadopago.ts`
+      `listAdminPaymentsByMonth` and `getAdminPaymentsMonthSummary`) using `findForPaymentEnrichment`
+      in `convex/vouchers.ts`. All tRPC code (`src/server/api/`, `src/trpc/`, `src/app/api/trpc/`),
+      the `TRPCReactProvider` in `src/app/layout.tsx`, and the runtime Prisma client
+      (`src/server/db.ts`) have been completely deleted. `@trpc/*`, `@tanstack/react-query`,
+      and `superjson` dependencies are removed. `@prisma/client` is moved to `devDependencies`
+      for the import script and Prisma CLI only.
 - [x] The app builds, typechecks, and every screen works with the tRPC route deleted where a
-      Convex equivalent exists. `pnpm type-check`, `pnpm lint`, `pnpm build` all pass. I did
-      not click through every screen in a browser — see the agent report for what was
-      verified by reading code paths instead.
+      Convex equivalent exists. `pnpm test:convex`, `pnpm test:webhook`, `pnpm test:import`,
+      `pnpm type-check`, `pnpm lint`, and `pnpm build` all pass.
 - [x] `@auth/prisma-adapter` is gone from dependencies (was already gone before this ticket,
       per the Better Auth merge — verified absent from `package.json` and `pnpm-lock.yaml`).
 - [x] The superseded intake test suite is deleted; the webhook suite is retained.

@@ -260,6 +260,82 @@ export const findActiveByPhone = internalQuery({
 });
 
 /**
+ * Resolves voucher records for a set of Mercado Pago payments by code
+ * (externalReference) or paymentId. Used by the Mercado Pago admin action to
+ * enrich payments with voucher data from Convex without Prisma.
+ */
+export const findForPaymentEnrichment = internalQuery({
+  args: {
+    codes: v.array(v.string()),
+    paymentIds: v.array(v.string()),
+  },
+  returns: v.array(
+    v.object({
+      code: v.string(),
+      name: v.string(),
+      phone: v.string(),
+      paymentId: v.union(v.string(), v.null()),
+      status: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const vouchers: Array<{
+      code: string;
+      name: string;
+      phone: string;
+      paymentId: string | null;
+      status: string;
+    }> = [];
+
+    const seenCodes = new Set<string>();
+
+    for (const code of args.codes) {
+      if (!code) continue;
+      const voucher = await ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", code))
+        .unique();
+
+      if (voucher && voucher.deletedAt === undefined) {
+        seenCodes.add(voucher.code);
+        vouchers.push({
+          code: voucher.code,
+          name: voucher.name,
+          phone: voucher.phone,
+          paymentId: voucher.paymentId ?? null,
+          status: voucher.status,
+        });
+      }
+    }
+
+    for (const paymentId of args.paymentIds) {
+      if (!paymentId) continue;
+      const voucher = await ctx.db
+        .query("vouchers")
+        .withIndex("by_paymentId", (q) => q.eq("paymentId", paymentId))
+        .unique();
+
+      if (
+        voucher &&
+        voucher.deletedAt === undefined &&
+        !seenCodes.has(voucher.code)
+      ) {
+        seenCodes.add(voucher.code);
+        vouchers.push({
+          code: voucher.code,
+          name: voucher.name,
+          phone: voucher.phone,
+          paymentId: voucher.paymentId ?? null,
+          status: voucher.status,
+        });
+      }
+    }
+
+    return vouchers;
+  },
+});
+
+/**
  * Re-checks code uniqueness and inserts the Pending voucher in one
  * transaction, closing the time-of-check/time-of-use race where the two
  * used to be separate calls. Returns `{ ok: false }` on a collision instead

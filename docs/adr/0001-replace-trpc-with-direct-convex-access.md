@@ -36,13 +36,14 @@ payment path.
 A future reader will find a T3 app with no tRPC in it and may assume this was an
 oversight. It was not.
 
-## Update: one router remains
+## Update: final router migration and complete removal
 
-The teardown (ticket 15) found one screen tRPC still had to serve:
-`/admin/dashboard/pagamentos` enriches Mercado Pago's payments API with a
-Prisma voucher lookup by code, and nothing ports that lookup to Convex yet.
-Rather than delete a working admin feature to close out a teardown ticket,
-`src/server/api/routers/mercadopago.ts`, its tRPC/Prisma wiring, and
-`@prisma/client` at runtime stay in place for that one screen. Every other
-router, and the Prisma-backed screens and helpers that had no live Convex
-equivalent to redirect to, are gone.
+During the initial teardown (ticket 15), `/admin/dashboard/pagamentos` temporarily
+retained a tRPC procedure to enrich Mercado Pago payment results with Prisma voucher
+lookups. That procedure has now been fully ported to Convex actions (`convex/mercadopago.ts`
+`listAdminPaymentsByMonth` and `getAdminPaymentsMonthSummary`), calling Convex's
+isolate-compatible HTTP client and internal voucher enrichment queries (`findForPaymentEnrichment`).
+
+With `/admin/dashboard/pagamentos` switched to Convex actions, all tRPC routers, clients,
+providers, route handlers, and the runtime Prisma client (`src/server/db.ts`) have been
+completely eliminated from the codebase.

@@ -1,5 +1,4 @@
 import "@/styles/globals.css";
-import { TRPCReactProvider } from "@/trpc/react";
 import { ConvexClientProvider } from "@/app/ConvexClientProvider";
 import { Toaster } from "@/components/ui/toaster";
 import { Inter } from "next/font/google";
@@ -36,7 +35,7 @@ export default async function RootLayout({
     <html lang="pt-BR" className={`${inter.variable}`}>
       <body className="min-h-screen bg-background">
         <ConvexClientProvider initialToken={initialToken}>
-          <TRPCReactProvider>{children}</TRPCReactProvider>
+          {children}
         </ConvexClientProvider>
         <Toaster />
         {/* Only enable Analytics if explicitly allowed to avoid Edge requests to /_vercel/insights */}

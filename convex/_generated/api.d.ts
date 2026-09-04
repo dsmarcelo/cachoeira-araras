@@ -20,6 +20,7 @@ import type * as lib_settings from "../lib/settings.js";
 import type * as lib_voucherCode from "../lib/voucherCode.js";
 import type * as lib_voucherPurchase from "../lib/voucherPurchase.js";
 import type * as maintenance from "../maintenance.js";
+import type * as mercadopago from "../mercadopago.js";
 import type * as settings from "../settings.js";
 import type * as vouchers from "../vouchers.js";
 
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   "lib/voucherCode": typeof lib_voucherCode;
   "lib/voucherPurchase": typeof lib_voucherPurchase;
   maintenance: typeof maintenance;
+  mercadopago: typeof mercadopago;
   settings: typeof settings;
   vouchers: typeof vouchers;
 }>;
