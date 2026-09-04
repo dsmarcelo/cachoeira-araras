@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQuery } from "convex/react";
 import { api } from "@/trpc/react";
+import { api as convexApi } from "../../../../../convex/_generated/api";
+import { getSaoPauloDateKey } from "@/lib/utils/date";
+import { formatToBRL } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -84,19 +88,24 @@ export default function VouchersPage() {
       sortDirection: "desc",
     });
 
-  const { data: summary, isLoading: isLoadingSummary } =
-    api.voucher.getAdminVoucherSummary.useQuery(queryFilters);
+  // The period summary (revenue, voucher and visitor counts) comes from
+  // Convex; the paginated table above still reads Postgres through tRPC
+  // (`findAdminPage`) until ticket 10's admin table replaces it here too.
+  const summaryRange = useMemo(
+    () => ({
+      from: getSaoPauloDateKey(dateRange.from),
+      to: getSaoPauloDateKey(dateRange.to),
+    }),
+    [dateRange.from, dateRange.to],
+  );
+  const summary = useQuery(convexApi.vouchers.periodSummary, summaryRange);
+  const isLoadingSummary = summary === undefined;
 
   const formatDate = (date: Date) => {
     return format(new Date(date), "dd/MM/yyyy", { locale: ptBR });
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(amount);
-  };
+  const formatCurrency = formatToBRL;
 
   const handleStatusChange = (status: string) => {
     setStatusFilter(status);
@@ -154,7 +163,7 @@ export default function VouchersPage() {
         </Select>
       </div>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total de Receita</CardTitle>
@@ -162,42 +171,13 @@ export default function VouchersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoadingSummary ? "Carregando..." : formatCurrency(summary?.totalSales ?? 0)}
+              {isLoadingSummary
+                ? "Carregando..."
+                : formatCurrency((summary?.revenueCents ?? 0) / 100)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {summary?.paidCount ?? 0} vouchers pagos
+              {summary?.voucherCount ?? 0} vouchers vendidos
             </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Status dos Vouchers</CardTitle>
-            <Ticket className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center">
-                  <span className="mr-1 h-2 w-2 rounded-full bg-green-500"></span>
-                  <span className="text-xs">Válidos: {summary?.statusCounts.valid ?? 0}</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="mr-1 h-2 w-2 rounded-full bg-yellow-500"></span>
-                  <span className="text-xs">Pendentes: {summary?.statusCounts.pending ?? 0}</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center">
-                  <span className="mr-1 h-2 w-2 rounded-full bg-blue-500"></span>
-                  <span className="text-xs">Utilizados: {summary?.statusCounts.redeemed ?? 0}</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="mr-1 h-2 w-2 rounded-full bg-red-500"></span>
-                  <span className="text-xs">Expirados: {summary?.statusCounts.expired ?? 0}</span>
-                </div>
-              </div>
-            </div>
           </CardContent>
         </Card>
 
@@ -207,9 +187,9 @@ export default function VouchersPage() {
             <Ticket className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary?.visitorsCount ?? 0}</div>
+            <div className="text-2xl font-bold">{summary?.visitorCount ?? 0}</div>
             <p className="text-xs text-muted-foreground">
-              {summary?.totalAdults ?? 0} inteiras, {summary?.totalElderly ?? 0} meias, {summary?.totalAdultsPool ?? 0} inteiras (piscina), {summary?.totalElderlyPool ?? 0} meias (piscina)
+              {summary?.adults ?? 0} inteiras, {summary?.elderly ?? 0} meias, {summary?.adultsPool ?? 0} inteiras (piscina), {summary?.elderlyPool ?? 0} meias (piscina)
             </p>
           </CardContent>
         </Card>
@@ -221,10 +201,17 @@ export default function VouchersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(summary?.averageVoucherValue ?? 0)}
+              {formatCurrency(
+                summary && summary.voucherCount > 0
+                  ? summary.revenueCents / summary.voucherCount / 100
+                  : 0,
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
-              {(summary?.averagePeoplePerVoucher ?? 0).toFixed(1)} pessoas/voucher
+              {summary && summary.voucherCount > 0
+                ? ((summary.adults + summary.elderly) / summary.voucherCount).toFixed(1)
+                : "0.0"}{" "}
+              pessoas/voucher
             </p>
           </CardContent>
         </Card>

@@ -15,14 +15,14 @@ in Sao Paulo. Supplying only one bound, or explicitly requesting an unbounded ra
 
 **Blocked by:** 04, 07
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A bounded range returns voucher count, visitor count and revenue for that period.
-- [ ] With both bounds omitted, the current calendar month in Sao Paulo is used.
-- [ ] A request with only one bound, or an explicitly unbounded range, is refused rather than
+- [x] A bounded range returns voucher count, visitor count and revenue for that period.
+- [x] With both bounds omitted, the current calendar month in Sao Paulo is used.
+- [x] A request with only one bound, or an explicitly unbounded range, is refused rather than
       scanning everything.
-- [ ] Revenue totals are exact for any combination of prices.
-- [ ] Daily figures break the range down by day.
-- [ ] A Test Voucher inside the range changes no figure.
-- [ ] Soft-deleted vouchers are excluded.
-- [ ] A staff-role caller cannot reach any of it.
+- [x] Revenue totals are exact for any combination of prices.
+- [x] Daily figures break the range down by day.
+- [x] A Test Voucher inside the range changes no figure.
+- [x] Soft-deleted vouchers are excluded.
+- [x] A staff-role caller cannot reach any of it.
