@@ -56,6 +56,35 @@ As preferencias do Mercado Pago sao criadas com `/api/webhook?source_news=webhoo
 
 Use `pnpm test:payments` para rodar um teste E2E automatico sem agente de IA. O teste cria uma preferencia real no Mercado Pago, grava um voucher pendente no banco e confere nome, telefone, quantidades, codigo e `preference_id`.
 
+### Dados para teste de pagamento (Mercado Pago Sandbox)
+
+Para realizar testes manuais de compra no Checkout do Mercado Pago em ambiente sandbox:
+
+> [!IMPORTANT]
+> **Atenção:** Para testar o pagamento, **deve-se fazer login na conta de teste antes** de prosseguir com o pagamento (recomenda-se utilizar uma janela anônima para evitar conflitos de sessão com a conta real ou de vendedor do Mercado Pago).
+
+#### Conta de teste (Buyer Test User)
+
+| Campo | Valor |
+| --- | --- |
+| Perfil | Comprador (`Buyer Test User`) |
+| País | Brasil |
+| User ID | `1915367917` |
+| Usuário | `TESTUSER1953398469` |
+| Senha | `MuFMnTEBR3` |
+| Código de verificação | `367917` |
+
+#### Cartão de crédito de teste
+
+| Campo | Valor |
+| --- | --- |
+| Bandeira | Mastercard |
+| Número | `5480 8328 0103 3311` |
+| Código de segurança | `123` |
+| Data de validade | `11/30` |
+| Nome do titular | `APRO` (status: pagamento aprovado) |
+| CPF | `12345678909` |
+
 ### Precos e comportamento publico
 
 | Key | Padrao | Uso |
