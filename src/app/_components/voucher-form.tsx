@@ -36,8 +36,9 @@ export default function VoucherForm({
 }) {
   const router = useRouter();
   const convex = useConvex();
-  const { save, warning } = useSavedVouchers();
+  const { save, warning, vouchers, ready } = useSavedVouchers();
   const [persistenceWarning, setPersistenceWarning] = useState("");
+  const [restored, setRestored] = useState(false);
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [code, setCode] = useState("");
@@ -83,6 +84,19 @@ export default function VoucherForm({
     }
 
   }, []);
+
+  useEffect(() => {
+    // Resume the most recent voucher (e.g. the user closed the payment tab
+    // and came back) instead of showing a blank form. Runs once, after
+    // saved vouchers finish loading from the browser.
+    if (!ready || restored) return;
+    const last = vouchers[vouchers.length - 1];
+    if (last) {
+      setCode(last.code);
+      setInitPoint(last.initPoint);
+    }
+    setRestored(true);
+  }, [ready, vouchers, restored]);
 
   type FormSchema = z.infer<typeof voucherFormSchema>;
   const [checkoutFailed, setCheckoutFailed] = useState(false);
@@ -173,6 +187,16 @@ export default function VoucherForm({
             : "Erro ao criar voucher. Tente novamente.",
       });
     }
+  }
+
+  if (!restored) {
+    return (
+      <div className="mx-auto w-full bg-dark-blue">
+        <div className="border-none bg-dark-blue p-4 text-center text-primary-50">
+          Carregando...
+        </div>
+      </div>
+    );
   }
 
   if (!isLoading && code && (init_point || payment_sucess_url)) {
