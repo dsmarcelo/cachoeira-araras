@@ -1,10 +1,17 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 
 import { Button } from "@/components/ui/button";
+import { getCookieVoucher } from "@/app/lib";
 import { api as convexApi } from "../../../../convex/_generated/api";
+
+interface PaymentStatusProps {
+  code: string;
+  initialCookieVoucher?: { code: string; initPoint: string } | null;
+}
 
 /**
  * Reflects a voucher's payment status live, from the same Convex query the
@@ -13,8 +20,27 @@ import { api as convexApi } from "../../../../convex/_generated/api";
  * this component just watches for it, so a customer who lands here before
  * their payment clears sees it become valid on its own, without a reload.
  */
-export default function PaymentStatus({ code }: { code: string }) {
+export default function PaymentStatus({
+  code,
+  initialCookieVoucher = null,
+}: PaymentStatusProps) {
   const voucher = useQuery(convexApi.vouchers.getByCode, { code });
+  const [cookieVoucher, setCookieVoucher] = useState<{
+    code: string;
+    initPoint: string;
+  } | null>(initialCookieVoucher);
+
+  useEffect(() => {
+    async function syncCookieVoucher() {
+      try {
+        const cv = await getCookieVoucher();
+        setCookieVoucher(cv);
+      } catch {
+        // Ignore cookie read failures gracefully.
+      }
+    }
+    void syncCookieVoucher();
+  }, []);
 
   if (voucher === undefined) {
     return (
@@ -31,11 +57,29 @@ export default function PaymentStatus({ code }: { code: string }) {
   }
 
   if (voucher.status === "pending") {
+    const canRetry = Boolean(
+      cookieVoucher?.code === code && cookieVoucher.initPoint,
+    );
+
     return (
       <StatusScreen
         title="Aguardando confirmação do pagamento"
         description="Assim que recebermos a confirmação do Mercado Pago, esta página é atualizada automaticamente — não é necessário atualizar a página."
-      />
+      >
+        <div className="flex flex-col sm:flex-row gap-3 items-center mt-2">
+          {canRetry && cookieVoucher ? (
+            <Button
+              asChild
+              className="bg-positive-green hover:bg-positive-green/90 text-primary-50 font-medium"
+            >
+              <a href={cookieVoucher.initPoint} rel="noopener noreferrer">
+                Tentar novamente o pagamento
+              </a>
+            </Button>
+          ) : null}
+          <BackHomeButton />
+        </div>
+      </StatusScreen>
     );
   }
 
