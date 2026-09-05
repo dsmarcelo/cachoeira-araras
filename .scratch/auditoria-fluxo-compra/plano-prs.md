@@ -16,7 +16,7 @@ reativa das duas telas sem reload.
 
 ## Fora de escopo
 
-- **WhatsApp / Twilio** — a integração será removida e reimplementada depois.
+- **Nova integração de mensagens**: não faz parte deste plano. A remoção de Twilio/WhatsApp ligado a pagamentos está no PR 9; não há reimplementação prevista aqui.
 - **Pix ausente no checkout** — comportamento do sandbox, não reproduz em produção.
 - **Telas de admin** — não auditadas nesta passada.
 
@@ -34,20 +34,22 @@ Vale registrar para não regredir:
 
 ## Ordem de execução
 
-Ordenado por esforço crescente. Os PRs 2–6 são XS e cabem num único dia; o PR 1 foi
-revisado para S/M (ver detalhe abaixo).
+A numeração identifica os PRs, não ordena por esforço. Executar PR 1 → PR 2 → PR 9
+para disponibilizar a consulta e a imagem antes de remover o envio por WhatsApp.
+Os demais PRs podem seguir separadamente, respeitando as dependências abaixo.
+O PR 2 absorve o antigo resumo da compra do PR 9 e passa a ter tamanho M.
 
 | # | PR | Tamanho | Impacto |
 | --- | --- | --- | --- |
 | 1 | Manter todos os vouchers do cliente acessíveis no navegador | S/M | Alto |
-| 2 | Tela de retorno do pagamento | XS | Médio |
+| 2 | Meus Vouchers com imagens via Vercel OG e retorno do pagamento | M | Alto |
 | 3 | Marcar items da preferência como serviço | XS | Médio |
 | 4 | Corrigir `WEBHOOK_URL` e base pública local | XS | Baixo |
 | 5 | Remover código morto do fluxo público | XS | Baixo |
 | 6 | Corrigir textos e marcação inválida | XS | Baixo |
 | 7 | Corrigir limite mínimo de data no schema | S | Médio |
 | 8 | Mostrar erros de validação em uma passada | S | Médio |
-| 9 | Resumo da compra nas telas de voucher | S/M | Alto |
+| 9 | Remover Twilio/WhatsApp ligado a pagamentos | S/M | Médio |
 | 10 | Data de visita em fuso São Paulo no cliente | M | Médio |
 | 11 | Estorno invalida o voucher | M | Alto |
 | 12 | Rate limit em `startCheckout` | M | Alto |
@@ -69,7 +71,7 @@ formulário fica permanentemente substituído pelo card "Visualizar voucher". Um
 que compra hoje e volta na semana seguinte não tem como comprar de novo naquele navegador.
 
 **Correção (escopo ampliado a pedido do Marcelo):** em vez de só destravar a compra de um
-novo voucher, o navegador passa a guardar **todos** os vouchers já comprados nele, para que
+novo voucher, o navegador passa a guardar **todos** os vouchers cuja compra foi iniciada nele, para que
 o cliente compre um novo e ainda consulte os antigos — com expiração de 90 dias a partir da
 criação de cada um.
 
@@ -82,27 +84,71 @@ criação de cada um.
   lê no server component para resolver o código quando o retorno do Mercado Pago vem sem
   `external_reference` na URL. Continua sendo escrito junto com a lista em toda nova compra
   ([voucher-form.tsx:167](../../src/app/_components/voucher-form.tsx:167)).
-- **UI:** a home passa a mostrar uma lista "meus vouchers" (código + status ao vivo via
-  `getByCode`) com opção de iniciar uma nova compra independente do status de qualquer
-  voucher existente. `DeleteVoucherCookieBtn` passa a remover uma entrada específica da
-  lista, não "o" voucher único.
+- **Persistência:** adicionar a entrada após `startCheckout` criar o voucher e antes de
+  navegar para o Mercado Pago. Migrar o voucher do cookie atual para a lista usando a data
+  de criação do servidor, sem renovar artificialmente os 90 dias. O cookie continua apenas
+  como fallback do retorno, não como critério de exibição de "Meus Vouchers".
+- **UI:** permitir iniciar uma nova compra independentemente dos vouchers existentes.
+  A lista fica na tela "Meus Vouchers", implementada no PR 2, e não na home.
+  A ação de remover passa a excluir uma entrada específica do navegador, sem cancelar
+  o voucher no servidor. Se for a entrada apontada pelo cookie, limpar também esse ponteiro.
+- **Acesso:** disponibilizar "Meus Vouchers" somente após a leitura do `localStorage`
+  encontrar ao menos uma entrada válida e não vencida pela retenção de 90 dias. Uma compra
+  pendente já satisfaz esse critério. Sem entradas, ocultar o acesso e, em visita direta à
+  rota, encaminhar para a compra após a hidratação. Tratar armazenamento indisponível ou
+  JSON inválido sem quebrar o formulário. Explicar ao cliente quando não for possível salvar.
 
-**Como verificar:** comprar 2 vouchers no mesmo navegador deve manter os dois visíveis; um
-voucher com `createdAt` de mais de 90 dias atrás deve sumir da lista sozinho.
+**Como verificar:** iniciar 2 compras no mesmo navegador deve preservar ambas na lista;
+remover uma deve manter a outra. Verificar migração do cookie, descarte após 90 dias e
+armazenamento indisponível. A persistência é por origem: retorno em outro domínio não
+consegue ler a lista salva no domínio inicial, ponto tratado no PR 4.
 
 ---
 
-## PR 2 — `fix(payment): corrige a tela de retorno do pagamento`
+## PR 2 — `feat(voucher): exibe Meus Vouchers com imagens via Vercel OG`
 
-**Tamanho:** XS · **Impacto:** médio.
+**Tamanho:** M · **Impacto:** alto · **Depende do PR 1.**
 
-Dois defeitos na mesma tela:
+Criar a tela "Meus Vouchers" em `/meus-vouchers`, acessível somente quando houver
+voucher salvo no `localStorage`, conforme o PR 1. Listar todas as compras salvas com
+status reativo do Convex. Pendentes oferecem retomada do checkout, sem imagem de voucher
+pago. Quando o servidor confirmar o pagamento, mostrar a imagem correspondente sem reload.
 
-- **Fundo preto.** `StatusScreen` em [payment-status.tsx:117](../../src/app/(client)/pagamento/payment-status.tsx:117)
-  não define background e herda o do body, destoando do `bg-bg-blue` do resto do site.
-  Combinado com `h-screen` mais a altura do header, o conteúdo estoura em telas baixas.
-- **`window.open()`** em [voucher-created-card.tsx:55](../../src/app/_components/voucher-created-card.tsx:55)
-  abre nova aba: bloqueado por popup blocker e desorientante no mobile. Trocar por `Link`.
+- Reaproveitar `src/app/api/og/route.tsx`, que já gera uma imagem de 750×375 com
+  `ImageResponse` de `next/og`, a implementação de Vercel OG disponível no projeto.
+  A imagem pode ser gerada sob demanda ao abrir a tela, sem job no webhook ou arquivo
+  persistido. Oferecer visualização e download para cada voucher com pagamento confirmado.
+- A rota deve buscar os dados reais no servidor pelo código e verificar a confirmação de
+  pagamento. Não aceitar nome, telefone, valor ou status fornecidos por query params como
+  fonte de verdade, comportamento atual da rota. `localStorage` controla a descoberta da
+  tela, não comprova pagamento nem autoriza dados adicionais. Não ampliar a exposição de
+  nome ou telefone pela query pública. A proteção dos códigos continua no PR 14.
+- Incluir código, data da visita, quantidades compradas, valor registrado na compra e status
+  atual, com data e valor formatados para o cliente. Não recalcular o valor pelos preços
+  atuais de Site Settings. O resumo textual acessível acompanha a imagem na tela.
+  `getByCode` já expõe data e quantidades; prever o contrato mínimo necessário para o valor,
+  pois ele ainda não é retornado. Esta entrega absorve o antigo PR 9 de resumo da compra.
+- Remover o cache público imutável de um ano da rota. A resposta deve refletir o estado
+  atual e não continuar exibindo um voucher válido após resgate, expiração ou estorno.
+  Vouchers pagos resgatados ou expirados permanecem no histórico com seu status, sem
+  indicação de entrada válida. O PR 11 deve estender esse comportamento aos estornos.
+  Uma imagem baixada é um registro estático; a portaria sempre valida o código no servidor.
+- `/pagamento` continua responsável pelo retorno do Mercado Pago e oferece navegação
+  na mesma aba para "Meus Vouchers" quando existir uma entrada local. Se o retorno tiver
+  código válido mas não houver lista local, recuperar os dados necessários do servidor e
+  salvar a entrada antes de oferecer esse acesso. Se não conseguir salvar, manter o status
+  e o acesso à imagem do voucher pago no retorno, com aviso sobre a falta de persistência.
+- Corrigir também o fundo de `StatusScreen` para o padrão do site e substituir `h-screen`
+  por uma altura compatível com o header. Substituir o `window.open()` de
+  `voucher-created-card.tsx` por navegação com `Link` na mesma aba.
+- Rever `src/app/image-test/page.tsx`, hoje consumidor com dados mockados, para que não
+  dependa do contrato antigo nem permita gerar vouchers aparentando pagamento confirmado.
+
+**Como verificar:** sem entrada local, o acesso não aparece e a rota direta retorna à
+compra. Com duas compras, a tela mostra ambas; confirmar uma faz aparecer somente sua
+imagem. Reabrir o navegador preserva a lista. Conferir download, resumo, mobile, falha de
+armazenamento e retorno sem lista. A rota rejeita voucher pendente ou inexistente e ignora
+valores/status forjados na URL. Resgate ou expiração não podem manter imagem de entrada válida.
 
 ---
 
@@ -129,7 +175,9 @@ sandbox. Adicionar `category_id: "services"` ao item em
 - Testar checkout no `localhost:3000` sempre devolve o cliente para `cda-dev.vercel.app`,
   porque `resolveSiteBaseForCheckout` lê `URL` do deployment Convex
   ([mercadopago.ts:84](../../convex/lib/mercadopago.ts:84)). Funciona porque os dois
-  compartilham o mesmo Convex, mas confunde. Documentar no README junto do fluxo de túnel.
+  compartilham o mesmo Convex, mas o `localStorage` não é compartilhado entre origens.
+  Alinhar a origem da compra e do retorno no ambiente de teste e documentar no README junto
+  do fluxo de túnel. Verificar o fallback do PR 2 quando a lista não estiver disponível.
 
 ---
 
@@ -191,19 +239,33 @@ um `z.string().refine()` no shape, para que todos os erros apareçam juntos.
 
 ---
 
-## PR 9 — `feat(voucher): mostra o resumo da compra nas telas de voucher`
+## PR 9 — `chore(payment): remove a integração Twilio e WhatsApp de pagamentos`
 
-**Tamanho:** S/M · **Impacto:** alto.
+**Tamanho:** S/M · **Impacto:** médio · **Depende do PR 2.**
 
-Nem o card de voucher criado nem `/pagamento` aprovado mostram data da visita,
-quantidade de pessoas ou valor pago — só o código. O cliente sai do fluxo sem nenhum
-comprovante do que comprou, e com a saída do WhatsApp isso vira o **único** registro que
-ele tem.
+Remover o envio automático de confirmação de pagamento por WhatsApp após disponibilizar
+"Meus Vouchers" e o download da imagem. Não substituir por outro canal neste PR.
 
-`getByCode` já devolve `visitDate`, `adults`, `elderly`, `adultsPool` e `elderlyPool`
-([convex/vouchers.ts:50](../../convex/vouchers.ts:50)) — os dados estão disponíveis sem
-mudança de backend. O preço não é exposto por essa query; decidir se entra (ela é
-pública e sem autenticação, então expor valor pago aumenta a superfície).
+- Remover `src/server/voucher-whatsapp.ts` e sua chamada/import em
+  `src/app/api/webhook/route.ts`. Preservar confirmação do pagamento, idempotência e eventos
+  de conversão, inclusive a regra de não duplicar conversão em notificações repetidas.
+- Revisar o retorno de `confirmPayment` e seus consumidores; remover somente os campos e
+  contratos usados exclusivamente pela mensagem. Atualizar comentários sobre WhatsApp em
+  `convex/vouchers.ts`, testes e mocks afetados.
+- Remover a dependência `twilio` e atualizar o lockfile após confirmar que não há outro
+  consumidor. Remover variáveis Twilio da validação de ambiente, exemplos e README,
+  incluindo a instrução atual que atribui o envio ao admin. Retirar as configurações dos
+  deployments no momento da entrega, após o código deixar de consumi-las.
+- Revisar `formatWhatsAppMessage` em `src/lib/utils.ts` e remover se ficar sem consumidores.
+  Atualizar instruções que mandam enviar o voucher pelo WhatsApp ou prometem recebê-lo por
+  mensagem para apontar para "Meus Vouchers" e o download.
+- Links de contato manual com a cachoeira ou com o cliente não são envio automático de
+  pagamento. Preservá-los se forem independentes desse fluxo.
+
+**Como verificar:** confirmação e repetição do webhook continuam atualizando o voucher e
+respeitando a idempotência dos eventos, sem chamadas Twilio nem necessidade de suas envs.
+Conferir referências restantes e executar os testes existentes afetados. Não criar testes
+que apenas comprovem a ausência de arquivos ou strings.
 
 ---
 
@@ -241,6 +303,9 @@ continua resgatável na portaria depois de o dinheiro ter voltado.
 `already_processed`, revertendo `valid → pending` (ou um status novo tipo `refunded`).
 Definir a regra para `redeemed`: um voucher já usado provavelmente não deve ser revertido,
 mas precisa gerar alerta para o admin.
+
+Atualizar também "Meus Vouchers" e a rota OG do PR 2 para refletir o estado resultante
+e não oferecer estornado como entrada válida.
 
 Cobrir com teste em `convex/vouchers.confirmPayment.test.ts`, que já tem a estrutura pronta.
 
@@ -309,8 +374,10 @@ Hoje nenhum e-mail é coletado. Duas consequências:
 - A preferência do Mercado Pago vai sem `payer.email`
   ([convex/lib/mercadopago.ts:143](../../convex/lib/mercadopago.ts:143)), então o
   comprador digita tudo de novo no checkout — atrito direto na conversão.
-- Com a saída do WhatsApp, não sobra nenhum canal para reenviar o código a quem perdeu a aba.
+- "Meus Vouchers" permite recuperar o código após fechar a aba no mesmo navegador.
+  Com a saída do WhatsApp, continua sem canal de recuperação quem limpar o armazenamento,
+  trocar de navegador/dispositivo ou ultrapassar a retenção de 90 dias.
 
 **Decisão pendente:** adicionar e-mail ao formulário aumenta o atrito de um formulário que
-hoje pede só nome, telefone, quantidade e data. Avaliar contra o plano de reimplementar a
-confirmação por outro canal.
+hoje pede só nome, telefone, quantidade e data. Avaliar a necessidade de recuperação fora do navegador. Coletar e-mail, por si só,
+não implementa envio ou recuperação; esse fluxo precisaria de escopo próprio.
