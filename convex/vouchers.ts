@@ -65,6 +65,10 @@ export const getByCode = query({
       elderly: v.number(),
       adultsPool: v.number(),
       elderlyPool: v.number(),
+      // The amount actually charged at purchase time. Low-sensitivity on its
+      // own (unlike name/phone), so it's safe to include here — see
+      // `getVoucherForImage` below for the fields that stay off this path.
+      priceCents: v.number(),
     }),
     v.null(),
   ),
@@ -88,6 +92,64 @@ export const getByCode = query({
       elderly: voucher.elderly,
       adultsPool: voucher.adultsPool,
       elderlyPool: voucher.elderlyPool,
+      priceCents: voucher.priceCents,
+    };
+  },
+});
+
+/**
+ * The full record needed to render the "Meus Vouchers" OG image, including
+ * name and phone. Internal only, deliberately not a public query — reached
+ * exclusively via the `/services/voucher-image-data` HTTP action
+ * (convex/http.ts) behind the same shared secret as the Mercado Pago
+ * webhook, so name/phone exposure never grows beyond what the OG route
+ * already rendered (see src/app/api/og/route.tsx).
+ */
+export const getVoucherForImage = internalQuery({
+  args: { code: v.string() },
+  returns: v.union(
+    v.object({
+      code: v.string(),
+      name: v.string(),
+      phone: v.string(),
+      adults: v.number(),
+      elderly: v.number(),
+      adultsPool: v.number(),
+      elderlyPool: v.number(),
+      priceCents: v.number(),
+      status: v.union(
+        v.literal("pending"),
+        v.literal("valid"),
+        v.literal("redeemed"),
+        v.literal("expired"),
+      ),
+      visitDate: v.string(),
+      expiresAt: v.number(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (!voucher || voucher.deletedAt !== undefined) {
+      return null;
+    }
+
+    return {
+      code: voucher.code,
+      name: voucher.name,
+      phone: voucher.phone,
+      adults: voucher.adults,
+      elderly: voucher.elderly,
+      adultsPool: voucher.adultsPool,
+      elderlyPool: voucher.elderlyPool,
+      priceCents: voucher.priceCents,
+      status: voucher.status,
+      visitDate: voucher.visitDate,
+      expiresAt: voucher.expiresAt,
     };
   },
 });

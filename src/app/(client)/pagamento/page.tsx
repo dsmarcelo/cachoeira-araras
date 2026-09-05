@@ -28,7 +28,7 @@ export default async function PaymentStatusPage({
 
   if (!code) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4">
+      <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 bg-bg-blue px-4 text-primary-100 md:min-h-[calc(100vh-6rem)]">
         <div className="text-center text-3xl">Link inválido</div>
         <Link href="/">
           <Button>Voltar para a página inicial</Button>

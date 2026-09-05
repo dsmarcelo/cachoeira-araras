@@ -118,6 +118,29 @@ consegue ler a lista salva no domínio inicial, ponto tratado no PR 4.
 
 ## PR 2 — `feat(voucher): exibe Meus Vouchers com imagens via Vercel OG`
 
+Status: implementado em 2026-09-05, sem abertura de pull request.
+
+Entrega: `/api/og` passa a resolver nome, telefone, quantidades, valor e status pelo
+código no servidor (nunca por query params), atrás de uma nova porta de serviço Convex
+(`/services/voucher-image-data`, mesmo segredo compartilhado do webhook) que não amplia o
+que já era público via `getByCode` — este ganhou apenas `priceCents`, decisão registrada
+no próprio código e no teste. "Meus Vouchers" ganhou resumo textual (data, quantidades,
+valor, status) e imagem com download por voucher pago. `/pagamento` agora recupera e salva
+a entrada local quando falta (ex.: retorno via cookie em outro fluxo), oferece navegação
+para "Meus Vouchers" quando existe entrada, e cai para exibir a imagem ali mesmo com aviso
+quando não consegue salvar. `image-test` deixou de aceitar dados mockados — só pré-visualiza
+por código real. `window.open()` em `voucher-created-card.tsx` já não existia (resolvido
+antes deste PR). O fundo/altura de `StatusScreen` e da tela de link inválido passaram a
+seguir o padrão do site.
+
+Validação: 107 testes passaram (2 novos casos cobrindo a porta de serviço e a extensão de
+`getByCode`), TypeScript sem erros e lint sem erros, com os mesmos 11 avisos preexistentes.
+No navegador (dev `elegant-badger-234`): a imagem renderiza dados reais e ignora
+nome/status/valor forjados via query string; código pendente e código inexistente devolvem
+404; após confirmar pagamento via `confirmPayment`, "Meus Vouchers" reflete o novo status
+sem reload e mostra a imagem com download; limpar o `localStorage` e revisitar `/pagamento`
+com o cookie ainda presente recupera e salva a entrada automaticamente.
+
 **Tamanho:** M · **Impacto:** alto · **Depende do PR 1.**
 
 Criar a tela "Meus Vouchers" em `/meus-vouchers`, acessível somente quando houver

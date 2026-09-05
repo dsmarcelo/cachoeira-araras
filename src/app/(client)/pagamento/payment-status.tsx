@@ -6,6 +6,7 @@ import { useQuery } from "convex/react";
 
 import { Button } from "@/components/ui/button";
 import { getCookieVoucher } from "@/app/lib";
+import { useSavedVouchers } from "@/app/_components/saved-vouchers-provider";
 import { api as convexApi } from "../../../../convex/_generated/api";
 
 interface PaymentStatusProps {
@@ -29,6 +30,9 @@ export default function PaymentStatus({
     code: string;
     initPoint: string;
   } | null>(initialCookieVoucher);
+  const { vouchers: savedVouchers, ready: savedReady, save } =
+    useSavedVouchers();
+  const [persistFailed, setPersistFailed] = useState(false);
 
   useEffect(() => {
     async function syncCookieVoucher() {
@@ -41,6 +45,24 @@ export default function PaymentStatus({
     }
     void syncCookieVoucher();
   }, []);
+
+  const isPaid = voucher?.status === "valid" || voucher?.status === "redeemed";
+  const hasLocalEntry = savedVouchers.some((entry) => entry.code === code);
+
+  useEffect(() => {
+    // A payment confirmed here may reach a browser that never saved this
+    // voucher locally (e.g. the checkout happened elsewhere and only the
+    // fallback cookie carried the code back). Recover it from the server so
+    // "Meus Vouchers" can offer it; if saving fails, fall back to showing
+    // the paid voucher's image right here instead.
+    if (!isPaid || !savedReady || hasLocalEntry || !voucher) return;
+    const ok = save({
+      code,
+      initPoint: cookieVoucher?.code === code ? cookieVoucher.initPoint : "",
+      createdAt: voucher.createdAt,
+    });
+    if (!ok) setPersistFailed(true);
+  }, [isPaid, savedReady, hasLocalEntry, voucher, code, cookieVoucher, save]);
 
   if (voucher === undefined) {
     return (
@@ -92,6 +114,26 @@ export default function PaymentStatus({
         <h2 className="text-center text-6xl font-bold text-primary-50">
           {voucher.code}
         </h2>
+        {savedReady && hasLocalEntry && (
+          <Button asChild>
+            <Link href="/meus-vouchers">Ver em Meus Vouchers</Link>
+          </Button>
+        )}
+        {savedReady && !hasLocalEntry && persistFailed && (
+          <div className="flex w-full max-w-md flex-col gap-3">
+            <p role="alert" className="text-orange-100">
+              Não foi possível salvar este voucher neste navegador. Anote o
+              código antes de sair — a imagem abaixo fica disponível apenas
+              nesta página.
+            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element -- server-generated, non-optimizable OG image */}
+            <img
+              src={`/api/og?code=${encodeURIComponent(voucher.code)}`}
+              alt={`Voucher ${voucher.code}`}
+              className="w-full rounded-lg"
+            />
+          </div>
+        )}
         <BackHomeButton />
       </StatusScreen>
     );
@@ -129,7 +171,7 @@ function StatusScreen({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen flex-col items-center justify-center gap-4 px-4 text-center">
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 bg-bg-blue px-4 py-8 text-center md:min-h-[calc(100vh-6rem)]">
       <div
         className={
           tone === "success"

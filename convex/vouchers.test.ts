@@ -54,6 +54,7 @@ test("returns status for a valid code with no session", async () => {
     elderly: 0,
     adultsPool: 2,
     elderlyPool: 0,
+    priceCents: 5000,
   });
 });
 
@@ -87,7 +88,6 @@ test("the response carries no buyer PII or internal identifiers", async () => {
   const result = await t.query(api.vouchers.getByCode, { code: "a1b2" });
   expect(result).not.toHaveProperty("name");
   expect(result).not.toHaveProperty("phone");
-  expect(result).not.toHaveProperty("priceCents");
   expect(result).not.toHaveProperty("preferenceId");
   expect(result).not.toHaveProperty("paymentId");
 });
