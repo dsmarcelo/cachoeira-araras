@@ -34,11 +34,12 @@ Vale registrar para não regredir:
 
 ## Ordem de execução
 
-Ordenado por esforço crescente. Os PRs 1–6 são todos XS e cabem num único dia.
+Ordenado por esforço crescente. Os PRs 2–6 são XS e cabem num único dia; o PR 1 foi
+revisado para S/M (ver detalhe abaixo).
 
 | # | PR | Tamanho | Impacto |
 | --- | --- | --- | --- |
-| 1 | Permitir nova compra após pagamento aprovado | XS | Alto |
+| 1 | Manter todos os vouchers do cliente acessíveis no navegador | S/M | Alto |
 | 2 | Tela de retorno do pagamento | XS | Médio |
 | 3 | Marcar items da preferência como serviço | XS | Médio |
 | 4 | Corrigir `WEBHOOK_URL` e base pública local | XS | Baixo |
@@ -56,9 +57,9 @@ Ordenado por esforço crescente. Os PRs 1–6 são todos XS e cabem num único d
 
 ---
 
-## PR 1 — `fix(voucher): permitir nova compra após pagamento aprovado`
+## PR 1 — `feat(voucher): manter todos os vouchers do cliente acessíveis no navegador`
 
-**Tamanho:** XS · **Impacto:** alto — é o bug mais grave da auditoria.
+**Tamanho:** S/M (revisado de XS) · **Impacto:** alto — é o bug mais grave da auditoria.
 
 O ramo `payment_success_url` de [voucher-created-card.tsx:52](../../src/app/_components/voucher-created-card.tsx:52)
 não renderiza o `DeleteVoucherCookieBtn`, que só existe no ramo pendente
@@ -67,11 +68,27 @@ dura 40 dias ([lib.ts](../../src/app/lib.ts) — `VOUCHER_COOKIE_MAX_AGE_MS`), o
 formulário fica permanentemente substituído pelo card "Visualizar voucher". Um cliente
 que compra hoje e volta na semana seguinte não tem como comprar de novo naquele navegador.
 
-**Correção:** expor a mesma ação de "comprar outro voucher" no estado aprovado, com o
-texto de confirmação apropriado (o voucher continua válido, só sai do navegador).
+**Correção (escopo ampliado a pedido do Marcelo):** em vez de só destravar a compra de um
+novo voucher, o navegador passa a guardar **todos** os vouchers já comprados nele, para que
+o cliente compre um novo e ainda consulte os antigos — com expiração de 90 dias a partir da
+criação de cada um.
 
-**Como verificar:** com um voucher `valid` no cookie, a home deve oferecer o caminho de
-volta ao formulário.
+- **Armazenamento:** lista completa em `localStorage` (chave `vouchers`, formato
+  `{ code, initPoint, createdAt }[]`). Puramente client-side, sem viajar em toda requisição
+  e sem risco prático de estourar limite de tamanho (diferente de acumular tudo em cookie).
+  Ao ler ou gravar a lista, descartar entradas com `createdAt` há mais de 90 dias.
+- **Cookie atual (`voucher` / `voucher_init_point`) permanece**, sem mudar de formato, só
+  como ponteiro do voucher mais recente — é o que [pagamento/page.tsx:23](../../src/app/(client)/pagamento/page.tsx:23)
+  lê no server component para resolver o código quando o retorno do Mercado Pago vem sem
+  `external_reference` na URL. Continua sendo escrito junto com a lista em toda nova compra
+  ([voucher-form.tsx:167](../../src/app/_components/voucher-form.tsx:167)).
+- **UI:** a home passa a mostrar uma lista "meus vouchers" (código + status ao vivo via
+  `getByCode`) com opção de iniciar uma nova compra independente do status de qualquer
+  voucher existente. `DeleteVoucherCookieBtn` passa a remover uma entrada específica da
+  lista, não "o" voucher único.
+
+**Como verificar:** comprar 2 vouchers no mesmo navegador deve manter os dois visíveis; um
+voucher com `createdAt` de mais de 90 dias atrás deve sumir da lista sozinho.
 
 ---
 
