@@ -61,6 +61,17 @@ O PR 2 absorve o antigo resumo da compra do PR 9 e passa a ter tamanho M.
 
 ## PR 1 — `feat(voucher): manter todos os vouchers do cliente acessíveis no navegador`
 
+Status: implementado em 2026-09-05, sem abertura de pull request.
+
+Entrega: histórico local com retenção de 90 dias, migração pela data original do
+servidor, compra independente do cookie e tela básica `/meus-vouchers` com consulta
+e remoção individual. O PR 2 amplia essa tela com imagens e resumo da compra.
+
+Validação: 101 testes passaram, TypeScript sem erros e lint sem erros, com 11 avisos
+preexistentes. No navegador foram verificados histórico com duas entradas, remoção
+individual, migração do cookie, limpeza do ponteiro correspondente, redirecionamento
+sem histórico e layout mobile. Convex atualizado apenas no dev `elegant-badger-234`.
+
 **Tamanho:** S/M (revisado de XS) · **Impacto:** alto — é o bug mais grave da auditoria.
 
 O ramo `payment_success_url` de [voucher-created-card.tsx:52](../../src/app/_components/voucher-created-card.tsx:52)

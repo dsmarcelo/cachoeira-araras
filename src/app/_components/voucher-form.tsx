@@ -1,5 +1,5 @@
 "use client";
-import { useAction, useQuery } from "convex/react";
+import { useAction, useConvex, useQuery } from "convex/react";
 import { api as convexApi } from "../../../convex/_generated/api";
 import React, { useEffect, useState } from "react";
 import type { z } from "zod";
@@ -14,9 +14,8 @@ import { cn, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import {
   addCookieVoucher,
-  deleteCookieVoucher,
-  getCookieVoucher,
 } from "../lib";
+import { useSavedVouchers } from "./saved-vouchers-provider";
 import VoucherCreatedCard from "./voucher-created-card";
 import { CalendarIcon, ChevronRight, Loader2 } from "lucide-react";
 import { format } from "date-fns";
@@ -36,6 +35,9 @@ export default function VoucherForm({
   testMode?: boolean;
 }) {
   const router = useRouter();
+  const convex = useConvex();
+  const { save, warning } = useSavedVouchers();
+  const [persistenceWarning, setPersistenceWarning] = useState("");
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [code, setCode] = useState("");
@@ -80,27 +82,7 @@ export default function VoucherForm({
       setReferrerURL(null);
     }
 
-    async function restoreCookieVoucher() {
-      const cookieVoucher = await getCookieVoucher();
-      if (!cookieVoucher) return;
-      setCode(cookieVoucher.code);
-      setInitPoint(cookieVoucher.initPoint);
-    }
-
-    void restoreCookieVoucher();
-    // Runs once on mount: the reactive Convex query above takes over from
-    // here for anything that used to require re-fetching on visibility change.
   }, []);
-
-  useEffect(() => {
-    // A voucher whose code no longer resolves (soft-deleted, or the cookie
-    // is stale) shouldn't keep a dead code around client-side.
-    if (code && voucherStatus === null) {
-      void deleteCookieVoucher();
-      setCode("");
-      setInitPoint("");
-    }
-  }, [code, voucherStatus]);
 
   type FormSchema = z.infer<typeof voucherFormSchema>;
   const [checkoutFailed, setCheckoutFailed] = useState(false);
@@ -152,6 +134,7 @@ export default function VoucherForm({
     try {
       setIsLoading(true);
       setCheckoutFailed(false);
+      setPersistenceWarning("");
       const checkout = await startCheckout({
         name: data.name,
         phone: data.phone,
@@ -164,8 +147,19 @@ export default function VoucherForm({
         referrerUrl: referrerURL,
       });
       setCode(checkout.code);
-      await addCookieVoucher(checkout.code, checkout.initPoint);
       setInitPoint(checkout.initPoint);
+      try {
+        const voucher = await convex.query(convexApi.vouchers.getByCode, { code: checkout.code });
+        if (!voucher) throw new Error("Voucher not found");
+        save({ code: checkout.code, initPoint: checkout.initPoint, createdAt: voucher.createdAt });
+      } catch {
+        setPersistenceWarning("Não foi possível salvar seu voucher neste navegador. Anote o código antes de sair.");
+      }
+      try {
+        await addCookieVoucher(checkout.code, checkout.initPoint);
+      } catch {
+        setPersistenceWarning("Não foi possível guardar o retorno do pagamento neste navegador. Anote o código do voucher antes de continuar.");
+      }
       setIsLoading(false);
     } catch (error) {
       setCheckoutFailed(true);
@@ -181,13 +175,13 @@ export default function VoucherForm({
     }
   }
 
-  if (code && (init_point || payment_sucess_url)) {
+  if (!isLoading && code && (init_point || payment_sucess_url)) {
     return (
       <VoucherCreatedCard
         code={code}
-        init_point={init_point}
         redirectToPayment={redirectToPayment}
-        setCode={setCode}
+        onNewPurchase={() => { setCode(""); setInitPoint(""); }}
+        warning={persistenceWarning || warning}
         payment_success_url={payment_sucess_url}
       />
     );
@@ -211,6 +205,7 @@ export default function VoucherForm({
   return (
     <div className="mx-auto w-full bg-dark-blue">
       <div className="border-none bg-dark-blue p-4 text-primary-50">
+        {warning && <p role="alert" className="mb-4 text-orange-100">{warning}</p>}
         <form
           onSubmit={handleSubmit(onSubmit)}
           className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-base [&_label]:leading-none"

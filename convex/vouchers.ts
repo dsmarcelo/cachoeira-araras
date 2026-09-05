@@ -52,6 +52,7 @@ export const getByCode = query({
   returns: v.union(
     v.object({
       code: v.string(),
+      createdAt: v.number(),
       status: v.union(
         v.literal("pending"),
         v.literal("valid"),
@@ -79,6 +80,7 @@ export const getByCode = query({
 
     return {
       code: voucher.code,
+      createdAt: voucher._creationTime,
       status: voucher.status,
       visitDate: voucher.visitDate,
       expiresAt: voucher.expiresAt,
