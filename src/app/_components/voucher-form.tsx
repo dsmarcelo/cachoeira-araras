@@ -112,9 +112,6 @@ export default function VoucherForm({
       name: testMode ? "--TESTE--" : "",
       phone: "",
       adults: 0,
-      elderly: 0,
-      adults_pool: 0,
-      elderly_pool: 0,
     },
   });
 
@@ -132,8 +129,9 @@ export default function VoucherForm({
   }
 
   async function onSubmit(data: FormSchema) {
-    // Guard against disabled feature flags
-    if (!enableVoucherBuy && (data.adults > 0 || data.elderly > 0)) {
+    // Guard against disabled feature flags. The public form only exposes the
+    // standard voucher quantity, so `adults` is the only count checked here.
+    if (!enableVoucherBuy && data.adults > 0) {
       return toast({
         title: "Indisponível",
         description: "Compra de voucher normal está desativada",

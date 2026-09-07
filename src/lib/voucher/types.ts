@@ -54,30 +54,6 @@ export const voucherFormSchema = z
       .gte(0, "Quantidade inválida")
       .lte(20, "No maximo 20 pessoas")
       .int(),
-    elderly: z.coerce
-      .number({
-        required_error: "Campo obrigatório",
-        invalid_type_error: "Deve ser um número",
-      })
-      .gte(0, "Quantidade inválida")
-      .lte(20, "No maximo 20 pessoas")
-      .int(),
-    adults_pool: z.coerce
-      .number({
-        required_error: "Campo obrigatório",
-        invalid_type_error: "Deve ser um número",
-      })
-      .gte(0, "Quantidade inválida")
-      .lte(20, "No maximo 20 pessoas")
-      .int(),
-    elderly_pool: z.coerce
-      .number({
-        required_error: "Campo obrigatório",
-        invalid_type_error: "Deve ser um número",
-      })
-      .gte(0, "Quantidade inválida")
-      .lte(20, "No maximo 20 pessoas")
-      .int(),
     intendedDate: z
       .date({ required_error: "Campo obrigatório" })
       .min(
