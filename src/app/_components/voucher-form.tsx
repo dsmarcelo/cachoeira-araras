@@ -112,12 +112,6 @@ export default function VoucherForm({
       name: testMode ? "--TESTE--" : "",
       phone: "",
       adults: 0,
-      // elderly/adults_pool/elderly_pool are required by the shared
-      // voucherFormSchema (still used by admin flows) but have no input in
-      // this public form, so they always default to 0.
-      elderly: 0,
-      adults_pool: 0,
-      elderly_pool: 0,
     },
   });
 
