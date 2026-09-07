@@ -52,6 +52,20 @@ export function endOfSaoPauloDayMs(dateKey: string): number {
   return startOfSaoPauloDayMs(dateKey) + 24 * 60 * 60 * 1000 - 1;
 }
 
+/** Adds `days` (can be negative) to a YYYY-MM-DD date key and returns the resulting key. */
+export function addDaysToDateKey(dateKey: string, days: number): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) {
+    throw new Error(`Invalid date key: ${dateKey}`);
+  }
+  const [, year, month, day] = match;
+  const utcDate = new Date(
+    Date.UTC(Number(year), Number(month) - 1, Number(day)),
+  );
+  utcDate.setUTCDate(utcDate.getUTCDate() + days);
+  return utcDate.toISOString().slice(0, 10);
+}
+
 export function isSameDay(date1: Date, date2: Date) {
   const d1 = getBrazilianDate(date1);
   const d2 = getBrazilianDate(date2);

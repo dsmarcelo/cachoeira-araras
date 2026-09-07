@@ -105,7 +105,7 @@ export default function InfoCard() {
           <div className="mt-3 font-light">
             Aqui o seu cooler é bem vindo! Pode entrar com bebida e comida.
             Apenas lata, garrafas de vidro não são permitidas, respeite a
-            natureza. Não é permitido a levar comida e bebeidas para a trilha da
+            natureza. Não é permitido a levar comida e bebidas para a trilha da
             cachoeira e para a cachoeira.
           </div>
         </div>

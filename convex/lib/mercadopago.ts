@@ -1,4 +1,5 @@
 import {
+  assertOriginOnlyUrl,
   buildMercadoPagoWebhookUrl,
   normalizePublicBaseUrl,
   resolveWebhookBaseForCheckout,
@@ -87,7 +88,7 @@ export type MercadoPagoRawPayment = {
  */
 function resolveSiteBaseForCheckout(): string {
   const primary = (process.env.URL ?? "").trim();
-  if (primary) return normalizePublicBaseUrl(primary);
+  if (primary) return assertOriginOnlyUrl(primary, "URL");
 
   const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL?.trim();
   if (vercelUrl) return normalizePublicBaseUrl(`https://${vercelUrl}`);

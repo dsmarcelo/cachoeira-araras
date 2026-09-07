@@ -5,7 +5,7 @@ import { env } from "@/env";
 export const voucherSchema = z.object({
   name: z
     .string()
-    .min(1, "Nome é obrigatorio")
+    .min(1, "Nome é obrigatório")
     .max(100, "Nome deve ser menor que 100 caracteres"),
   phone: z.string().trim(),
   adults: z.coerce
@@ -43,34 +43,10 @@ export const voucherFormSchema = z
   .object({
     name: z
       .string()
-      .min(1, "Nome é obrigatorio")
+      .min(1, "Nome é obrigatório")
       .max(40, "Nome deve ser menor que 40 caracteres"),
     phone: z.string().trim(),
     adults: z.coerce
-      .number({
-        required_error: "Campo obrigatório",
-        invalid_type_error: "Deve ser um número",
-      })
-      .gte(0, "Quantidade inválida")
-      .lte(20, "No maximo 20 pessoas")
-      .int(),
-    elderly: z.coerce
-      .number({
-        required_error: "Campo obrigatório",
-        invalid_type_error: "Deve ser um número",
-      })
-      .gte(0, "Quantidade inválida")
-      .lte(20, "No maximo 20 pessoas")
-      .int(),
-    adults_pool: z.coerce
-      .number({
-        required_error: "Campo obrigatório",
-        invalid_type_error: "Deve ser um número",
-      })
-      .gte(0, "Quantidade inválida")
-      .lte(20, "No maximo 20 pessoas")
-      .int(),
-    elderly_pool: z.coerce
       .number({
         required_error: "Campo obrigatório",
         invalid_type_error: "Deve ser um número",

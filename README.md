@@ -32,7 +32,7 @@ Crie um arquivo `.env` na raiz do projeto usando `.env.example` como base. O sch
 | Key | Uso |
 | --- | --- |
 | `DATABASE_URL` | Conexao somente com o PostgreSQL legado, mantida para a importacao ao Convex e o teste E2E de pagamentos; veja o [runbook de corte](./docs/operations/postgres-to-convex-cutover.md). |
-| `URL` | URL publica/base **unica** (`src/env.js`): app inteiro, **incluindo `back_urls` do Checkout Pro** (retorno apos pagamento) e links. Este valor vem sempre do `.env` (sem fallback automatico da Vercel). |
+| `URL` | Origem publica/base **unica** (`src/env.js`): app inteiro, **incluindo `back_urls` do Checkout Pro** (retorno apos pagamento) e links. Somente protocolo e dominio, sem path/query/hash — usada assim tambem como base do webhook quando `WEBHOOK_URL` nao e definida. Este valor vem sempre do `.env` (sem fallback automatico da Vercel). |
 | `MERCADOPAGO_TOKEN` | Access token do Mercado Pago usado para criar preferencias e consultar pagamentos. |
 | `CRON_SECRET` | Segredo usado no header `Authorization: Bearer <CRON_SECRET>` da rota `/api/cron`. |
 | `NEXT_PUBLIC_CONVEX_URL` | URL `.convex.cloud` do deployment remoto de desenvolvimento. |
@@ -48,7 +48,7 @@ Em qualquer deploy (incluindo Vercel), `URL` deve ser definida explicitamente no
 | Key | Uso |
 | --- | --- |
 | `WEBHOOK_SECRET` | Segredo usado para validar a assinatura do webhook do Mercado Pago. Configure em producao para nao usar o fallback local. |
-| `WEBHOOK_URL` | Opcional. URL publica alternativa para o webhook, sem o path final. Se ausente, o app usa `URL`. |
+| `WEBHOOK_URL` | Opcional. Origem publica alternativa para o webhook — **somente protocolo e dominio, sem path, query ou hash** (ex.: `https://exemplo.com`). Se ausente, o app usa `URL`. Um valor com path falha a criacao da preferencia com uma mensagem explicita, em vez de descartar o path silenciosamente. |
 
 As preferencias do Mercado Pago sao criadas com `/api/webhook?source_news=webhooks`, forçando Webhooks assinados. IPN legado (`topic`/`id`) nao e aceito pelo handler.
 

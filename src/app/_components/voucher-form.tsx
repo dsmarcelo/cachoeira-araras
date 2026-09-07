@@ -26,7 +26,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { getBrazilianDate } from "@/lib/utils/date";
+import { addDaysToDateKey, getSaoPauloDateKey } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
 
 export default function VoucherForm({
@@ -112,9 +112,6 @@ export default function VoucherForm({
       name: testMode ? "--TESTE--" : "",
       phone: "",
       adults: 0,
-      elderly: 0,
-      adults_pool: 0,
-      elderly_pool: 0,
     },
   });
 
@@ -132,8 +129,9 @@ export default function VoucherForm({
   }
 
   async function onSubmit(data: FormSchema) {
-    // Guard against disabled feature flags
-    if (!enableVoucherBuy && (data.adults > 0 || data.elderly > 0)) {
+    // Guard against disabled feature flags. The public form only exposes the
+    // standard voucher quantity, so `adults` is the only count checked here.
+    if (!enableVoucherBuy && data.adults > 0) {
       return toast({
         title: "Indisponível",
         description: "Compra de voucher normal está desativada",
@@ -366,21 +364,20 @@ export default function VoucherForm({
                         selected={field.value}
                         onSelect={field.onChange}
                         disabled={(date) => {
-                          const today = getBrazilianDate();
-                          const yesterday = getBrazilianDate(new Date(today));
-                          yesterday.setDate(today.getDate() - 1);
+                          const dateKey = getSaoPauloDateKey(date);
+                          const todayKey = getSaoPauloDateKey();
+                          const maxDateKey = addDaysToDateKey(
+                            todayKey,
+                            maxIntendedDays,
+                          );
 
-                          const maxDate = getBrazilianDate(new Date(today));
-                          maxDate.setDate(today.getDate() + maxIntendedDays);
-
-                          // Check if date is in the past or beyond max date
-                          if (date < yesterday || date > maxDate) {
+                          // Compare as YYYY-MM-DD strings so a visitor's local
+                          // timezone never shifts the day being checked.
+                          if (dateKey < todayKey || dateKey > maxDateKey) {
                             return true;
                           }
 
-                          // Check if date is in the disabled days list
-                          const dateStr = date.toISOString().slice(0, 10); // Format as YYYY-MM-DD
-                          return disabledDays.includes(dateStr);
+                          return disabledDays.includes(dateKey);
                         }}
                         initialFocus
                       />
