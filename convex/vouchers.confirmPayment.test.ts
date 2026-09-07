@@ -173,6 +173,131 @@ test("a payment for an unknown voucher code reports not_found", async () => {
   expect(result).toEqual({ outcome: "not_found" });
 });
 
+test.each(["refunded", "charged_back", "cancelled"])(
+  "a %s notification for an unredeemed valid voucher moves it to refunded and records the reason",
+  async (paymentStatus) => {
+    const t = convexTest(schema, modules);
+    await insertVoucher(t, { status: "valid", paymentId: "pay-1" });
+
+    const result = await t.mutation(internal.vouchers.confirmPayment, {
+      code: "a1b2",
+      paymentId: "pay-1",
+      paymentStatus,
+    });
+
+    expect(result).toMatchObject({ outcome: "reversed", becameValid: false });
+
+    const stored = await t.run((ctx) =>
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "a1b2"))
+        .unique(),
+    );
+    expect(stored?.status).toBe("refunded");
+    expect(stored?.reversal?.reason).toBe(paymentStatus);
+    expect(stored?.reversal?.notedAt).toEqual(expect.any(Number));
+  },
+);
+
+test.each(["refunded", "charged_back", "cancelled"])(
+  "a %s notification for an already-redeemed voucher never reverts the redemption but records an admin warning",
+  async (paymentStatus) => {
+    const t = convexTest(schema, modules);
+    await insertVoucher(t, { status: "redeemed", paymentId: "pay-1" });
+
+    const result = await t.mutation(internal.vouchers.confirmPayment, {
+      code: "a1b2",
+      paymentId: "pay-1",
+      paymentStatus,
+    });
+
+    expect(result).toMatchObject({ outcome: "redeemed", becameValid: false });
+
+    const stored = await t.run((ctx) =>
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "a1b2"))
+        .unique(),
+    );
+    expect(stored?.status).toBe("redeemed");
+    expect(stored?.reversal?.reason).toBe(paymentStatus);
+    expect(stored?.reversal?.notedAt).toEqual(expect.any(Number));
+  },
+);
+
+test("a repeated negative-terminal notification for an already-refunded voucher is idempotent", async () => {
+  const t = convexTest(schema, modules);
+  await insertVoucher(t, { status: "valid", paymentId: "pay-1" });
+
+  await t.mutation(internal.vouchers.confirmPayment, {
+    code: "a1b2",
+    paymentId: "pay-1",
+    paymentStatus: "refunded",
+  });
+  const firstStored = await t.run((ctx) =>
+    ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", "a1b2"))
+      .unique(),
+  );
+
+  const result = await t.mutation(internal.vouchers.confirmPayment, {
+    code: "a1b2",
+    paymentId: "pay-1",
+    paymentStatus: "charged_back",
+  });
+
+  expect(result).toMatchObject({
+    outcome: "already_processed",
+    becameValid: false,
+  });
+
+  const secondStored = await t.run((ctx) =>
+    ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", "a1b2"))
+      .unique(),
+  );
+  // The original reason and timestamp are never overwritten by a later
+  // delivery, whatever new reason it carries.
+  expect(secondStored?.status).toBe("refunded");
+  expect(secondStored?.reversal).toEqual(firstStored?.reversal);
+});
+
+test("a repeated negative-terminal notification for an already-flagged redeemed voucher does not overwrite the original warning", async () => {
+  const t = convexTest(schema, modules);
+  await insertVoucher(t, { status: "redeemed", paymentId: "pay-1" });
+
+  await t.mutation(internal.vouchers.confirmPayment, {
+    code: "a1b2",
+    paymentId: "pay-1",
+    paymentStatus: "refunded",
+  });
+  const firstStored = await t.run((ctx) =>
+    ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", "a1b2"))
+      .unique(),
+  );
+
+  const result = await t.mutation(internal.vouchers.confirmPayment, {
+    code: "a1b2",
+    paymentId: "pay-1",
+    paymentStatus: "charged_back",
+  });
+
+  expect(result).toMatchObject({ outcome: "redeemed", becameValid: false });
+
+  const secondStored = await t.run((ctx) =>
+    ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", "a1b2"))
+      .unique(),
+  );
+  expect(secondStored?.status).toBe("redeemed");
+  expect(secondStored?.reversal).toEqual(firstStored?.reversal);
+});
+
 test("confirmPayment has no public entry point a signed-in caller can reach", () => {
   // There is deliberately no `api.vouchers.confirmPayment` — only
   // `internal.vouchers.confirmPayment`, callable exclusively from other

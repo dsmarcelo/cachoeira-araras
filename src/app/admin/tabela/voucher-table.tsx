@@ -135,6 +135,7 @@ export function VoucherTable({
                 <SelectItem value="redeemed">Usados</SelectItem>
                 <SelectItem value="pending">Pendentes</SelectItem>
                 <SelectItem value="expired">Expirados</SelectItem>
+                <SelectItem value="refunded">Estornados</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
