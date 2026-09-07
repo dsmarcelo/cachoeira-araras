@@ -2,6 +2,7 @@
 import { expect, test } from "vitest";
 
 import { api } from "./_generated/api";
+import { generateVoucherCode } from "./lib/voucherCode";
 import { VOUCHER_LOOKUP_BURST_LIMIT } from "./lib/rateLimiter";
 import { createConvexTest } from "./test.setup";
 
@@ -162,4 +163,26 @@ test("the public lookup surface exposes neither buyer data nor a direct arbitrar
       lookupToken: crypto.randomUUID(),
     }),
   ).resolves.toBeNull();
+});
+
+test("a legacy four-character Voucher Code keeps resolving alongside new six-character codes", async () => {
+  const t = createConvexTest();
+  const newCode = generateVoucherCode();
+  expect(newCode).toHaveLength(6);
+
+  await insertVoucher(t, baseVoucher({ code: "a1b2" }));
+  await insertVoucher(t, baseVoucher({ code: newCode, phone: "11988888888" }));
+
+  const legacy = await t.mutation(api.vouchers.authorizeLookup, {
+    code: "a1b2",
+  });
+  const current = await t.mutation(api.vouchers.authorizeLookup, {
+    code: newCode,
+  });
+
+  expect(legacy).toMatchObject({ kind: "authorized", voucher: { code: "a1b2" } });
+  expect(current).toMatchObject({
+    kind: "authorized",
+    voucher: { code: newCode },
+  });
 });

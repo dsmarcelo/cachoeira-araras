@@ -119,7 +119,7 @@ Nao ha rollback automatico da preference. Isso evita simular atomicidade que o s
 
 ### Codigo curto
 
-O codigo do voucher continua com 4 caracteres por compatibilidade operacional.
+O codigo do voucher tem 6 caracteres, no alfabeto Crockford base32 (sem `i`, `l`, `o`, `u`). Codigos antigos de 4 caracteres continuam validos indefinidamente em todas as buscas.
 
 A geracao e o retry por colisao ficam server-side. O caller nao conhece o algoritmo.
 
