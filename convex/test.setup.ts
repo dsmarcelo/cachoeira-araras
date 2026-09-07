@@ -1,4 +1,9 @@
 /// <reference types="vite/client" />
+// The component's internal schema module has no published subpath export, so
+// it's imported by relative file path into node_modules for test-only
+// registration (mirrors the pattern convex-test itself expects — see
+// `rateLimiterModules` below, which globs the same source tree).
+import rateLimiterSchema from "../node_modules/@convex-dev/rate-limiter/src/component/schema";
 import { convexTest, type TestConvex } from "convex-test";
 
 import { components } from "./_generated/api";
@@ -7,10 +12,14 @@ import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 const betterAuthModules = import.meta.glob("./betterAuth/**/*.ts");
+const rateLimiterModules = import.meta.glob(
+  "../node_modules/@convex-dev/rate-limiter/src/component/**/*.ts",
+);
 
 export function createConvexTest() {
   const t = convexTest(schema, modules);
   t.registerComponent("betterAuth", betterAuthSchema, betterAuthModules);
+  t.registerComponent("rateLimiter", rateLimiterSchema, rateLimiterModules);
   return t;
 }
 

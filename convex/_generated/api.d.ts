@@ -15,6 +15,7 @@ import type * as http from "../http.js";
 import type * as import_ from "../import.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_mercadopago from "../lib/mercadopago.js";
+import type * as lib_rateLimiter from "../lib/rateLimiter.js";
 import type * as lib_serviceAuth from "../lib/serviceAuth.js";
 import type * as lib_settings from "../lib/settings.js";
 import type * as lib_voucherCode from "../lib/voucherCode.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   import: typeof import_;
   "lib/auth": typeof lib_auth;
   "lib/mercadopago": typeof lib_mercadopago;
+  "lib/rateLimiter": typeof lib_rateLimiter;
   "lib/serviceAuth": typeof lib_serviceAuth;
   "lib/settings": typeof lib_settings;
   "lib/voucherCode": typeof lib_voucherCode;
@@ -76,4 +78,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   betterAuth: import("../betterAuth/_generated/component.js").ComponentApi<"betterAuth">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
 };
