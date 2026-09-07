@@ -31,7 +31,7 @@ Crie um arquivo `.env` na raiz do projeto usando `.env.example` como base. O sch
 
 | Key | Uso |
 | --- | --- |
-| `DATABASE_URL` | Conexao do Prisma com o banco de dados. Em desenvolvimento pode usar `file:./db.sqlite`. |
+| `DATABASE_URL` | Conexao somente com o PostgreSQL legado, mantida para a importacao ao Convex e o teste E2E de pagamentos; veja o [runbook de corte](./docs/operations/postgres-to-convex-cutover.md). |
 | `URL` | URL publica/base **unica** (`src/env.js`): app inteiro, **incluindo `back_urls` do Checkout Pro** (retorno apos pagamento) e links. Este valor vem sempre do `.env` (sem fallback automatico da Vercel). |
 | `MERCADOPAGO_TOKEN` | Access token do Mercado Pago usado para criar preferencias e consultar pagamentos. |
 | `CRON_SECRET` | Segredo usado no header `Authorization: Bearer <CRON_SECRET>` da rota `/api/cron`. |

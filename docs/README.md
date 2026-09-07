@@ -7,11 +7,11 @@ Esta pasta reúne uma documentação prática para **uma pessoa desenvolvedora**
 1. [`01-product-overview.md`](./01-product-overview.md)  
    Visão geral do produto, público, fluxos principais e regras de negócio.
 2. [`02-architecture-and-stack.md`](./02-architecture-and-stack.md)  
-   Como o app é estruturado (Next.js App Router + tRPC + Prisma + Mercado Pago).
+   Arquitetura atual com Next.js, Convex e a ponte Prisma temporária.
 3. [`03-routes-and-pages.md`](./03-routes-and-pages.md)  
    Mapa das páginas públicas, admin e endpoints de API.
-4. [`04-data-model-and-settings.md`](./04-data-model-and-settings.md)  
-   Modelo de dados (Prisma), status do voucher e sistema de configurações dinâmicas.
+4. [`operations/postgres-to-convex-cutover.md`](./operations/postgres-to-convex-cutover.md)
+   Ensaio, corte de produção, validação e critérios para remover Prisma.
 5. [`05-maintenance-playbook.md`](./05-maintenance-playbook.md)  
    Guia de manutenção: tarefas comuns, checklists e pontos de atenção para mudanças futuras.
 6. [`06-optimization-implementation-plan.md`](./06-optimization-implementation-plan.md)  
