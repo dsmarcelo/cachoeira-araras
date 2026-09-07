@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import { ConvexError } from "convex/values";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { api } from "./_generated/api";
@@ -150,9 +151,21 @@ test("a phone that already holds a valid voucher is refused at checkout", async 
     });
   });
 
-  await expect(
-    t.action(api.vouchers.startCheckout, validArgs()),
-  ).rejects.toThrow(/já possui um voucher válido \(código abcd\)/);
+  const error = await t
+    .action(api.vouchers.startCheckout, validArgs())
+    .catch((e: unknown) => e);
+
+  // A ConvexError, not a plain Error: Convex only forwards a thrown error's
+  // message to the client via `.data` (a plain Error is sanitized away in
+  // production), so this pins the contract against a future regression back
+  // to `throw new Error(...)`.
+  expect(error).toBeInstanceOf(ConvexError);
+  // Deliberately omits the existing voucher's code: this check is keyed by
+  // phone number alone, so echoing the code back would let anyone enumerate
+  // a stranger's phone number into their voucher code.
+  expect((error as ConvexError<string>).data).toBe(
+    "Você já possui um voucher válido cadastrado com este telefone. Verifique o código enviado anteriormente antes de comprar outro.",
+  );
   expect(createCheckoutPreference).not.toHaveBeenCalled();
 });
 

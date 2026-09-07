@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatVoucherStatus } from '@/lib/voucher'
+import { getErrorMessage } from '@/lib/utils'
 import { api } from '../../../convex/_generated/api'
 
 /**
@@ -47,7 +48,7 @@ export default function ValidateVoucher() {
       await redeemByCode({ code: lookupCode });
       setMessage('Voucher usado com sucesso');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Erro ao usar voucher');
+      setMessage(getErrorMessage(error, 'Erro ao usar voucher'));
     }
   }
 

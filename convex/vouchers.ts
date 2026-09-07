@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import {
   endOfSaoPauloDayMs,
@@ -335,8 +335,13 @@ export const startCheckout = action({
       { phone: args.phone },
     );
     if (activeVoucher) {
-      throw new Error(
-        `Você já possui um voucher válido (código ${activeVoucher.code}) cadastrado com este telefone. Anote o código antes de comprar outro e certifique-se de que realmente precisa adquirir um novo voucher.`,
+      // Deliberately omits the voucher code: this check is keyed by
+      // phone number alone and runs before the rate limiter below, so
+      // echoing the code here would let anyone enumerate a stranger's
+      // phone number into their valid voucher code. The customer already
+      // has a rate-limited way to recover it (the lookup flow).
+      throw new ConvexError(
+        "Você já possui um voucher válido cadastrado com este telefone. Verifique o código enviado anteriormente antes de comprar outro.",
       );
     }
 
@@ -348,7 +353,7 @@ export const startCheckout = action({
       { phone: args.phone, now: Date.now() },
     );
     if (pendingCount >= MAX_PENDING_VOUCHERS_PER_PHONE) {
-      throw new Error(
+      throw new ConvexError(
         "Você já tem uma compra pendente com este telefone. Finalize o pagamento pendente (verifique o código enviado anteriormente) antes de iniciar uma nova compra.",
       );
     }
@@ -357,14 +362,14 @@ export const startCheckout = action({
       key: args.phone,
     });
     if (!phoneRateLimit.ok) {
-      throw new Error(
+      throw new ConvexError(
         `Muitas tentativas de compra com este telefone. Aguarde ${formatRetryAfter(phoneRateLimit.retryAfter ?? 0)} e tente novamente.`,
       );
     }
 
     const globalRateLimit = await rateLimiter.limit(ctx, "checkoutGlobal");
     if (!globalRateLimit.ok) {
-      throw new Error(
+      throw new ConvexError(
         `O sistema está processando muitas compras no momento. Aguarde ${formatRetryAfter(globalRateLimit.retryAfter ?? 0)} e tente novamente.`,
       );
     }
@@ -424,7 +429,7 @@ export const startCheckout = action({
       // rather than surfacing an error to the loser.
     }
 
-    throw new Error(
+    throw new ConvexError(
       "Não foi possível gerar um código de voucher disponível.",
     );
   },
@@ -907,20 +912,20 @@ export const redeemByCode = mutation({
       .unique();
 
     if (!voucher || voucher.deletedAt !== undefined) {
-      throw new Error("Voucher não encontrado.");
+      throw new ConvexError("Voucher não encontrado.");
     }
 
     if (voucher.status === "redeemed") {
-      throw new Error("Este voucher já foi utilizado.");
+      throw new ConvexError("Este voucher já foi utilizado.");
     }
 
     if (voucher.status !== "valid") {
-      throw new Error("Este voucher não está disponível para uso.");
+      throw new ConvexError("Este voucher não está disponível para uso.");
     }
 
     const today = getSaoPauloDateKey();
     if (voucher.visitDate !== today) {
-      throw new Error("Este voucher não é válido para o dia de hoje.");
+      throw new ConvexError("Este voucher não é válido para o dia de hoje.");
     }
 
     await ctx.db.patch(voucher._id, { status: "redeemed" });
@@ -953,7 +958,7 @@ export const reactivate = mutation({
       .unique();
 
     if (!voucher || voucher.deletedAt !== undefined) {
-      throw new Error("Voucher não encontrado.");
+      throw new ConvexError("Voucher não encontrado.");
     }
 
     const expiresAt = endOfSaoPauloDayMs(getSaoPauloDateKey());
@@ -1038,7 +1043,7 @@ async function requireVoucherByCode(
     .unique();
 
   if (!voucher) {
-    throw new Error("Voucher não encontrado.");
+    throw new ConvexError("Voucher não encontrado.");
   }
   return voucher;
 }

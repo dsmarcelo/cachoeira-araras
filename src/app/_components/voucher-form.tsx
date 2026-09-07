@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { createVoucherFormSchema } from "@/lib/voucher/types";
-import { cn, formatPhone } from "@/lib/utils";
+import { cn, formatPhone, getErrorMessage } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import {
   addCookieVoucher,
@@ -222,10 +222,10 @@ export default function VoucherForm({
       setIsLoading(false);
       return toast({
         title: "Erro",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Erro ao criar voucher. Tente novamente.",
+        description: getErrorMessage(
+          error,
+          "Erro ao criar voucher. Tente novamente.",
+        ),
       });
     }
   }

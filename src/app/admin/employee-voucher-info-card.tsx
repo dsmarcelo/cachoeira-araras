@@ -16,7 +16,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { formatQuantity, formatVoucherStatus } from "@/lib/voucher";
-import { formatPhone } from "@/lib/utils";
+import { formatPhone, getErrorMessage } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { api } from "../../../convex/_generated/api";
 
@@ -50,7 +50,7 @@ export default function EmployeeVoucherInfoCard({
         onClose();
       } catch (error) {
         toast({
-          title: error instanceof Error ? error.message : "Erro ao usar voucher",
+          title: getErrorMessage(error, "Erro ao usar voucher"),
           variant: "destructive",
         });
       }
@@ -65,7 +65,7 @@ export default function EmployeeVoucherInfoCard({
         onClose();
       } catch (error) {
         toast({
-          title: error instanceof Error ? error.message : "Erro ao ativar voucher",
+          title: getErrorMessage(error, "Erro ao ativar voucher"),
           variant: "destructive",
         });
       }

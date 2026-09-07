@@ -4,7 +4,7 @@ import { useMutation } from "convex/react"
 import type { FunctionReturnType } from "convex/server"
 import Link from "next/link"
 
-import { formatDateWeekDay, formateDate, formatPhone, formatReferrer, truncateName } from "@/lib/utils"
+import { formatDateWeekDay, formateDate, formatPhone, formatReferrer, getErrorMessage, truncateName } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -64,7 +64,7 @@ export function GateVoucherInfoCard({ data, onClose, open }: props) {
       onClose()
     } catch (error) {
       toast({
-        title: error instanceof Error ? error.message : "Erro ao usar voucher",
+        title: getErrorMessage(error, "Erro ao usar voucher"),
         variant: "destructive",
       })
     }
@@ -76,7 +76,7 @@ export function GateVoucherInfoCard({ data, onClose, open }: props) {
       onClose()
     } catch (error) {
       toast({
-        title: error instanceof Error ? error.message : "Erro ao ativar voucher",
+        title: getErrorMessage(error, "Erro ao ativar voucher"),
         variant: "destructive",
       })
     }

@@ -4,7 +4,7 @@ import { useMutation } from "convex/react"
 import type { FunctionReturnType } from "convex/server"
 import Link from "next/link"
 
-import { formatDateWeekDay, formatPhone, formatReferrer, truncateName } from "@/lib/utils"
+import { formatDateWeekDay, formatPhone, formatReferrer, getErrorMessage, truncateName } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -85,7 +85,7 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
       toast({ title: "Status atualizado com sucesso" })
     } catch (error) {
       toast({
-        title: error instanceof Error ? error.message : "Erro ao atualizar status",
+        title: getErrorMessage(error, "Erro ao atualizar status"),
         variant: "destructive",
       })
     }
@@ -98,7 +98,7 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
       onClose()
     } catch (error) {
       toast({
-        title: error instanceof Error ? error.message : "Erro ao excluir voucher",
+        title: getErrorMessage(error, "Erro ao excluir voucher"),
         variant: "destructive",
       })
     }
@@ -111,7 +111,7 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
       onClose()
     } catch (error) {
       toast({
-        title: error instanceof Error ? error.message : "Erro ao restaurar voucher",
+        title: getErrorMessage(error, "Erro ao restaurar voucher"),
         variant: "destructive",
       })
     }
