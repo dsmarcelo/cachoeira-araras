@@ -1,20 +1,44 @@
 import { ConvexError, v } from "convex/values";
 
 import { components } from "./_generated/api";
-import { internalAction } from "./_generated/server";
-import { createAuth } from "./auth";
+import { env, internalAction } from "./_generated/server";
+import { authCredentialLimits, createAuth } from "./auth";
+
+function getAdminCredentials() {
+  const username = env.ADMIN_USERNAME?.trim();
+  const password = env.ADMIN_PASSWORD;
+
+  if (
+    !username ||
+    username.length < authCredentialLimits.username.minLength ||
+    username.length > authCredentialLimits.username.maxLength
+  ) {
+    throw new ConvexError(
+      `ADMIN_USERNAME must contain between ${authCredentialLimits.username.minLength} and ${authCredentialLimits.username.maxLength} characters`,
+    );
+  }
+
+  if (
+    !password ||
+    password.length < authCredentialLimits.password.minLength ||
+    password.length > authCredentialLimits.password.maxLength
+  ) {
+    throw new ConvexError(
+      `ADMIN_PASSWORD must contain between ${authCredentialLimits.password.minLength} and ${authCredentialLimits.password.maxLength} characters`,
+    );
+  }
+
+  return { username, password };
+}
 
 /**
- * Creates the first administrator from the Convex CLI. This stays internal so
- * the public app can never turn an anonymous request into an admin account.
+ * Creates the first administrator using the selected Convex deployment's
+ * environment. This stays internal so anonymous requests cannot create admins.
  */
 export const createFirstAdmin = internalAction({
-  args: {
-    username: v.string(),
-    password: v.string(),
-  },
+  args: {},
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx) => {
     const users: unknown = await ctx.runQuery(
       components.betterAuth.adapter.findMany,
       {
@@ -36,15 +60,17 @@ export const createFirstAdmin = internalAction({
       throw new ConvexError("The first user already exists");
     }
 
+    const { username, password } = getAdminCredentials();
+
     await createAuth(ctx).api.createUser({
       body: {
         email: `user-${crypto.randomUUID()}@internal.invalid`,
-        name: args.username,
-        password: args.password,
+        name: username,
+        password,
         role: "admin",
         data: {
-          username: args.username,
-          displayUsername: args.username,
+          username,
+          displayUsername: username,
         },
       },
     });

@@ -113,21 +113,26 @@ Para realizar testes manuais de compra no Checkout do Mercado Pago em ambiente s
 
 O acesso em `/admin` usa Better Auth com usuario e senha. Os dados e sessoes ficam no deployment remoto do Convex, inclusive durante o desenvolvimento local.
 
-Configure o deployment Convex selecionado uma vez:
+Configure o deployment Convex selecionado uma vez. Os dois comandos de admin solicitam o valor interativamente para nao grava-lo no historico do shell:
 
 ```bash
 pnpm exec convex env set SITE_URL http://localhost:3000
+pnpm exec convex env set AUTH_TRUSTED_ORIGINS "http://localhost:3000"
 pnpm exec convex env set BETTER_AUTH_SECRET "<segredo-aleatorio-de-32-bytes>"
+pnpm exec convex env set ADMIN_USERNAME
+pnpm exec convex env set ADMIN_PASSWORD
 pnpm exec convex env set MERCADOPAGO_TOKEN "<access-token-do-mercadopago>"
 pnpm exec convex env set MERCADOPAGO_WEBHOOK_SERVICE_SECRET "<segredo-de-servico-webhook>"
 pnpm exec convex env set URL "https://seu-dominio-ou-tunel"
 pnpm exec convex dev --once
 ```
 
-Crie o primeiro admin pela funcao interna. O comando recusa a operacao quando ja existe qualquer usuario:
+Esses valores pertencem ao deployment Convex, nao ao `.env`/`.env.local` do Next.js. `SITE_URL` e a origem principal e `AUTH_TRUSTED_ORIGINS` aceita origens adicionais separadas por virgula, como `http://localhost:3000` para desenvolvimento local. Sem flag, os comandos usam o deployment de desenvolvimento selecionado. Configure outros deployments separadamente com `--prod`, `--deployment local` ou `--deployment <nome>`.
+
+Crie o primeiro admin pela funcao interna. Ela le `ADMIN_USERNAME` e `ADMIN_PASSWORD` do deployment e recusa a operacao quando ja existe qualquer usuario:
 
 ```bash
-pnpm exec convex run authAdmin:createFirstAdmin '{"username":"admin","password":"uma-senha-longa"}'
+pnpm exec convex run authAdmin:createFirstAdmin
 ```
 
-Depois disso, o admin gerencia usuarios em `/admin/dashboard/usuarios`. Cada usuario altera o proprio acesso em `/admin/conta`.
+As variaveis servem somente para esse cadastro inicial. Depois disso, o admin gerencia usuarios em `/admin/dashboard/usuarios` e altera o proprio acesso em `/admin/conta`.
