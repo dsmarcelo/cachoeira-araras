@@ -6,8 +6,10 @@ import { internalMutation } from "./_generated/server";
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Kept well under Convex's per-mutation read/write limits even with all
-// three passes below hitting their cap in the same run.
-const BATCH_SIZE = 200;
+// three passes below hitting their cap in the same run. Exported so
+// convex/maintenance.test.ts can assert on multi-batch behavior without
+// duplicating this number.
+export const BATCH_SIZE = 200;
 
 /**
  * Once a day: a voucher past its Expiry becomes `expired` (a `redeemed`

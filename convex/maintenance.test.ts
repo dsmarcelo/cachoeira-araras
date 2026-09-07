@@ -4,6 +4,7 @@ import type { SchemaDefinition } from "convex/server";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { internal } from "./_generated/api";
+import { BATCH_SIZE } from "./maintenance";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -79,9 +80,6 @@ async function runMaintenanceToCompletionAt(t: ConvexTest, atMs: number) {
     vi.useRealTimers();
   }
 }
-
-// Must match BATCH_SIZE in convex/maintenance.ts.
-const BATCH_SIZE = 200;
 
 async function getByCode(t: ConvexTest, code: string) {
   return t.run(async (ctx) =>
