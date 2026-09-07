@@ -1,6 +1,5 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { type VoucherSchema } from "./voucher/types";
 import React from "react";
 
 export function cn(...inputs: ClassValue[]) {
@@ -50,15 +49,6 @@ export function formatPhone(input: string): string {
   cleanNumber = cleanNumber.replace(/(\d)(\d{4})$/, "$1-$2");
 
   return cleanNumber;
-}
-
-export function formatWhatsAppMessage(voucher: VoucherSchema): string {
-  const phoneNumber = "556299251040";
-  const message = `Ola, meu nome é ${voucher.name} e comprei um voucher para ${voucher.adults} pessoa(s) com mais de 8 anos e ${voucher.elderly} pessoa(s) com mais de 60 anos ou especiais.
-
- Código: ${voucher.code}`;
-  const urlEncodedMessage = encodeURIComponent(message);
-  return `https://wa.me/${phoneNumber}?text=${urlEncodedMessage}`;
 }
 
 export function formatPaymentUrl(

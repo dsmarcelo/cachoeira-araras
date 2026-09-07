@@ -60,8 +60,6 @@ export const env = createEnv({
     FACEBOOK_PIXEL_ID: z.string().optional(),
     GOOGLE_ANALYTICS_API_SECRET: z.string().optional(),
     GOOGLE_ANALYTICS_MEASUREMENT_ID: z.string().optional(),
-    TWILIO_ACCOUNT_SID: z.string().optional(),
-    TWILIO_AUTH_TOKEN: z.string().optional(),
     SENTRY_DSN: z.string().url().optional(),
     SENTRY_ENVIRONMENT: z.string().optional(),
     SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).optional(),
@@ -135,8 +133,6 @@ export const env = createEnv({
     GOOGLE_ANALYTICS_API_SECRET: process.env.GOOGLE_ANALYTICS_API_SECRET,
     GOOGLE_ANALYTICS_MEASUREMENT_ID:
       process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID,
-    TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
-    TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
     SENTRY_DSN: process.env.SENTRY_DSN,
     SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT,
     SENTRY_TRACES_SAMPLE_RATE: process.env.SENTRY_TRACES_SAMPLE_RATE,
