@@ -139,6 +139,18 @@ export default function PaymentStatus({
     );
   }
 
+  if (voucher.status === "refunded") {
+    return (
+      <StatusScreen title="Pagamento estornado">
+        <p className="text-primary-100">
+          O pagamento deste voucher foi estornado, cancelado ou contestado.
+          Entre em contato para mais informações.
+        </p>
+        <BackHomeButton />
+      </StatusScreen>
+    );
+  }
+
   // status === "expired"
   return (
     <StatusScreen title="Voucher expirado">

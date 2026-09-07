@@ -18,7 +18,7 @@ type VoucherPaymentWebhookResult =
       shouldSendConversionEvents: false;
     }
   | {
-      outcome: "already_processed" | "redeemed" | "updated";
+      outcome: "already_processed" | "redeemed" | "updated" | "reversed";
       shouldSendConversionEvents: boolean;
     };
 
@@ -61,7 +61,8 @@ export type MercadoPagoPaymentWebhookOutcome =
   | "voucher_not_found"
   | "already_processed"
   | "redeemed"
-  | "updated";
+  | "updated"
+  | "reversed";
 
 export type MercadoPagoPaymentWebhookResponse = {
   success: boolean;

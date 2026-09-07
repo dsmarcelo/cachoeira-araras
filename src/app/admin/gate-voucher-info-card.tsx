@@ -103,6 +103,11 @@ export function GateVoucherInfoCard({ data, onClose, open }: props) {
             </Link>
             <p>{formatQuantity({ adults: data.adults, elderly: data.elderly })}</p>
             <h4>{formatVoucherStatus(data.status)}</h4>
+            {data.reversal && (
+              <p role="alert" className="text-red-500 font-semibold">
+                Atenção: pagamento estornado após o resgate ({formateDate(new Date(data.reversal.notedAt).toISOString())}).
+              </p>
+            )}
             {<p>Gerado em: {formateDate(new Date(data.createdAt).toISOString())}</p>}
             {data.referrer && `Origem: ${formatReferrer(data.referrer.source)}`}
             <div className="flex flex-wrap gap-x-1">

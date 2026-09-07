@@ -16,6 +16,7 @@ const statuses = {
   valid: "Pagamento aprovado",
   redeemed: "Resgatado",
   expired: "Expirado",
+  refunded: "Pagamento estornado",
 };
 
 /** "2026-09-10" -> "10/09/2026". Formats the date-key string directly instead

@@ -63,6 +63,7 @@ export const getByCode = query({
         v.literal("valid"),
         v.literal("redeemed"),
         v.literal("expired"),
+        v.literal("refunded"),
       ),
       visitDate: v.string(),
       expiresAt: v.number(),
@@ -127,6 +128,7 @@ export const getVoucherForImage = internalQuery({
         v.literal("valid"),
         v.literal("redeemed"),
         v.literal("expired"),
+        v.literal("refunded"),
       ),
       visitDate: v.string(),
       expiresAt: v.number(),
@@ -171,6 +173,7 @@ export const voucherStatusValidator = v.union(
   v.literal("valid"),
   v.literal("redeemed"),
   v.literal("expired"),
+  v.literal("refunded"),
 );
 
 function buildReferrer(
@@ -515,6 +518,18 @@ export const insertPendingVoucher = internalMutation({
 });
 
 /**
+ * Mercado Pago statuses that mean the payment behind a Voucher was reversed
+ * after the fact: a refund, a chargeback, or a cancellation. Distinct from
+ * "not approved yet" (`in_process`, `rejected`, ...), which the fallthrough
+ * below already handles without touching a `valid`/`redeemed` Voucher.
+ */
+const negativeTerminalPaymentStatuses = new Set([
+  "refunded",
+  "charged_back",
+  "cancelled",
+]);
+
+/**
  * Confirms a Mercado Pago payment against the voucher it paid for. Internal
  * only — the sole caller is the `/webhooks/mercadopago/confirmPayment` HTTP
  * action (convex/http.ts), reached from the Mercado Pago webhook route (a
@@ -523,10 +538,17 @@ export const insertPendingVoucher = internalMutation({
  * public `mutation` wrapping this: a signed-in admin session has no path to
  * it at all.
  *
- * Idempotent: a repeated delivery for a voucher already `valid` or
- * `redeemed` changes nothing and reports `becameValid: false`, so the caller
- * fires no second conversion event. A `redeemed` voucher is never reverted,
- * regardless of `paymentStatus`.
+ * Idempotent: a repeated delivery for a voucher already `valid`, `redeemed`,
+ * or `refunded` changes nothing beyond what the first delivery already did,
+ * and reports `becameValid: false`, so the caller fires no second conversion
+ * event.
+ *
+ * A negative-terminal notification (`refunded`, `charged_back`, `cancelled`)
+ * for a Voucher that is already `valid` moves it to `refunded` — a dead end,
+ * never redeemable and never reverted back to `valid`. The same
+ * notification for a Voucher that is already `redeemed` never reverts the
+ * redemption (the entry already happened); instead it records a `reversal`
+ * warning for staff, once, the first time it's seen.
  */
 export const confirmPayment = internalMutation({
   args: {
@@ -540,6 +562,7 @@ export const confirmPayment = internalMutation({
         v.literal("redeemed"),
         v.literal("already_processed"),
         v.literal("updated"),
+        v.literal("reversed"),
       ),
       becameValid: v.boolean(),
       isTest: v.boolean(),
@@ -556,7 +579,28 @@ export const confirmPayment = internalMutation({
       return { outcome: "not_found" as const };
     }
 
+    // The raw Mercado Pago status, narrowed to a non-null string only when
+    // it's one of the negative-terminal reasons this function reacts to.
+    const reversalReason: string | null =
+      args.paymentStatus !== null &&
+      negativeTerminalPaymentStatuses.has(args.paymentStatus)
+        ? args.paymentStatus
+        : null;
+
     if (voucher.status === "redeemed") {
+      // The entry already happened and is never undone. Record the reversal
+      // as a staff-visible warning, but only the first time — a repeated
+      // notification (or one delivered after another already landed) must
+      // not overwrite the original reason or timestamp.
+      if (reversalReason !== null && voucher.reversal === undefined) {
+        const reversal = { reason: reversalReason, notedAt: Date.now() };
+        await ctx.db.patch(voucher._id, { reversal });
+        return {
+          outcome: "redeemed" as const,
+          becameValid: false,
+          isTest: voucher.isTest,
+        };
+      }
       return {
         outcome: "redeemed" as const,
         becameValid: false,
@@ -564,7 +608,26 @@ export const confirmPayment = internalMutation({
       };
     }
 
+    if (voucher.status === "refunded") {
+      // Already moved out of `valid`; a repeated or later negative-terminal
+      // delivery changes nothing further.
+      return {
+        outcome: "already_processed" as const,
+        becameValid: false,
+        isTest: voucher.isTest,
+      };
+    }
+
     if (voucher.status === "valid") {
+      if (reversalReason !== null) {
+        const reversal = { reason: reversalReason, notedAt: Date.now() };
+        await ctx.db.patch(voucher._id, { status: "refunded", reversal });
+        return {
+          outcome: "reversed" as const,
+          becameValid: false,
+          isTest: voucher.isTest,
+        };
+      }
       return {
         outcome: "already_processed" as const,
         becameValid: false,
@@ -605,6 +668,7 @@ const gateVoucherValidator = v.object({
     v.literal("valid"),
     v.literal("redeemed"),
     v.literal("expired"),
+    v.literal("refunded"),
   ),
   adults: v.number(),
   elderly: v.number(),
@@ -682,6 +746,7 @@ const gateVoucherAdminValidator = v.object({
     v.literal("valid"),
     v.literal("redeemed"),
     v.literal("expired"),
+    v.literal("refunded"),
   ),
   adults: v.number(),
   elderly: v.number(),
@@ -693,6 +758,12 @@ const gateVoucherAdminValidator = v.object({
   paymentId: v.optional(v.string()),
   preferenceId: v.string(),
   referrer: v.optional(referrerValidator),
+  // The staff-visible warning set when a payment is reversed after the
+  // Voucher was already redeemed (see `confirmPayment`). Undefined for
+  // every Voucher this never happened to.
+  reversal: v.optional(
+    v.object({ reason: v.string(), notedAt: v.number() }),
+  ),
 });
 
 function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
@@ -701,6 +772,7 @@ function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
     paymentId: voucher.paymentId,
     preferenceId: voucher.preferenceId,
     referrer: voucher.referrer,
+    reversal: voucher.reversal,
   };
 }
 

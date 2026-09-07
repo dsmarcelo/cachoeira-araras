@@ -35,6 +35,7 @@ const statusOptions = [
   { value: "valid", label: "Válido" },
   { value: "redeemed", label: "Resgatado" },
   { value: "expired", label: "Expirado" },
+  { value: "refunded", label: "Estornado" },
 ] as const
 
 interface props {
