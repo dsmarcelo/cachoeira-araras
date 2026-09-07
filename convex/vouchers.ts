@@ -18,6 +18,11 @@ import {
 } from "./_generated/server";
 import { getRole, requireRole } from "./lib/auth";
 import { createCheckoutPreference } from "./lib/mercadopago";
+import {
+  formatRetryAfter,
+  MAX_PENDING_VOUCHERS_PER_PHONE,
+  rateLimiter,
+} from "./lib/rateLimiter";
 import type { SettingValueMap } from "./lib/settings";
 import {
   classifyReferrer,
@@ -52,11 +57,13 @@ export const getByCode = query({
   returns: v.union(
     v.object({
       code: v.string(),
+      createdAt: v.number(),
       status: v.union(
         v.literal("pending"),
         v.literal("valid"),
         v.literal("redeemed"),
         v.literal("expired"),
+        v.literal("refunded"),
       ),
       visitDate: v.string(),
       expiresAt: v.number(),
@@ -64,6 +71,10 @@ export const getByCode = query({
       elderly: v.number(),
       adultsPool: v.number(),
       elderlyPool: v.number(),
+      // The amount actually charged at purchase time. Low-sensitivity on its
+      // own (unlike name/phone), so it's safe to include here — see
+      // `getVoucherForImage` below for the fields that stay off this path.
+      priceCents: v.number(),
     }),
     v.null(),
   ),
@@ -79,6 +90,7 @@ export const getByCode = query({
 
     return {
       code: voucher.code,
+      createdAt: voucher._creationTime,
       status: voucher.status,
       visitDate: voucher.visitDate,
       expiresAt: voucher.expiresAt,
@@ -86,6 +98,65 @@ export const getByCode = query({
       elderly: voucher.elderly,
       adultsPool: voucher.adultsPool,
       elderlyPool: voucher.elderlyPool,
+      priceCents: voucher.priceCents,
+    };
+  },
+});
+
+/**
+ * The full record needed to render the "Meus Vouchers" OG image, including
+ * name and phone. Internal only, deliberately not a public query — reached
+ * exclusively via the `/services/voucher-image-data` HTTP action
+ * (convex/http.ts) behind the same shared secret as the Mercado Pago
+ * webhook, so name/phone exposure never grows beyond what the OG route
+ * already rendered (see src/app/api/og/route.tsx).
+ */
+export const getVoucherForImage = internalQuery({
+  args: { code: v.string() },
+  returns: v.union(
+    v.object({
+      code: v.string(),
+      name: v.string(),
+      phone: v.string(),
+      adults: v.number(),
+      elderly: v.number(),
+      adultsPool: v.number(),
+      elderlyPool: v.number(),
+      priceCents: v.number(),
+      status: v.union(
+        v.literal("pending"),
+        v.literal("valid"),
+        v.literal("redeemed"),
+        v.literal("expired"),
+        v.literal("refunded"),
+      ),
+      visitDate: v.string(),
+      expiresAt: v.number(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (!voucher || voucher.deletedAt !== undefined) {
+      return null;
+    }
+
+    return {
+      code: voucher.code,
+      name: voucher.name,
+      phone: voucher.phone,
+      adults: voucher.adults,
+      elderly: voucher.elderly,
+      adultsPool: voucher.adultsPool,
+      elderlyPool: voucher.elderlyPool,
+      priceCents: voucher.priceCents,
+      status: voucher.status,
+      visitDate: voucher.visitDate,
+      expiresAt: voucher.expiresAt,
     };
   },
 });
@@ -102,6 +173,7 @@ export const voucherStatusValidator = v.union(
   v.literal("valid"),
   v.literal("redeemed"),
   v.literal("expired"),
+  v.literal("refunded"),
 );
 
 function buildReferrer(
@@ -173,6 +245,35 @@ export const startCheckout = action({
     if (activeVoucher) {
       throw new Error(
         `Você já possui um voucher válido (código ${activeVoucher.code}) cadastrado com este telefone. Anote o código antes de comprar outro e certifique-se de que realmente precisa adquirir um novo voucher.`,
+      );
+    }
+
+    // Ceiling on unexpired Pending Vouchers per phone, checked before any
+    // rate-limit token is spent: an abandoned pending checkout should send
+    // the customer back to finish that one, not toward "wait and retry".
+    const pendingCount = await ctx.runQuery(
+      internal.vouchers.countUnexpiredPendingByPhone,
+      { phone: args.phone, now: Date.now() },
+    );
+    if (pendingCount >= MAX_PENDING_VOUCHERS_PER_PHONE) {
+      throw new Error(
+        "Você já tem uma compra pendente com este telefone. Finalize o pagamento pendente (verifique o código enviado anteriormente) antes de iniciar uma nova compra.",
+      );
+    }
+
+    const phoneRateLimit = await rateLimiter.limit(ctx, "checkoutByPhone", {
+      key: args.phone,
+    });
+    if (!phoneRateLimit.ok) {
+      throw new Error(
+        `Muitas tentativas de compra com este telefone. Aguarde ${formatRetryAfter(phoneRateLimit.retryAfter ?? 0)} e tente novamente.`,
+      );
+    }
+
+    const globalRateLimit = await rateLimiter.limit(ctx, "checkoutGlobal");
+    if (!globalRateLimit.ok) {
+      throw new Error(
+        `O sistema está processando muitas compras no momento. Aguarde ${formatRetryAfter(globalRateLimit.retryAfter ?? 0)} e tente novamente.`,
       );
     }
 
@@ -256,6 +357,30 @@ export const findActiveByPhone = internalQuery({
     );
 
     return active ? { code: active.code } : null;
+  },
+});
+
+/**
+ * Counts unexpired Pending Vouchers held by `phone`, so checkout can refuse
+ * to pile up abandoned preferences (audit issue 10: 56 abandoned Pending
+ * Vouchers accumulated for lack of this ceiling). Scoped by the `by_phone`
+ * index; bounded the same way `findActiveByPhone` is.
+ */
+export const countUnexpiredPendingByPhone = internalQuery({
+  args: { phone: v.string(), now: v.number() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const vouchers = await ctx.db
+      .query("vouchers")
+      .withIndex("by_phone", (q) => q.eq("phone", args.phone))
+      .collect();
+
+    return vouchers.filter(
+      (voucher) =>
+        voucher.status === "pending" &&
+        voucher.deletedAt === undefined &&
+        voucher.expiresAt > args.now,
+    ).length;
   },
 });
 
@@ -392,36 +517,17 @@ export const insertPendingVoucher = internalMutation({
   },
 });
 
-/** The subset of a voucher a payment confirmation caller needs: the WhatsApp
- * message it sends and the conversion event it may fire both read from this,
- * never the raw document. */
-const paymentConfirmationVoucherValidator = v.object({
-  code: v.string(),
-  name: v.string(),
-  phone: v.string(),
-  adults: v.number(),
-  elderly: v.number(),
-  adultsPool: v.number(),
-  elderlyPool: v.number(),
-  priceCents: v.number(),
-  visitDate: v.string(),
-  expiresAt: v.number(),
-});
-
-function summarizeForPaymentConfirmation(voucher: Doc<"vouchers">) {
-  return {
-    code: voucher.code,
-    name: voucher.name,
-    phone: voucher.phone,
-    adults: voucher.adults,
-    elderly: voucher.elderly,
-    adultsPool: voucher.adultsPool,
-    elderlyPool: voucher.elderlyPool,
-    priceCents: voucher.priceCents,
-    visitDate: voucher.visitDate,
-    expiresAt: voucher.expiresAt,
-  };
-}
+/**
+ * Mercado Pago statuses that mean the payment behind a Voucher was reversed
+ * after the fact: a refund, a chargeback, or a cancellation. Distinct from
+ * "not approved yet" (`in_process`, `rejected`, ...), which the fallthrough
+ * below already handles without touching a `valid`/`redeemed` Voucher.
+ */
+const negativeTerminalPaymentStatuses = new Set([
+  "refunded",
+  "charged_back",
+  "cancelled",
+]);
 
 /**
  * Confirms a Mercado Pago payment against the voucher it paid for. Internal
@@ -432,10 +538,17 @@ function summarizeForPaymentConfirmation(voucher: Doc<"vouchers">) {
  * public `mutation` wrapping this: a signed-in admin session has no path to
  * it at all.
  *
- * Idempotent: a repeated delivery for a voucher already `valid` or
- * `redeemed` changes nothing and reports `becameValid: false`, so the caller
- * sends no second WhatsApp message and fires no second conversion event. A
- * `redeemed` voucher is never reverted, regardless of `paymentStatus`.
+ * Idempotent: a repeated delivery for a voucher already `valid`, `redeemed`,
+ * or `refunded` changes nothing beyond what the first delivery already did,
+ * and reports `becameValid: false`, so the caller fires no second conversion
+ * event.
+ *
+ * A negative-terminal notification (`refunded`, `charged_back`, `cancelled`)
+ * for a Voucher that is already `valid` moves it to `refunded` — a dead end,
+ * never redeemable and never reverted back to `valid`. The same
+ * notification for a Voucher that is already `redeemed` never reverts the
+ * redemption (the entry already happened); instead it records a `reversal`
+ * warning for staff, once, the first time it's seen.
  */
 export const confirmPayment = internalMutation({
   args: {
@@ -449,10 +562,10 @@ export const confirmPayment = internalMutation({
         v.literal("redeemed"),
         v.literal("already_processed"),
         v.literal("updated"),
+        v.literal("reversed"),
       ),
       becameValid: v.boolean(),
       isTest: v.boolean(),
-      voucher: paymentConfirmationVoucherValidator,
     }),
     v.object({ outcome: v.literal("not_found") }),
   ),
@@ -466,33 +579,70 @@ export const confirmPayment = internalMutation({
       return { outcome: "not_found" as const };
     }
 
+    // The raw Mercado Pago status, narrowed to a non-null string only when
+    // it's one of the negative-terminal reasons this function reacts to.
+    const reversalReason: string | null =
+      args.paymentStatus !== null &&
+      negativeTerminalPaymentStatuses.has(args.paymentStatus)
+        ? args.paymentStatus
+        : null;
+
     if (voucher.status === "redeemed") {
+      // The entry already happened and is never undone. Record the reversal
+      // as a staff-visible warning, but only the first time — a repeated
+      // notification (or one delivered after another already landed) must
+      // not overwrite the original reason or timestamp.
+      if (reversalReason !== null && voucher.reversal === undefined) {
+        const reversal = { reason: reversalReason, notedAt: Date.now() };
+        await ctx.db.patch(voucher._id, { reversal });
+        return {
+          outcome: "redeemed" as const,
+          becameValid: false,
+          isTest: voucher.isTest,
+        };
+      }
       return {
         outcome: "redeemed" as const,
         becameValid: false,
         isTest: voucher.isTest,
-        voucher: summarizeForPaymentConfirmation(voucher),
       };
     }
 
-    if (voucher.status === "valid") {
+    if (voucher.status === "refunded") {
+      // Already moved out of `valid`; a repeated or later negative-terminal
+      // delivery changes nothing further.
       return {
         outcome: "already_processed" as const,
         becameValid: false,
         isTest: voucher.isTest,
-        voucher: summarizeForPaymentConfirmation(voucher),
+      };
+    }
+
+    if (voucher.status === "valid") {
+      if (reversalReason !== null) {
+        const reversal = { reason: reversalReason, notedAt: Date.now() };
+        await ctx.db.patch(voucher._id, { status: "refunded", reversal });
+        return {
+          outcome: "reversed" as const,
+          becameValid: false,
+          isTest: voucher.isTest,
+        };
+      }
+      return {
+        outcome: "already_processed" as const,
+        becameValid: false,
+        isTest: voucher.isTest,
       };
     }
 
     if (args.paymentStatus !== "approved") {
       // Record the payment id so it's correlated even though the voucher
-      // isn't confirmed valid yet; no conversion event, no WhatsApp message.
+      // isn't confirmed valid yet; no conversion event.
       await ctx.db.patch(voucher._id, { paymentId: args.paymentId });
       return {
         outcome: "updated" as const,
         becameValid: false,
         isTest: voucher.isTest,
-        voucher: summarizeForPaymentConfirmation(voucher),
       };
     }
 
@@ -505,11 +655,6 @@ export const confirmPayment = internalMutation({
       outcome: "updated" as const,
       becameValid: true,
       isTest: voucher.isTest,
-      voucher: summarizeForPaymentConfirmation({
-        ...voucher,
-        status: "valid",
-        paymentId: args.paymentId,
-      }),
     };
   },
 });
@@ -523,6 +668,7 @@ const gateVoucherValidator = v.object({
     v.literal("valid"),
     v.literal("redeemed"),
     v.literal("expired"),
+    v.literal("refunded"),
   ),
   adults: v.number(),
   elderly: v.number(),
@@ -600,6 +746,7 @@ const gateVoucherAdminValidator = v.object({
     v.literal("valid"),
     v.literal("redeemed"),
     v.literal("expired"),
+    v.literal("refunded"),
   ),
   adults: v.number(),
   elderly: v.number(),
@@ -611,6 +758,12 @@ const gateVoucherAdminValidator = v.object({
   paymentId: v.optional(v.string()),
   preferenceId: v.string(),
   referrer: v.optional(referrerValidator),
+  // The staff-visible warning set when a payment is reversed after the
+  // Voucher was already redeemed (see `confirmPayment`). Undefined for
+  // every Voucher this never happened to.
+  reversal: v.optional(
+    v.object({ reason: v.string(), notedAt: v.number() }),
+  ),
 });
 
 function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
@@ -619,6 +772,7 @@ function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
     paymentId: voucher.paymentId,
     preferenceId: voucher.preferenceId,
     referrer: voucher.referrer,
+    reversal: voucher.reversal,
   };
 }
 

@@ -1,7 +1,7 @@
 "use client";
-import { useAction, useQuery } from "convex/react";
+import { useAction, useConvex, useQuery } from "convex/react";
 import { api as convexApi } from "../../../convex/_generated/api";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -9,14 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
-import { voucherFormSchema } from "@/lib/voucher/types";
+import { createVoucherFormSchema } from "@/lib/voucher/types";
 import { cn, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import {
   addCookieVoucher,
-  deleteCookieVoucher,
-  getCookieVoucher,
 } from "../lib";
+import { useSavedVouchers } from "./saved-vouchers-provider";
 import VoucherCreatedCard from "./voucher-created-card";
 import { CalendarIcon, ChevronRight, Loader2 } from "lucide-react";
 import { format } from "date-fns";
@@ -27,7 +26,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { getBrazilianDate } from "@/lib/utils/date";
+import { addDaysToDateKey, getSaoPauloDateKey } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
 
 export default function VoucherForm({
@@ -36,6 +35,10 @@ export default function VoucherForm({
   testMode?: boolean;
 }) {
   const router = useRouter();
+  const convex = useConvex();
+  const { save, warning, vouchers, ready } = useSavedVouchers();
+  const [persistenceWarning, setPersistenceWarning] = useState("");
+  const [restored, setRestored] = useState(false);
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [code, setCode] = useState("");
@@ -80,28 +83,28 @@ export default function VoucherForm({
       setReferrerURL(null);
     }
 
-    async function restoreCookieVoucher() {
-      const cookieVoucher = await getCookieVoucher();
-      if (!cookieVoucher) return;
-      setCode(cookieVoucher.code);
-      setInitPoint(cookieVoucher.initPoint);
-    }
-
-    void restoreCookieVoucher();
-    // Runs once on mount: the reactive Convex query above takes over from
-    // here for anything that used to require re-fetching on visibility change.
   }, []);
 
   useEffect(() => {
-    // A voucher whose code no longer resolves (soft-deleted, or the cookie
-    // is stale) shouldn't keep a dead code around client-side.
-    if (code && voucherStatus === null) {
-      void deleteCookieVoucher();
-      setCode("");
-      setInitPoint("");
+    // Resume the most recent voucher (e.g. the user closed the payment tab
+    // and came back) instead of showing a blank form. Runs once, after
+    // saved vouchers finish loading from the browser.
+    if (!ready || restored) return;
+    const last = vouchers[vouchers.length - 1];
+    if (last) {
+      setCode(last.code);
+      setInitPoint(last.initPoint);
     }
-  }, [code, voucherStatus]);
+    setRestored(true);
+  }, [ready, vouchers, restored]);
 
+  // Rebuilt whenever the live setting changes, so the client's Visit Date
+  // window (used for both the calendar and this schema) never diverges from
+  // the server's `max.intended.days` limit.
+  const voucherFormSchema = useMemo(
+    () => createVoucherFormSchema(maxIntendedDays),
+    [maxIntendedDays],
+  );
   type FormSchema = z.infer<typeof voucherFormSchema>;
   const [checkoutFailed, setCheckoutFailed] = useState(false);
 
@@ -116,9 +119,6 @@ export default function VoucherForm({
       name: testMode ? "--TESTE--" : "",
       phone: "",
       adults: 0,
-      elderly: 0,
-      adults_pool: 0,
-      elderly_pool: 0,
     },
   });
 
@@ -136,8 +136,9 @@ export default function VoucherForm({
   }
 
   async function onSubmit(data: FormSchema) {
-    // Guard against disabled feature flags
-    if (!enableVoucherBuy && (data.adults > 0 || data.elderly > 0)) {
+    // Guard against disabled feature flags. The public form only exposes the
+    // standard voucher quantity, so `adults` is the only count checked here.
+    if (!enableVoucherBuy && data.adults > 0) {
       return toast({
         title: "Indisponível",
         description: "Compra de voucher normal está desativada",
@@ -152,6 +153,7 @@ export default function VoucherForm({
     try {
       setIsLoading(true);
       setCheckoutFailed(false);
+      setPersistenceWarning("");
       const checkout = await startCheckout({
         name: data.name,
         phone: data.phone,
@@ -164,8 +166,19 @@ export default function VoucherForm({
         referrerUrl: referrerURL,
       });
       setCode(checkout.code);
-      await addCookieVoucher(checkout.code, checkout.initPoint);
       setInitPoint(checkout.initPoint);
+      try {
+        const voucher = await convex.query(convexApi.vouchers.getByCode, { code: checkout.code });
+        if (!voucher) throw new Error("Voucher not found");
+        save({ code: checkout.code, initPoint: checkout.initPoint, createdAt: voucher.createdAt });
+      } catch {
+        setPersistenceWarning("Não foi possível salvar seu voucher neste navegador. Anote o código antes de sair.");
+      }
+      try {
+        await addCookieVoucher(checkout.code, checkout.initPoint);
+      } catch {
+        setPersistenceWarning("Não foi possível guardar o retorno do pagamento neste navegador. Anote o código do voucher antes de continuar.");
+      }
       setIsLoading(false);
     } catch (error) {
       setCheckoutFailed(true);
@@ -181,13 +194,23 @@ export default function VoucherForm({
     }
   }
 
-  if (code && (init_point || payment_sucess_url)) {
+  if (!restored) {
+    return (
+      <div className="mx-auto w-full bg-dark-blue">
+        <div className="border-none bg-dark-blue p-4 text-center text-primary-50">
+          Carregando...
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoading && code && (init_point || payment_sucess_url)) {
     return (
       <VoucherCreatedCard
         code={code}
-        init_point={init_point}
         redirectToPayment={redirectToPayment}
-        setCode={setCode}
+        onNewPurchase={() => { setCode(""); setInitPoint(""); }}
+        warning={persistenceWarning || warning}
         payment_success_url={payment_sucess_url}
       />
     );
@@ -211,6 +234,7 @@ export default function VoucherForm({
   return (
     <div className="mx-auto w-full bg-dark-blue">
       <div className="border-none bg-dark-blue p-4 text-primary-50">
+        {warning && <p role="alert" className="mb-4 text-orange-100">{warning}</p>}
         <form
           onSubmit={handleSubmit(onSubmit)}
           className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-base [&_label]:leading-none"
@@ -347,21 +371,20 @@ export default function VoucherForm({
                         selected={field.value}
                         onSelect={field.onChange}
                         disabled={(date) => {
-                          const today = getBrazilianDate();
-                          const yesterday = getBrazilianDate(new Date(today));
-                          yesterday.setDate(today.getDate() - 1);
+                          const dateKey = getSaoPauloDateKey(date);
+                          const todayKey = getSaoPauloDateKey();
+                          const maxDateKey = addDaysToDateKey(
+                            todayKey,
+                            maxIntendedDays,
+                          );
 
-                          const maxDate = getBrazilianDate(new Date(today));
-                          maxDate.setDate(today.getDate() + maxIntendedDays);
-
-                          // Check if date is in the past or beyond max date
-                          if (date < yesterday || date > maxDate) {
+                          // Compare as YYYY-MM-DD strings so a visitor's local
+                          // timezone never shifts the day being checked.
+                          if (dateKey < todayKey || dateKey > maxDateKey) {
                             return true;
                           }
 
-                          // Check if date is in the disabled days list
-                          const dateStr = date.toISOString().slice(0, 10); // Format as YYYY-MM-DD
-                          return disabledDays.includes(dateStr);
+                          return disabledDays.includes(dateKey);
                         }}
                         initialFocus
                       />

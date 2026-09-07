@@ -20,14 +20,15 @@ export default async function PaymentStatusPage({
 }) {
   const resolvedSearchParams = await searchParams;
   const externalReference = resolvedSearchParams.external_reference;
+  const cookieVoucher = await getCookieVoucher();
   const code =
     typeof externalReference === "string" && externalReference
       ? externalReference
-      : ((await getCookieVoucher())?.code ?? null);
+      : (cookieVoucher?.code ?? null);
 
   if (!code) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4">
+      <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 bg-bg-blue px-4 text-primary-100 md:min-h-[calc(100vh-6rem)]">
         <div className="text-center text-3xl">Link inválido</div>
         <Link href="/">
           <Button>Voltar para a página inicial</Button>
@@ -36,5 +37,10 @@ export default async function PaymentStatusPage({
     );
   }
 
-  return <PaymentStatus code={code} />;
+  return (
+    <PaymentStatus
+      code={code}
+      initialCookieVoucher={cookieVoucher}
+    />
+  );
 }

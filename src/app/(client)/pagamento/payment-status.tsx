@@ -1,10 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 
 import { Button } from "@/components/ui/button";
+import { getCookieVoucher } from "@/app/lib";
+import { useSavedVouchers } from "@/app/_components/saved-vouchers-provider";
 import { api as convexApi } from "../../../../convex/_generated/api";
+
+interface PaymentStatusProps {
+  code: string;
+  initialCookieVoucher?: { code: string; initPoint: string } | null;
+}
 
 /**
  * Reflects a voucher's payment status live, from the same Convex query the
@@ -13,8 +21,48 @@ import { api as convexApi } from "../../../../convex/_generated/api";
  * this component just watches for it, so a customer who lands here before
  * their payment clears sees it become valid on its own, without a reload.
  */
-export default function PaymentStatus({ code }: { code: string }) {
+export default function PaymentStatus({
+  code,
+  initialCookieVoucher = null,
+}: PaymentStatusProps) {
   const voucher = useQuery(convexApi.vouchers.getByCode, { code });
+  const [cookieVoucher, setCookieVoucher] = useState<{
+    code: string;
+    initPoint: string;
+  } | null>(initialCookieVoucher);
+  const { vouchers: savedVouchers, ready: savedReady, save } =
+    useSavedVouchers();
+  const [persistFailed, setPersistFailed] = useState(false);
+
+  useEffect(() => {
+    async function syncCookieVoucher() {
+      try {
+        const cv = await getCookieVoucher();
+        setCookieVoucher(cv);
+      } catch {
+        // Ignore cookie read failures gracefully.
+      }
+    }
+    void syncCookieVoucher();
+  }, []);
+
+  const isPaid = voucher?.status === "valid" || voucher?.status === "redeemed";
+  const hasLocalEntry = savedVouchers.some((entry) => entry.code === code);
+
+  useEffect(() => {
+    // A payment confirmed here may reach a browser that never saved this
+    // voucher locally (e.g. the checkout happened elsewhere and only the
+    // fallback cookie carried the code back). Recover it from the server so
+    // "Meus Vouchers" can offer it; if saving fails, fall back to showing
+    // the paid voucher's image right here instead.
+    if (!isPaid || !savedReady || hasLocalEntry || !voucher) return;
+    const ok = save({
+      code,
+      initPoint: cookieVoucher?.code === code ? cookieVoucher.initPoint : "",
+      createdAt: voucher.createdAt,
+    });
+    if (!ok) setPersistFailed(true);
+  }, [isPaid, savedReady, hasLocalEntry, voucher, code, cookieVoucher, save]);
 
   if (voucher === undefined) {
     return (
@@ -31,11 +79,29 @@ export default function PaymentStatus({ code }: { code: string }) {
   }
 
   if (voucher.status === "pending") {
+    const canRetry = Boolean(
+      cookieVoucher?.code === code && cookieVoucher.initPoint,
+    );
+
     return (
       <StatusScreen
         title="Aguardando confirmação do pagamento"
         description="Assim que recebermos a confirmação do Mercado Pago, esta página é atualizada automaticamente — não é necessário atualizar a página."
-      />
+      >
+        <div className="flex flex-col sm:flex-row gap-3 items-center mt-2">
+          {canRetry && cookieVoucher ? (
+            <Button
+              asChild
+              className="bg-positive-green hover:bg-positive-green/90 text-primary-50 font-medium"
+            >
+              <a href={cookieVoucher.initPoint} rel="noopener noreferrer">
+                Tentar novamente o pagamento
+              </a>
+            </Button>
+          ) : null}
+          <BackHomeButton />
+        </div>
+      </StatusScreen>
     );
   }
 
@@ -48,6 +114,38 @@ export default function PaymentStatus({ code }: { code: string }) {
         <h2 className="text-center text-6xl font-bold text-primary-50">
           {voucher.code}
         </h2>
+        {savedReady && hasLocalEntry && (
+          <Button asChild>
+            <Link href="/meus-vouchers">Ver em Meus Vouchers</Link>
+          </Button>
+        )}
+        {savedReady && !hasLocalEntry && persistFailed && (
+          <div className="flex w-full max-w-md flex-col gap-3">
+            <p role="alert" className="text-orange-100">
+              Não foi possível salvar este voucher neste navegador. Anote o
+              código antes de sair — a imagem abaixo fica disponível apenas
+              nesta página.
+            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element -- server-generated, non-optimizable OG image */}
+            <img
+              src={`/api/og?code=${encodeURIComponent(voucher.code)}`}
+              alt={`Voucher ${voucher.code}`}
+              className="w-full rounded-lg"
+            />
+          </div>
+        )}
+        <BackHomeButton />
+      </StatusScreen>
+    );
+  }
+
+  if (voucher.status === "refunded") {
+    return (
+      <StatusScreen title="Pagamento estornado">
+        <p className="text-primary-100">
+          O pagamento deste voucher foi estornado, cancelado ou contestado.
+          Entre em contato para mais informações.
+        </p>
         <BackHomeButton />
       </StatusScreen>
     );
@@ -85,7 +183,7 @@ function StatusScreen({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen flex-col items-center justify-center gap-4 px-4 text-center">
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 bg-bg-blue px-4 py-8 text-center md:min-h-[calc(100vh-6rem)]">
       <div
         className={
           tone === "success"

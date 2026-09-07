@@ -58,4 +58,42 @@ http.route({
   }),
 });
 
+/**
+ * Returns the voucher fields the "Meus Vouchers" OG image needs to render —
+ * including name and phone, which `vouchers.getByCode` deliberately omits
+ * from anything a browser can query directly. The sole caller is the OG
+ * route (src/app/api/og/route.tsx), reached server-to-server and trusted the
+ * same way as the webhook above: a shared secret, no Convex identity.
+ */
+http.route({
+  path: "/services/voucher-image-data",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const authorized = await verifyServiceSecret(
+      request.headers.get("x-webhook-secret"),
+    );
+    if (!authorized) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    const body: unknown = await request.json().catch(() => null);
+    if (typeof body !== "object" || body === null) {
+      return new Response("Bad Request", { status: 400 });
+    }
+    const { code } = body as Record<string, unknown>;
+    if (typeof code !== "string") {
+      return new Response("Bad Request", { status: 400 });
+    }
+
+    const voucher = await ctx.runQuery(internal.vouchers.getVoucherForImage, {
+      code,
+    });
+
+    return new Response(JSON.stringify(voucher), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
+
 export default http;

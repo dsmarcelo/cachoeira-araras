@@ -3,6 +3,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 import { api } from "./_generated/api";
 import type * as voucherCodeModule from "./lib/voucherCode";
+import { MAX_PENDING_VOUCHERS_PER_PHONE } from "./lib/rateLimiter";
 import { createConvexTest, withAuth } from "./test.setup";
 
 interface CheckoutPreferenceStubInput {
@@ -264,4 +265,126 @@ test("a code collision retries with a fresh code instead of erroring, and produc
       .unique(),
   );
   expect(stored?.status).toBe("pending");
+});
+
+test("exceeding the per-phone rate limit blocks checkout without creating a preference or a partial voucher", async () => {
+  const t = createConvexTest();
+  const phone = "11977776666";
+
+  // Exhaust the per-phone token bucket capacity with distinct visit dates,
+  // immediately marking each voucher redeemed so the separate pending-ceiling
+  // check (a lower threshold) isn't what trips this test.
+  for (let i = 0; i < 3; i += 1) {
+    const result = await t.action(
+      api.vouchers.startCheckout,
+      validArgs({ phone, visitDateMs: visitDateMs + i * 24 * 60 * 60 * 1000 }),
+    );
+    await t.run(async (ctx) => {
+      const voucher = await ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", result.code))
+        .unique();
+      if (voucher) {
+        await ctx.db.patch("vouchers", voucher._id, { status: "redeemed" });
+      }
+    });
+  }
+  createCheckoutPreference.mockClear();
+
+  await expect(
+    t.action(
+      api.vouchers.startCheckout,
+      validArgs({ phone, visitDateMs: visitDateMs + 30 * 24 * 60 * 60 * 1000 }),
+    ),
+  ).rejects.toThrow(/Muitas tentativas de compra com este telefone/);
+  expect(createCheckoutPreference).not.toHaveBeenCalled();
+});
+
+test("reaching the pending-voucher ceiling for a phone blocks checkout and tells the customer to resume it", async () => {
+  const t = createConvexTest();
+  const phone = "11966665555";
+
+  for (let i = 0; i < MAX_PENDING_VOUCHERS_PER_PHONE; i += 1) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("vouchers", {
+        code: `pend${i}`,
+        name: "Visitante Pendente",
+        phone,
+        adults: 1,
+        elderly: 0,
+        adultsPool: 0,
+        elderlyPool: 0,
+        priceCents: 5000,
+        status: "pending",
+        visitDate: "2026-09-01",
+        expiresAt: Date.now() + 1000 * 60 * 60 * 24,
+        preferenceId: `pref-pend${i}`,
+        isTest: false,
+      });
+    });
+  }
+
+  await expect(
+    t.action(api.vouchers.startCheckout, validArgs({ phone })),
+  ).rejects.toThrow(/Você já tem uma compra pendente/);
+  expect(createCheckoutPreference).not.toHaveBeenCalled();
+
+  const vouchers = await t.run(async (ctx) =>
+    ctx.db
+      .query("vouchers")
+      .withIndex("by_phone", (q) => q.eq("phone", phone))
+      .collect(),
+  );
+  expect(vouchers).toHaveLength(MAX_PENDING_VOUCHERS_PER_PHONE);
+});
+
+test("an expired pending voucher does not count toward the pending ceiling", async () => {
+  const t = createConvexTest();
+  const phone = "11955554444";
+
+  for (let i = 0; i < MAX_PENDING_VOUCHERS_PER_PHONE; i += 1) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("vouchers", {
+        code: `exp${i}`,
+        name: "Visitante Expirado",
+        phone,
+        adults: 1,
+        elderly: 0,
+        adultsPool: 0,
+        elderlyPool: 0,
+        priceCents: 5000,
+        status: "pending",
+        visitDate: "2020-01-01",
+        expiresAt: Date.now() - 1000, // already expired
+        preferenceId: `pref-exp${i}`,
+        isTest: false,
+      });
+    });
+  }
+
+  const result = await t.action(api.vouchers.startCheckout, validArgs({ phone }));
+  expect(result.code).toBeTruthy();
+});
+
+test("exceeding the global rate limit blocks checkout even across different phone numbers", async () => {
+  const t = createConvexTest();
+
+  // Drive the shared global bucket to exhaustion with distinct phones (each
+  // well under its own per-phone and pending-ceiling limits), then confirm
+  // the next attempt is refused before any preference is created.
+  for (let i = 0; i < 60; i += 1) {
+    await t.action(
+      api.vouchers.startCheckout,
+      validArgs({ phone: `1190000${String(i).padStart(4, "0")}` }),
+    );
+  }
+  createCheckoutPreference.mockClear();
+
+  await expect(
+    t.action(
+      api.vouchers.startCheckout,
+      validArgs({ phone: "11900009999" }),
+    ),
+  ).rejects.toThrow(/O sistema está processando muitas compras/);
+  expect(createCheckoutPreference).not.toHaveBeenCalled();
 });

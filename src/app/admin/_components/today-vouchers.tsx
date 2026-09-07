@@ -24,6 +24,7 @@ function VoucherCard({
     valid: "border-l-2 border-l-green-600",
     pending: "border-l-2 border-l-amber-600",
     expired: "border-l-2 border-l-red-600",
+    refunded: "border-l-2 border-l-red-800",
   } as const;
 
   const dynamicClass =

@@ -2,6 +2,7 @@ import Link from "next/link";
 import React from "react";
 import { FaFacebook, FaInstagram, FaWhatsapp } from "react-icons/fa";
 import Image from "next/image";
+import { MyVouchersLink } from "./saved-vouchers-provider";
 
 export default function Header() {
   return (
@@ -19,6 +20,7 @@ export default function Header() {
           />
         </Link>
         <nav className="flex shrink-0 items-center gap-1">
+          <MyVouchersLink />
           <Link
             href={"https://www.facebook.com/C.Araras/?locale=pt_BR"}
             target="_blank"

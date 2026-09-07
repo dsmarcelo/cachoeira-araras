@@ -11,6 +11,8 @@ export function formatVoucherStatus(status: string) {
       return <p className="text-red-500 w-fit bg-red-200/30 rounded-lg px-1 pb-1">Voucher já resgatado</p>;
     case "expired":
       return <p className="text-slate-500 w-fit bg-slate-200/30 rounded-lg px-1 pb-1">Voucher expirado</p>;
+    case "refunded":
+      return <p className="text-red-500 w-fit bg-red-200/30 rounded-lg px-1 pb-1">Pagamento estornado</p>;
     default:
       return <p className="text-red-500 w-fit bg-red-200/30 rounded-lg px-1 pb-1">Voucher inválido</p>;
   }
@@ -28,6 +30,8 @@ export function formatVoucherStatusWithoutBg(status: string, expiration_date: st
       return <span style={{ color: 'red' }}>Voucher já resgatado</span>;
     case "expired":
       return <span style={{ color: 'gray' }}>Voucher expirado</span>;
+    case "refunded":
+      return <span style={{ color: 'red' }}>Pagamento estornado</span>;
     default:
       return <span style={{ color: 'red' }}>Voucher inválido</span>;
   }
@@ -56,6 +60,10 @@ export function formatVoucherStatusIcons(status: string) {
     case "expired":
       return (
         <FaExclamationCircle className="text-slate-300" size={iconSize} />
+      );
+    case "refunded":
+      return (
+        <FaTimesCircle className="text-red-400" size={iconSize} />
       );
     default:
       return null; // No icon for unknown status

@@ -1,4 +1,5 @@
 import {
+  assertOriginOnlyUrl,
   buildMercadoPagoWebhookUrl,
   normalizePublicBaseUrl,
   resolveWebhookBaseForCheckout,
@@ -87,7 +88,7 @@ export type MercadoPagoRawPayment = {
  */
 function resolveSiteBaseForCheckout(): string {
   const primary = (process.env.URL ?? "").trim();
-  if (primary) return normalizePublicBaseUrl(primary);
+  if (primary) return assertOriginOnlyUrl(primary, "URL");
 
   const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL?.trim();
   if (vercelUrl) return normalizePublicBaseUrl(`https://${vercelUrl}`);
@@ -138,6 +139,10 @@ export async function createCheckoutPreference(
           // only place this conversion happens on the way out.
           unit_price: input.priceCents / 100,
           currency_id: "BRL",
+          // Without category_id, Mercado Pago treats the item as a physical
+          // product and shows shipping/delivery-guarantee messaging to the
+          // customer. Vouchers are a service, not a shipped good.
+          category_id: "services",
         },
       ],
       payer: {

@@ -31,8 +31,8 @@ Crie um arquivo `.env` na raiz do projeto usando `.env.example` como base. O sch
 
 | Key | Uso |
 | --- | --- |
-| `DATABASE_URL` | Conexao do Prisma com o banco de dados. Em desenvolvimento pode usar `file:./db.sqlite`. |
-| `URL` | URL publica/base **unica** (`src/env.js`): app inteiro, **incluindo `back_urls` do Checkout Pro** (retorno apos pagamento) e links. Este valor vem sempre do `.env` (sem fallback automatico da Vercel). |
+| `DATABASE_URL` | Conexao somente com o PostgreSQL legado, mantida para a importacao ao Convex e o teste E2E de pagamentos; veja o [runbook de corte](./docs/operations/postgres-to-convex-cutover.md). |
+| `URL` | Origem publica/base **unica** (`src/env.js`): app inteiro, **incluindo `back_urls` do Checkout Pro** (retorno apos pagamento) e links. Somente protocolo e dominio, sem path/query/hash — usada assim tambem como base do webhook quando `WEBHOOK_URL` nao e definida. Este valor vem sempre do `.env` (sem fallback automatico da Vercel). |
 | `MERCADOPAGO_TOKEN` | Access token do Mercado Pago usado para criar preferencias e consultar pagamentos. |
 | `CRON_SECRET` | Segredo usado no header `Authorization: Bearer <CRON_SECRET>` da rota `/api/cron`. |
 | `NEXT_PUBLIC_CONVEX_URL` | URL `.convex.cloud` do deployment remoto de desenvolvimento. |
@@ -48,13 +48,42 @@ Em qualquer deploy (incluindo Vercel), `URL` deve ser definida explicitamente no
 | Key | Uso |
 | --- | --- |
 | `WEBHOOK_SECRET` | Segredo usado para validar a assinatura do webhook do Mercado Pago. Configure em producao para nao usar o fallback local. |
-| `WEBHOOK_URL` | Opcional. URL publica alternativa para o webhook, sem o path final. Se ausente, o app usa `URL`. |
+| `WEBHOOK_URL` | Opcional. Origem publica alternativa para o webhook — **somente protocolo e dominio, sem path, query ou hash** (ex.: `https://exemplo.com`). Se ausente, o app usa `URL`. Um valor com path falha a criacao da preferencia com uma mensagem explicita, em vez de descartar o path silenciosamente. |
 
 As preferencias do Mercado Pago sao criadas com `/api/webhook?source_news=webhooks`, forçando Webhooks assinados. IPN legado (`topic`/`id`) nao e aceito pelo handler.
 
 ### Teste automatico de pagamentos
 
 Use `pnpm test:payments` para rodar um teste E2E automatico sem agente de IA. O teste cria uma preferencia real no Mercado Pago, grava um voucher pendente no banco e confere nome, telefone, quantidades, codigo e `preference_id`.
+
+### Dados para teste de pagamento (Mercado Pago Sandbox)
+
+Para realizar testes manuais de compra no Checkout do Mercado Pago em ambiente sandbox:
+
+> [!IMPORTANT]
+> **Atenção:** Para testar o pagamento, **deve-se fazer login na conta de teste antes** de prosseguir com o pagamento (recomenda-se utilizar uma janela anônima para evitar conflitos de sessão com a conta real ou de vendedor do Mercado Pago).
+
+#### Conta de teste (Buyer Test User)
+
+| Campo | Valor |
+| --- | --- |
+| Perfil | Comprador (`Buyer Test User`) |
+| País | Brasil |
+| User ID | `1915367917` |
+| Usuário | `TESTUSER1953398469` |
+| Senha | `MuFMnTEBR3` |
+| Código de verificação | `367917` |
+
+#### Cartão de crédito de teste
+
+| Campo | Valor |
+| --- | --- |
+| Bandeira | Mastercard |
+| Número | `5480 8328 0103 3311` |
+| Código de segurança | `123` |
+| Data de validade | `11/30` |
+| Nome do titular | `APRO` (status: pagamento aprovado) |
+| CPF | `12345678909` |
 
 ### Precos e comportamento publico
 
@@ -77,28 +106,31 @@ Use `pnpm test:payments` para rodar um teste E2E automatico sem agente de IA. O 
 | `GOOGLE_ANALYTICS_MEASUREMENT_ID` | Measurement ID usado no Measurement Protocol do GA4. |
 | `GOOGLE_ANALYTICS_API_SECRET` | API secret usado no Measurement Protocol do GA4. |
 | `NEXT_PUBLIC_FACEBOOK_PIXEL_ID` | Pixel ID exposto no client por `src/lib/fbpixel.js`, se essa integracao for usada. |
-| `TWILIO_ACCOUNT_SID` | SID da conta Twilio para envio de WhatsApp pelo admin. |
-| `TWILIO_AUTH_TOKEN` | Token da conta Twilio para envio de WhatsApp pelo admin. |
 
 ## Autenticacao do admin
 
 O acesso em `/admin` usa Better Auth com usuario e senha. Os dados e sessoes ficam no deployment remoto do Convex, inclusive durante o desenvolvimento local.
 
-Configure o deployment Convex selecionado uma vez:
+Configure o deployment Convex selecionado uma vez. Os dois comandos de admin solicitam o valor interativamente para nao grava-lo no historico do shell:
 
 ```bash
 pnpm exec convex env set SITE_URL http://localhost:3000
+pnpm exec convex env set AUTH_TRUSTED_ORIGINS "http://localhost:3000"
 pnpm exec convex env set BETTER_AUTH_SECRET "<segredo-aleatorio-de-32-bytes>"
+pnpm exec convex env set ADMIN_USERNAME
+pnpm exec convex env set ADMIN_PASSWORD
 pnpm exec convex env set MERCADOPAGO_TOKEN "<access-token-do-mercadopago>"
 pnpm exec convex env set MERCADOPAGO_WEBHOOK_SERVICE_SECRET "<segredo-de-servico-webhook>"
 pnpm exec convex env set URL "https://seu-dominio-ou-tunel"
 pnpm exec convex dev --once
 ```
 
-Crie o primeiro admin pela funcao interna. O comando recusa a operacao quando ja existe qualquer usuario:
+Esses valores pertencem ao deployment Convex, nao ao `.env`/`.env.local` do Next.js. `SITE_URL` e a origem principal e `AUTH_TRUSTED_ORIGINS` aceita origens adicionais separadas por virgula, como `http://localhost:3000` para desenvolvimento local. Sem flag, os comandos usam o deployment de desenvolvimento selecionado. Configure outros deployments separadamente com `--prod`, `--deployment local` ou `--deployment <nome>`.
+
+Crie o primeiro admin pela funcao interna. Ela le `ADMIN_USERNAME` e `ADMIN_PASSWORD` do deployment e recusa a operacao quando ja existe qualquer usuario:
 
 ```bash
-pnpm exec convex run authAdmin:createFirstAdmin '{"username":"admin","password":"uma-senha-longa"}'
+pnpm exec convex run authAdmin:createFirstAdmin
 ```
 
-Depois disso, o admin gerencia usuarios em `/admin/dashboard/usuarios`. Cada usuario altera o proprio acesso em `/admin/conta`.
+As variaveis servem somente para esse cadastro inicial. Depois disso, o admin gerencia usuarios em `/admin/dashboard/usuarios` e altera o proprio acesso em `/admin/conta`.

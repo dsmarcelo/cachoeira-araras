@@ -40,11 +40,13 @@ async function insertVoucher(
 test("returns status for a valid code with no session", async () => {
   const t = convexTest(schema, modules);
   const voucher = baseVoucher();
-  await insertVoucher(t, voucher);
+  const id = await insertVoucher(t, voucher);
+  const stored = await t.run((ctx) => ctx.db.get("vouchers", id));
 
   const result = await t.query(api.vouchers.getByCode, { code: "a1b2" });
   expect(result).toEqual({
     code: "a1b2",
+    createdAt: stored!._creationTime,
     status: "valid",
     visitDate: "2026-09-10",
     expiresAt: voucher.expiresAt,
@@ -52,6 +54,7 @@ test("returns status for a valid code with no session", async () => {
     elderly: 0,
     adultsPool: 2,
     elderlyPool: 0,
+    priceCents: 5000,
   });
 });
 
@@ -85,7 +88,6 @@ test("the response carries no buyer PII or internal identifiers", async () => {
   const result = await t.query(api.vouchers.getByCode, { code: "a1b2" });
   expect(result).not.toHaveProperty("name");
   expect(result).not.toHaveProperty("phone");
-  expect(result).not.toHaveProperty("priceCents");
   expect(result).not.toHaveProperty("preferenceId");
   expect(result).not.toHaveProperty("paymentId");
 });

@@ -20,11 +20,16 @@ const vouchers = defineTable({
   // at the Mercado Pago `unit_price` boundary.
   priceCents: v.number(),
 
+  // `refunded` covers any negative-terminal Mercado Pago notification
+  // (refund, chargeback, or cancellation) that arrives for a Voucher that
+  // was never redeemed: it is a dead end like `expired`, never redeemable,
+  // and never reverts to `valid`.
   status: v.union(
     v.literal("pending"),
     v.literal("valid"),
     v.literal("redeemed"),
     v.literal("expired"),
+    v.literal("refunded"),
   ),
 
   // The day the customer chose at purchase, as "YYYY-MM-DD" in the Sao Paulo
@@ -38,6 +43,19 @@ const vouchers = defineTable({
   // delivery and to make payment confirmation idempotent.
   preferenceId: v.string(),
   paymentId: v.optional(v.string()),
+
+  // Set once, the first time a negative-terminal Mercado Pago notification
+  // (refund, chargeback, cancellation) arrives after the Voucher was already
+  // `valid` or `redeemed`. `reason` is the raw Mercado Pago payment status.
+  // Present alongside `status: "redeemed"`, this is the administrative
+  // warning staff see: the entry already happened and is never undone, but
+  // the payment behind it was reversed afterwards.
+  reversal: v.optional(
+    v.object({
+      reason: v.string(),
+      notedAt: v.number(),
+    }),
+  ),
 
   // Replaces the separate 1:1 Referrer table.
   referrer: v.optional(

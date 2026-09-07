@@ -36,13 +36,7 @@ export async function requireAdmin() {
 
 const VOUCHER_COOKIE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 40;
 
-/**
- * Persists the voucher a visitor just started paying for, plus the Mercado
- * Pago checkout link for it, so a page reload (or returning the next day)
- * can resume the same in-progress checkout without a server round trip.
- * Payment status itself is never cached here — the voucher form reads that
- * live from Convex (`vouchers.getByCode`) instead.
- */
+/** Keeps the latest checkout as the fallback for payment returns without a code. */
 export async function addCookieVoucher(code: string, initPoint: string) {
   // Next.js 16 exposes request cookies asynchronously. Resolve the store once
   // per server action so future cookie option changes stay centralized here.
@@ -68,8 +62,9 @@ export async function getCookieVoucher(): Promise<{
   return { code, initPoint };
 }
 
-export async function deleteCookieVoucher() {
+export async function deleteCookieVoucher(code: string) {
   const cookieStore = await cookies();
+  if (cookieStore.get("voucher")?.value !== code) return;
   cookieStore.delete("voucher");
   cookieStore.delete("voucher_init_point");
 }

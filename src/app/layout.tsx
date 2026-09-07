@@ -9,6 +9,7 @@ import { Suspense } from "react";
 import FacebookPixel from "@/app/_components/FacebookPixel";
 import { env } from "@/env";
 import { getToken } from "@/lib/auth-server";
+import { SavedVouchersProvider } from "./_components/saved-vouchers-provider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -35,7 +36,7 @@ export default async function RootLayout({
     <html lang="pt-BR" className={`${inter.variable}`}>
       <body className="min-h-screen bg-background">
         <ConvexClientProvider initialToken={initialToken}>
-          {children}
+          <SavedVouchersProvider>{children}</SavedVouchersProvider>
         </ConvexClientProvider>
         <Toaster />
         {/* Only enable Analytics if explicitly allowed to avoid Edge requests to /_vercel/insights */}

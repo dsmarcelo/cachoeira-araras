@@ -40,6 +40,9 @@ export async function createPreference({
           quantity: 1,
           unit_price: price,
           currency_id: "BRL",
+          // Marks the item as a service so Mercado Pago does not show
+          // physical-shipping messaging, matching convex/lib/mercadopago.ts.
+          category_id: "services",
         },
       ],
       payer: {

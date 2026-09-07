@@ -20,7 +20,12 @@ function defaults() {
     adultsPool: 0,
     elderlyPool: 0,
     priceCents: 5000,
-    status: "valid" as "pending" | "valid" | "redeemed" | "expired",
+    status: "valid" as
+      | "pending"
+      | "valid"
+      | "redeemed"
+      | "expired"
+      | "refunded",
     visitDate: today,
     expiresAt: Date.now() + 1000 * 60 * 60 * 24,
     preferenceId: "pref-1",
@@ -126,6 +131,16 @@ test("redeeming a voucher outside today's operational window is refused", async 
 test("redeeming a Pending voucher is refused", async () => {
   const t = createConvexTest();
   await insertVoucher(t, { status: "pending" });
+  const asEmployee = await withAuth(t, "employee");
+
+  await expect(
+    asEmployee.mutation(api.vouchers.redeemByCode, { code: "a1b2" }),
+  ).rejects.toThrow();
+});
+
+test("redeeming a Refunded voucher is refused", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t, { status: "refunded" });
   const asEmployee = await withAuth(t, "employee");
 
   await expect(

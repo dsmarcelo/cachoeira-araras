@@ -424,6 +424,38 @@ await test("Mercado Pago webhook URL forces signed Webhooks", () => {
   );
 });
 
+await test("webhook URL with a path is rejected instead of silently discarded", () => {
+  assert.throws(
+    () =>
+      resolveWebhookBaseForCheckout({
+        siteBaseUrl: "https://site.example.com",
+        webhookUrl: "https://webhook.example.com/some-path",
+      }),
+    /WEBHOOK_URL/,
+  );
+});
+
+await test("site URL with a path is rejected when used as the webhook fallback", () => {
+  assert.throws(
+    () =>
+      resolveWebhookBaseForCheckout({
+        siteBaseUrl: "https://site.example.com/app",
+      }),
+    /URL/,
+  );
+});
+
+await test("invalid webhook URL fails with a clear message", () => {
+  assert.throws(
+    () =>
+      resolveWebhookBaseForCheckout({
+        siteBaseUrl: "https://site.example.com",
+        webhookUrl: "not-a-url",
+      }),
+    /não é uma URL absoluta válida/,
+  );
+});
+
 function buildSignature({
   dataId,
   requestId,

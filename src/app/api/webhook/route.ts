@@ -12,7 +12,6 @@ import {
 } from "@/server/mercadopago-webhook";
 import { getMercadoPagoPayment } from "@/server/mercadopago";
 import { callConvexService } from "@/server/convex-service";
-import { sendVoucherConfirmationWhatsApp } from "@/server/voucher-whatsapp";
 import { capturePaymentFlowException } from "@/lib/sentry/payment";
 import type { FunctionReturnType } from "convex/server";
 import type { internal } from "../../../../convex/_generated/api";
@@ -106,8 +105,7 @@ function logBadRequest(error: string, context: WebhookRequestLogContext) {
  * Calls the `/webhooks/mercadopago/confirmPayment` Convex HTTP action as a
  * trusted server-to-server caller, authenticated by a shared secret rather
  * than a Convex identity (this route has already verified MP's HMAC
- * signature by the time this runs — see `callConvexService`), then sends the
- * one WhatsApp message a fresh confirmation produces. Whether an ad
+ * signature by the time this runs — see `callConvexService`). Whether an ad
  * conversion event should follow is reported back via
  * `shouldSendConversionEvents`, which is only true the first time a real
  * (non-Test) voucher is confirmed.
@@ -131,10 +129,6 @@ async function confirmVoucherPaymentViaConvex({
       outcome: "not_found" as const,
       shouldSendConversionEvents: false as const,
     };
-  }
-
-  if (result.becameValid) {
-    await sendVoucherConfirmationWhatsApp(result.voucher);
   }
 
   return {

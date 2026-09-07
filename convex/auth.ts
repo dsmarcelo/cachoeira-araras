@@ -6,11 +6,23 @@ import { v } from "convex/values";
 
 import { components } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
-import { query } from "./_generated/server";
+import { env, query } from "./_generated/server";
 import authConfig from "./auth.config";
 import authSchema from "./betterAuth/schema";
 
-const siteUrl = process.env.SITE_URL ?? "http://localhost:3000";
+const siteUrl = env.SITE_URL ?? "http://localhost:3000";
+const trustedOrigins = [
+  ...new Set(
+    [siteUrl, ...(env.AUTH_TRUSTED_ORIGINS?.split(",") ?? [])].map((origin) =>
+      origin.trim(),
+    ),
+  ),
+];
+
+export const authCredentialLimits = {
+  username: { minLength: 3, maxLength: 30 },
+  password: { minLength: 5, maxLength: 128 },
+} as const;
 
 function toAppRole(role: unknown): "admin" | "employee" {
   return role === "admin" ? "admin" : "employee";
@@ -28,14 +40,14 @@ export function createAuthOptions(ctx: GenericCtx<DataModel>) {
     emailAndPassword: {
       enabled: true,
       disableSignUp: true,
-      minPasswordLength: 5,
-      maxPasswordLength: 128,
+      minPasswordLength: authCredentialLimits.password.minLength,
+      maxPasswordLength: authCredentialLimits.password.maxLength,
     },
-    trustedOrigins: [siteUrl],
+    trustedOrigins,
     plugins: [
       username({
-        minUsernameLength: 3,
-        maxUsernameLength: 30,
+        minUsernameLength: authCredentialLimits.username.minLength,
+        maxUsernameLength: authCredentialLimits.username.maxLength,
       }),
       admin({
         defaultRole: "user",

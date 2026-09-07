@@ -3,7 +3,9 @@ import { ImageResponse } from 'next/og';
 import { type NextRequest } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
-import { formatVoucherStatusWithoutBg } from '@/lib/voucher';
+import { formatVoucherStatusWithoutBg, formatQuantity } from '@/lib/voucher';
+import { formateDateDayMonthYear, formatPhone, truncateName } from '@/lib/utils';
+import { getVoucherImageData } from '@/server/voucher-image-data';
 
 // Switch OG generation to node runtime to avoid Edge invocations on Vercel Free
 export const runtime = 'nodejs';
@@ -13,18 +15,39 @@ const interSemiBold = fs
   .readFile(path.join(process.cwd(), 'assets', 'fonts', 'Inter-SemiBold.ttf'))
   .then((buf) => buf);
 
+/**
+ * Renders the voucher card image by code, looking up the real record on the
+ * server rather than trusting name/phone/price/status from query params —
+ * the old contract let anyone forge a voucher-shaped image for any code.
+ * Rejects pending or unknown codes, since there is nothing to show yet.
+ * Never cached: a resgate, expiração, or estorno must show up immediately.
+ */
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const { name, phone, quantity, price, status, expires_at, code } = Object.fromEntries(searchParams.entries());
+  const code = request.nextUrl.searchParams.get('code');
 
-  if (!name || !phone || !quantity || !status || !code) {
+  if (!code) {
+    return new Response('Missing code', { status: 400 });
+  }
+
+  const voucher = await getVoucherImageData(code);
+
+  if (!voucher || voucher.status === 'pending') {
     return new Response('Voucher not found', { status: 404 });
   }
 
   const interSemiBoldFontData = await interSemiBold;
 
-  const expiration_date = expires_at ?? '';
-  const formatedStatus = formatVoucherStatusWithoutBg(status, expiration_date);
+  const formatedExpiredDate = formateDateDayMonthYear(new Date(voucher.expiresAt));
+  const formatedStatus = formatVoucherStatusWithoutBg(voucher.status, formatedExpiredDate);
+  const formatedName = truncateName(voucher.name);
+  const formatedPhone = formatPhone(voucher.phone);
+  const formatedQuantity = formatQuantity({
+    adults: voucher.adults,
+    elderly: voucher.elderly,
+    adults_pool: voucher.adultsPool,
+    elderly_pool: voucher.elderlyPool,
+  });
+  const price = voucher.priceCents / 100;
 
   let url = ''
   if (env.NEXT_PUBLIC_VERCEL_URL) {
@@ -56,13 +79,13 @@ export async function GET(request: NextRequest) {
       >
         <div tw='flex relative' style={{ color: '#00182D' }}>
           <div tw='flex text-[34px] absolute top-22 left-8 flex-col tracking-tight font-semibold' style={{ gap: '14px' }}>
-            <div tw='flex font-semibold'>{name}</div>
-            <div tw='flex font-semibold'>{phone}</div>
-            <div tw='flex font-semibold text-[28px] backdrop-blur-md bg-[#fdd56c] rounded-lg p-2'>{quantity}</div>
+            <div tw='flex font-semibold'>{formatedName}</div>
+            <div tw='flex font-semibold'>{formatedPhone}</div>
+            <div tw='flex font-semibold text-[28px] backdrop-blur-md bg-[#fdd56c] rounded-lg p-2'>{formatedQuantity}</div>
             <div tw='flex font-semibold'>{formatedStatus}</div>
           </div>
-          <div tw='flex absolute bottom-6 left-[300px]'>Valor: R$ { Number(price).toFixed(2).replace('.', ',')}</div>
-          <div tw='flex absolute text-[48px] font-semibold bottom-8 left-[585px]'>{code}</div>
+          <div tw='flex absolute bottom-6 left-[300px]'>Valor: R$ { price.toFixed(2).replace('.', ',')}</div>
+          <div tw='flex absolute text-[48px] font-semibold bottom-8 left-[585px]'>{voucher.code}</div>
         </div>
       </div>
     ),
@@ -70,9 +93,8 @@ export async function GET(request: NextRequest) {
       width: 750,
       height: 375,
       status: 200,
-      // Aggressive caching to avoid repeated invocations for the same query params
       headers: {
-        "Cache-Control": "public, max-age=31536000, s-maxage=31536000, immutable",
+        "Cache-Control": "no-store",
       },
       fonts: [
         {
