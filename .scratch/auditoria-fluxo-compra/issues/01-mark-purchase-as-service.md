@@ -6,11 +6,11 @@ Without `category_id`, Mercado Pago treats the purchase as a physical product an
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Every preference created for a normal or test purchase classifies its item as a service (`category_id: "services"`).
-- [ ] The remaining preference data, including price, description, and return URLs, remains unchanged.
-- [ ] A focused test verifies the category sent to Mercado Pago.
+- [x] Every preference created for a normal or test purchase classifies its item as a service (`category_id: "services"`).
+- [x] The remaining preference data, including price, description, and return URLs, remains unchanged.
+- [x] A focused test verifies the category sent to Mercado Pago.
 
 Implementation notes:
 - PR reference: PR 3 (`fix(mercadopago): marca items da preferência como serviço`) — Size: XS, Impact: Medium.
