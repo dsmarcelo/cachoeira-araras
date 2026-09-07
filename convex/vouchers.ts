@@ -18,6 +18,11 @@ import {
 } from "./_generated/server";
 import { getRole, requireRole } from "./lib/auth";
 import { createCheckoutPreference } from "./lib/mercadopago";
+import {
+  formatRetryAfter,
+  MAX_PENDING_VOUCHERS_PER_PHONE,
+  rateLimiter,
+} from "./lib/rateLimiter";
 import type { SettingValueMap } from "./lib/settings";
 import {
   classifyReferrer,
@@ -240,6 +245,35 @@ export const startCheckout = action({
       );
     }
 
+    // Ceiling on unexpired Pending Vouchers per phone, checked before any
+    // rate-limit token is spent: an abandoned pending checkout should send
+    // the customer back to finish that one, not toward "wait and retry".
+    const pendingCount = await ctx.runQuery(
+      internal.vouchers.countUnexpiredPendingByPhone,
+      { phone: args.phone, now: Date.now() },
+    );
+    if (pendingCount >= MAX_PENDING_VOUCHERS_PER_PHONE) {
+      throw new Error(
+        "Você já tem uma compra pendente com este telefone. Finalize o pagamento pendente (verifique o código enviado anteriormente) antes de iniciar uma nova compra.",
+      );
+    }
+
+    const phoneRateLimit = await rateLimiter.limit(ctx, "checkoutByPhone", {
+      key: args.phone,
+    });
+    if (!phoneRateLimit.ok) {
+      throw new Error(
+        `Muitas tentativas de compra com este telefone. Aguarde ${formatRetryAfter(phoneRateLimit.retryAfter ?? 0)} e tente novamente.`,
+      );
+    }
+
+    const globalRateLimit = await rateLimiter.limit(ctx, "checkoutGlobal");
+    if (!globalRateLimit.ok) {
+      throw new Error(
+        `O sistema está processando muitas compras no momento. Aguarde ${formatRetryAfter(globalRateLimit.retryAfter ?? 0)} e tente novamente.`,
+      );
+    }
+
     const { firstName, surname } = splitCustomerName(args.name);
     const referrer = buildReferrer(args.referrerUrl);
     const isTest = args.testMode === true;
@@ -320,6 +354,30 @@ export const findActiveByPhone = internalQuery({
     );
 
     return active ? { code: active.code } : null;
+  },
+});
+
+/**
+ * Counts unexpired Pending Vouchers held by `phone`, so checkout can refuse
+ * to pile up abandoned preferences (audit issue 10: 56 abandoned Pending
+ * Vouchers accumulated for lack of this ceiling). Scoped by the `by_phone`
+ * index; bounded the same way `findActiveByPhone` is.
+ */
+export const countUnexpiredPendingByPhone = internalQuery({
+  args: { phone: v.string(), now: v.number() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const vouchers = await ctx.db
+      .query("vouchers")
+      .withIndex("by_phone", (q) => q.eq("phone", args.phone))
+      .collect();
+
+    return vouchers.filter(
+      (voucher) =>
+        voucher.status === "pending" &&
+        voucher.deletedAt === undefined &&
+        voucher.expiresAt > args.now,
+    ).length;
   },
 });
 
