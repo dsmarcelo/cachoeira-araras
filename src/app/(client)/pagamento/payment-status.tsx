@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useConvex, useQuery } from "convex/react";
 
 import { Button } from "@/components/ui/button";
 import { getCookieVoucher } from "@/app/lib";
 import { useSavedVouchers } from "@/app/_components/saved-vouchers-provider";
 import { api as convexApi } from "../../../../convex/_generated/api";
+import {
+  getCachedLookupToken,
+  setCachedLookupToken,
+} from "@/lib/voucher/lookup-token-cache";
 
 interface PaymentStatusProps {
   code: string;
@@ -15,17 +19,31 @@ interface PaymentStatusProps {
 }
 
 /**
- * Reflects a voucher's payment status live, from the same Convex query the
- * voucher purchase form subscribes to. The webhook is the only thing that
- * ever flips `pending` to `valid` (see convex/vouchers.ts confirmPayment);
- * this component just watches for it, so a customer who lands here before
- * their payment clears sees it become valid on its own, without a reload.
+ * Reflects a voucher's payment status live. `code` arrives from the Mercado
+ * Pago redirect URL, so it's first exchanged for a rate-limited, opaque
+ * `lookupToken` via `authorizeLookup` — the same anonymous lookup gate every
+ * other public entry point goes through. The reactive subscription
+ * (`getAuthorized`) then spends no further lookup capacity: the webhook is
+ * the only thing that ever flips `pending` to `valid` (see
+ * convex/vouchers.ts confirmPayment), and this component just watches for
+ * it, so a customer who lands here before their payment clears sees it
+ * become valid on its own, without a reload.
  */
 export default function PaymentStatus({
   code,
   initialCookieVoucher = null,
 }: PaymentStatusProps) {
-  const voucher = useQuery(convexApi.vouchers.getByCode, { code });
+  const convex = useConvex();
+  const [lookupToken, setLookupToken] = useState<string | null>(() =>
+    getCachedLookupToken(code) ?? null,
+  );
+  const [lookupFailure, setLookupFailure] = useState<
+    "not_found" | "rate_limited" | null
+  >(null);
+  const voucher = useQuery(
+    convexApi.vouchers.getAuthorized,
+    lookupToken ? { lookupToken } : "skip",
+  );
   const [cookieVoucher, setCookieVoucher] = useState<{
     code: string;
     initPoint: string;
@@ -33,6 +51,36 @@ export default function PaymentStatus({
   const { vouchers: savedVouchers, ready: savedReady, save } =
     useSavedVouchers();
   const [persistFailed, setPersistFailed] = useState(false);
+
+  useEffect(() => {
+    if (lookupToken) return;
+    let active = true;
+    async function authorize() {
+      try {
+        const authorization = await convex.mutation(
+          convexApi.vouchers.authorizeLookup,
+          { code },
+        );
+        if (!active) return;
+        if (authorization.kind === "authorized") {
+          setCachedLookupToken(code, authorization.lookupToken);
+          setLookupToken(authorization.lookupToken);
+        } else {
+          setLookupFailure(authorization.kind);
+        }
+      } catch {
+        if (active) setLookupFailure("not_found");
+      }
+    }
+    void authorize();
+    return () => {
+      active = false;
+    };
+    // lookupToken is read only to decide whether to skip this mount-time
+    // authorization; including it would re-run the effect (and spend
+    // another rate-limited authorizeLookup call) as soon as it's set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, convex]);
 
   useEffect(() => {
     async function syncCookieVoucher() {
@@ -64,17 +112,28 @@ export default function PaymentStatus({
     if (!ok) setPersistFailed(true);
   }, [isPaid, savedReady, hasLocalEntry, voucher, code, cookieVoucher, save]);
 
-  if (voucher === undefined) {
+  if (lookupFailure === "rate_limited") {
     return (
-      <StatusScreen title="Carregando..." description="Um instante." />
+      <StatusScreen
+        title="Muitas tentativas"
+        description="Aguarde um instante e recarregue a página."
+      >
+        <BackHomeButton />
+      </StatusScreen>
     );
   }
 
-  if (voucher === null) {
+  if (lookupFailure === "not_found" || voucher === null) {
     return (
       <StatusScreen title="Voucher não encontrado">
         <BackHomeButton />
       </StatusScreen>
+    );
+  }
+
+  if (voucher === undefined) {
+    return (
+      <StatusScreen title="Carregando..." description="Um instante." />
     );
   }
 
@@ -128,7 +187,7 @@ export default function PaymentStatus({
             </p>
             {/* eslint-disable-next-line @next/next/no-img-element -- server-generated, non-optimizable OG image */}
             <img
-              src={`/api/og?code=${encodeURIComponent(voucher.code)}`}
+              src={`/api/og?code=${encodeURIComponent(voucher.code)}&lookupToken=${encodeURIComponent(lookupToken ?? "")}`}
               alt={`Voucher ${voucher.code}`}
               className="w-full rounded-lg"
             />

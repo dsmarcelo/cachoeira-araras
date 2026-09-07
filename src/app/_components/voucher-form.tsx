@@ -1,7 +1,7 @@
 "use client";
 import { useAction, useConvex, useQuery } from "convex/react";
 import { api as convexApi } from "../../../convex/_generated/api";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { createVoucherFormSchema } from "@/lib/voucher/types";
-import { cn, formatPhone } from "@/lib/utils";
+import { cn, formatPhone, getErrorMessage } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import {
   addCookieVoucher,
@@ -28,6 +28,10 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { addDaysToDateKey, getSaoPauloDateKey } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
+import {
+  getCachedLookupToken,
+  setCachedLookupToken,
+} from "@/lib/voucher/lookup-token-cache";
 
 export default function VoucherForm({
   testMode = false,
@@ -44,18 +48,39 @@ export default function VoucherForm({
   const [code, setCode] = useState("");
   const [init_point, setInitPoint] = useState("");
   const [referrerURL, setReferrerURL] = useState<string | null>(null);
+  const [lookupToken, setLookupToken] = useState<string | null>(null);
 
   // A live Convex query: a settings change made in the admin page reaches
   // this open form without a reload.
   const settings = useQuery(convexApi.settings.getAll);
   const startCheckout = useAction(convexApi.vouchers.startCheckout);
 
+  // Exchanges `code` for the opaque, rate-limited lookup capability needed
+  // by both `save()` (below) and the reactive status subscription. Called
+  // once per code — after a fresh checkout, and once when a previous
+  // voucher is restored from local storage on mount.
+  const authorizeLookup = useCallback(
+    async (targetCode: string) => {
+      setLookupToken(null);
+      const authorization = await convex.mutation(
+        convexApi.vouchers.authorizeLookup,
+        { code: targetCode },
+      );
+      if (authorization.kind === "authorized") {
+        setCachedLookupToken(targetCode, authorization.lookupToken);
+        setLookupToken(authorization.lookupToken);
+      }
+      return authorization;
+    },
+    [convex],
+  );
+
   // Reactive payment status: the moment the Mercado Pago webhook confirms
   // this voucher (convex/vouchers.ts confirmPayment), this subscription
   // updates on its own — no polling, no reload.
   const voucherStatus = useQuery(
-    convexApi.vouchers.getByCode,
-    code ? { code } : "skip",
+    convexApi.vouchers.getAuthorized,
+    lookupToken ? { lookupToken } : "skip",
   );
   const payment_sucess_url =
     voucherStatus && voucherStatus.status !== "pending"
@@ -94,9 +119,15 @@ export default function VoucherForm({
     if (last) {
       setCode(last.code);
       setInitPoint(last.initPoint);
+      const cached = getCachedLookupToken(last.code);
+      if (cached) {
+        setLookupToken(cached);
+      } else {
+        void authorizeLookup(last.code);
+      }
     }
     setRestored(true);
-  }, [ready, vouchers, restored]);
+  }, [ready, vouchers, restored, authorizeLookup]);
 
   // Rebuilt whenever the live setting changes, so the client's Visit Date
   // window (used for both the calendar and this schema) never diverges from
@@ -168,9 +199,14 @@ export default function VoucherForm({
       setCode(checkout.code);
       setInitPoint(checkout.initPoint);
       try {
-        const voucher = await convex.query(convexApi.vouchers.getByCode, { code: checkout.code });
-        if (!voucher) throw new Error("Voucher not found");
-        save({ code: checkout.code, initPoint: checkout.initPoint, createdAt: voucher.createdAt });
+        const authorization = await authorizeLookup(checkout.code);
+        if (authorization.kind !== "authorized")
+          throw new Error("Voucher not found");
+        save({
+          code: checkout.code,
+          initPoint: checkout.initPoint,
+          createdAt: authorization.voucher.createdAt,
+        });
       } catch {
         setPersistenceWarning("Não foi possível salvar seu voucher neste navegador. Anote o código antes de sair.");
       }
@@ -186,10 +222,10 @@ export default function VoucherForm({
       setIsLoading(false);
       return toast({
         title: "Erro",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Erro ao criar voucher. Tente novamente.",
+        description: getErrorMessage(
+          error,
+          "Erro ao criar voucher. Tente novamente.",
+        ),
       });
     }
   }

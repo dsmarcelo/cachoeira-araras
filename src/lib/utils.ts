@@ -1,4 +1,5 @@
 import { type ClassValue, clsx } from "clsx";
+import { ConvexError } from "convex/values";
 import { twMerge } from "tailwind-merge";
 import React from "react";
 
@@ -97,4 +98,16 @@ export function useWindowWidth(): number {
 export function formatReferrer(referrer: string): string {
   if (referrer.toLowerCase() === "facebook") return "Facebook ou Instagram";
   return referrer.charAt(0).toUpperCase() + referrer.slice(1);
+}
+
+/**
+ * Extracts a Convex function's user-facing error message on the client.
+ * Convex only forwards a thrown error's message via `ConvexError.data` — a
+ * plain `Error`'s `.message` here is a debug string (stack trace in dev, a
+ * generic "Server Error" in prod), never the application's own text.
+ */
+export function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof ConvexError && typeof error.data === "string"
+    ? error.data
+    : fallback;
 }

@@ -18,6 +18,7 @@ import {
   VOUCHERS_KEY,
   type SavedVoucher,
 } from "@/lib/voucher/browser-storage";
+import { setCachedLookupToken } from "@/lib/voucher/lookup-token-cache";
 
 const SavedVouchersContext = createContext<{
   vouchers: SavedVoucher[];
@@ -64,11 +65,15 @@ export function SavedVouchersProvider({
       try {
         const cookie = await getCookieVoucher();
         if (cookie) {
-          const voucher = await convex.query(api.vouchers.getByCode, {
-            code: cookie.code,
-          });
-          if (active && voucher)
-            save({ ...cookie, createdAt: voucher.createdAt });
+          const authorization = await convex.mutation(
+            api.vouchers.authorizeLookup,
+            { code: cookie.code },
+          );
+          if (authorization.kind === "authorized") {
+            setCachedLookupToken(cookie.code, authorization.lookupToken);
+            if (active)
+              save({ ...cookie, createdAt: authorization.voucher.createdAt });
+          }
         }
       } catch {
         if (active)

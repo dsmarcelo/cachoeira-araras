@@ -69,12 +69,30 @@ const vouchers = defineTable({
   // pricing; never accepted from client input.
   isTest: v.boolean(),
 
+  // Opaque capability for reactive public reads after a rate-limited Voucher
+  // Code lookup. It authorizes access but is not a second voucher identity;
+  // Voucher Code remains the only identifier shared across contexts.
+  lookupToken: v.optional(v.string()),
   deletedAt: v.optional(v.number()),
 })
   .index("by_code", ["code"])
+  .index("by_lookupToken", ["lookupToken"])
   .index("by_paymentId", ["paymentId"])
   .index("by_phone", ["phone"])
-  .index("by_visitDate", ["visitDate"]);
+  .index("by_visitDate", ["visitDate"])
+  // Lets daily maintenance (convex/maintenance.ts) find overdue `valid` and
+  // `pending` vouchers directly instead of scanning the whole table. The
+  // `deletedAt` field is included so an already soft-deleted Pending Voucher
+  // (deletedAt defined) drops out of the range once handled, instead of
+  // matching this index forever.
+  .index("by_status_and_deletedAt_and_expiresAt", [
+    "status",
+    "deletedAt",
+    "expiresAt",
+  ])
+  // Lets daily maintenance find Test Vouchers old enough to hard-delete
+  // without scanning non-test vouchers too.
+  .index("by_isTest", ["isTest"]);
 
 // One document per key so concurrent admins editing settings cannot clobber
 // each other. `key` values and their value shapes come from the

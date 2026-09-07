@@ -1,3 +1,5 @@
+import { ConvexError } from "convex/values";
+
 import { getSaoPauloDateKey } from "../../src/lib/utils/date";
 import type { SettingValueMap } from "./settings";
 
@@ -71,7 +73,7 @@ export function validateVoucherPurchase(
   options: ValidateVoucherPurchaseOptions,
 ): VoucherPurchaseValidationResult {
   if (input.testMode === true && options.canUseTestMode !== true) {
-    throw new Error("Modo de teste disponível apenas para equipe autorizada.");
+    throw new ConvexError("Modo de teste disponível apenas para equipe autorizada.");
   }
 
   validateQuantities(input);
@@ -100,14 +102,14 @@ function validateQuantities(input: VoucherPurchaseInput) {
 
   for (const [key, value] of quantities) {
     if (!Number.isInteger(value) || value < 0) {
-      throw new Error(`Quantidade inválida para ${quantityLabels[key]}.`);
+      throw new ConvexError(`Quantidade inválida para ${quantityLabels[key]}.`);
     }
   }
 
   const total = quantities.reduce((sum, [, value]) => sum + value, 0);
 
   if (total === 0) {
-    throw new Error("Informe ao menos uma entrada para comprar.");
+    throw new ConvexError("Informe ao menos uma entrada para comprar.");
   }
 }
 
@@ -119,25 +121,25 @@ function validateEnabledOptions(
     !settings["enable.voucher.buy"] &&
     (input.adults > 0 || input.elderly > 0)
   ) {
-    throw new Error("Compra de voucher normal está desativada.");
+    throw new ConvexError("Compra de voucher normal está desativada.");
   }
 
   if (!settings["enable.voucher.half-price.buy"] && input.elderly > 0) {
-    throw new Error("Compra de voucher meia entrada está desativada.");
+    throw new ConvexError("Compra de voucher meia entrada está desativada.");
   }
 
   if (
     !settings["enable.voucher.pool.buy"] &&
     (input.adultsPool > 0 || input.elderlyPool > 0)
   ) {
-    throw new Error("Compra de voucher com piscina está desativada.");
+    throw new ConvexError("Compra de voucher com piscina está desativada.");
   }
 
   if (
     !settings["enable.voucher.half-price.pool.buy"] &&
     input.elderlyPool > 0
   ) {
-    throw new Error(
+    throw new ConvexError(
       "Compra de voucher meia entrada com piscina está desativada.",
     );
   }
@@ -156,7 +158,7 @@ function validateQuantityLimits(
 
   for (const [key, limit] of limits) {
     if (input[key] > limit) {
-      throw new Error(
+      throw new ConvexError(
         `Quantidade de ${quantityLabels[key]} acima do limite permitido.`,
       );
     }
@@ -168,7 +170,7 @@ function validateVisitDate(
   options: ValidateVoucherPurchaseOptions,
 ) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(visitDate)) {
-    throw new Error("Data de visita inválida.");
+    throw new ConvexError("Data de visita inválida.");
   }
 
   const todayKey = getSaoPauloDateKey(options.now);
@@ -180,15 +182,15 @@ function validateVisitDate(
   );
 
   if (visitDay < today) {
-    throw new Error("Data de visita não pode estar no passado.");
+    throw new ConvexError("Data de visita não pode estar no passado.");
   }
 
   if (visitDay > maxDate) {
-    throw new Error("Data de visita além do limite permitido.");
+    throw new ConvexError("Data de visita além do limite permitido.");
   }
 
   if (options.settings["disabled.days"].includes(visitDate)) {
-    throw new Error("Data de visita indisponível.");
+    throw new ConvexError("Data de visita indisponível.");
   }
 }
 

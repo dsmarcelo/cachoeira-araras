@@ -1,8 +1,8 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
+import { useConvex, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useSavedVouchers } from "../../_components/saved-vouchers-provider";
 import DeleteVoucherCookieBtn from "../../_components/delete-voucher-cookie-btn";
@@ -10,6 +10,10 @@ import type { SavedVoucher } from "@/lib/voucher/browser-storage";
 import { Button } from "@/components/ui/button";
 import { formatQuantity } from "@/lib/voucher";
 import { formatToBRL } from "@/lib/utils";
+import {
+  getCachedLookupToken,
+  setCachedLookupToken,
+} from "@/lib/voucher/lookup-token-cache";
 
 const statuses = {
   pending: "Pagamento pendente",
@@ -28,14 +32,67 @@ function formatVisitDate(visitDate: string) {
 }
 
 function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
-  const voucher = useQuery(api.vouchers.getByCode, { code: entry.code });
-  const imageUrl = `/api/og?code=${encodeURIComponent(entry.code)}`;
+  const convex = useConvex();
+  const [lookupToken, setLookupToken] = useState<string | null>(() =>
+    getCachedLookupToken(entry.code) ?? null,
+  );
+  const [lookupFailure, setLookupFailure] = useState<
+    "not_found" | "rate_limited" | null
+  >(null);
+  const voucher = useQuery(
+    api.vouchers.getAuthorized,
+    lookupToken ? { lookupToken } : "skip",
+  );
+  const imageUrl = `/api/og?code=${encodeURIComponent(entry.code)}&lookupToken=${encodeURIComponent(lookupToken ?? "")}`;
+
+  // Each saved voucher's own anonymous lookup, spending shared rate-limiter
+  // capacity once per card — unless another component already authorized
+  // this exact code in this tab (see lookup-token-cache.ts), in which case
+  // the cached token above is reused for free. The reactive subscription
+  // spends no further capacity either way. See convex/vouchers.ts
+  // authorizeLookup.
+  useEffect(() => {
+    if (lookupToken) return;
+    let active = true;
+    async function authorize() {
+      try {
+        const authorization = await convex.mutation(api.vouchers.authorizeLookup, {
+          code: entry.code,
+        });
+        if (!active) return;
+        if (authorization.kind === "authorized") {
+          setCachedLookupToken(entry.code, authorization.lookupToken);
+          setLookupToken(authorization.lookupToken);
+        } else {
+          setLookupFailure(authorization.kind);
+        }
+      } catch {
+        if (active) setLookupFailure("not_found");
+      }
+    }
+    void authorize();
+    return () => {
+      active = false;
+    };
+    // lookupToken is read only to decide whether to skip this mount-time
+    // authorization, not to react to later changes; including it in the
+    // dependency array would re-run the effect (and spend another
+    // rate-limited authorizeLookup call) every time it sets the token.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convex, entry.code]);
 
   return (
     <li className="flex flex-col gap-4 rounded-xl bg-dark-blue p-6">
       <h2 className="text-2xl font-bold">Voucher {entry.code}</h2>
-      {voucher === undefined && <p>Consultando pagamento...</p>}
-      {voucher === null && <p>Voucher não encontrado</p>}
+      {voucher === undefined && lookupFailure === null && (
+        <p>Consultando pagamento...</p>
+      )}
+      {lookupFailure === "rate_limited" && (
+        <p>Muitas tentativas de consulta. Aguarde um instante e recarregue a página.</p>
+      )}
+      {(voucher === null || lookupFailure === "not_found") && (
+        <p>Voucher não encontrado</p>
+      )}
       {voucher && (
         <div className="flex flex-col gap-1 text-sm text-primary-200">
           <p className="text-base text-primary-100">
