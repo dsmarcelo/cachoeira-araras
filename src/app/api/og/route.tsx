@@ -24,12 +24,13 @@ const interSemiBold = fs
  */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');
+  const lookupToken = request.nextUrl.searchParams.get('lookupToken');
 
-  if (!code) {
+  if (!code || !lookupToken) {
     return new Response('Missing code', { status: 400 });
   }
 
-  const voucher = await getVoucherImageData(code);
+  const voucher = await getVoucherImageData(code, lookupToken);
 
   if (!voucher || voucher.status === 'pending') {
     return new Response('Voucher not found', { status: 404 });

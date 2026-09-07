@@ -60,10 +60,12 @@ http.route({
 
 /**
  * Returns the voucher fields the "Meus Vouchers" OG image needs to render —
- * including name and phone, which `vouchers.getByCode` deliberately omits
- * from anything a browser can query directly. The sole caller is the OG
- * route (src/app/api/og/route.tsx), reached server-to-server and trusted the
- * same way as the webhook above: a shared secret, no Convex identity.
+ * including name and phone, which browser-facing voucher lookup responses
+ * deliberately omit. The sole caller is the OG route
+ * (src/app/api/og/route.tsx), reached server-to-server and trusted with both
+ * the service secret and the voucher-scoped lookup capability supplied by the
+ * browser. Requiring both prevents that public adapter from becoming a
+ * Voucher Code enumeration bypass.
  */
 http.route({
   path: "/services/voucher-image-data",
@@ -80,13 +82,14 @@ http.route({
     if (typeof body !== "object" || body === null) {
       return new Response("Bad Request", { status: 400 });
     }
-    const { code } = body as Record<string, unknown>;
-    if (typeof code !== "string") {
+    const { code, lookupToken } = body as Record<string, unknown>;
+    if (typeof code !== "string" || typeof lookupToken !== "string") {
       return new Response("Bad Request", { status: 400 });
     }
 
     const voucher = await ctx.runQuery(internal.vouchers.getVoucherForImage, {
       code,
+      lookupToken,
     });
 
     return new Response(JSON.stringify(voucher), {

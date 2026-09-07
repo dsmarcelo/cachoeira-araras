@@ -9,10 +9,12 @@ import { api } from '../../../convex/_generated/api'
 
 /**
  * Gate staff type a Voucher Code, see its live status, and redeem it. Backed
- * directly by Convex: `getByCode` is a reactive query (so a payment the
- * Mercado Pago webhook just confirmed shows up without refetching) and
- * `redeemByCode` is staff-gated server-side, so a public caller can neither
- * read nor redeem anything even if this component were reachable by one.
+ * directly by Convex: `getByCodeForStaff` is a reactive query (so a payment
+ * the Mercado Pago webhook just confirmed shows up without refetching),
+ * gated on the caller's staff role rather than the anonymous rate limiter
+ * applied to public lookups. `redeemByCode` is staff-gated server-side too,
+ * so a public caller can neither read nor redeem anything even if this
+ * component were reachable by one.
  */
 export default function ValidateVoucher() {
   const [voucherCode, setVoucherCode] = useState('');
@@ -20,7 +22,7 @@ export default function ValidateVoucher() {
   const [message, setMessage] = useState('');
 
   const voucher = useQuery(
-    api.vouchers.getByCode,
+    api.vouchers.getByCodeForStaff,
     lookupCode ? { code: lookupCode } : "skip",
   );
   const redeemByCode = useMutation(api.vouchers.redeemByCode);

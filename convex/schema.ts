@@ -69,9 +69,14 @@ const vouchers = defineTable({
   // pricing; never accepted from client input.
   isTest: v.boolean(),
 
+  // Opaque capability for reactive public reads after a rate-limited Voucher
+  // Code lookup. It authorizes access but is not a second voucher identity;
+  // Voucher Code remains the only identifier shared across contexts.
+  lookupToken: v.optional(v.string()),
   deletedAt: v.optional(v.number()),
 })
   .index("by_code", ["code"])
+  .index("by_lookupToken", ["lookupToken"])
   .index("by_paymentId", ["paymentId"])
   .index("by_phone", ["phone"])
   .index("by_visitDate", ["visitDate"]);

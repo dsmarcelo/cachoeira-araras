@@ -44,41 +44,147 @@ export function countsAsRealVoucher(
   return voucher.deletedAt === undefined && !voucher.isTest;
 }
 
+export const voucherStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("valid"),
+  v.literal("redeemed"),
+  v.literal("expired"),
+  v.literal("refunded"),
+);
+
+const publicVoucherValidator = v.object({
+  code: v.string(),
+  createdAt: v.number(),
+  status: voucherStatusValidator,
+  visitDate: v.string(),
+  expiresAt: v.number(),
+  adults: v.number(),
+  elderly: v.number(),
+  adultsPool: v.number(),
+  elderlyPool: v.number(),
+  priceCents: v.number(),
+});
+
+function summarizeForPublic(voucher: Doc<"vouchers">) {
+  return {
+    code: voucher.code,
+    createdAt: voucher._creationTime,
+    status: voucher.status,
+    visitDate: voucher.visitDate,
+    expiresAt: voucher.expiresAt,
+    adults: voucher.adults,
+    elderly: voucher.elderly,
+    adultsPool: voucher.adultsPool,
+    elderlyPool: voucher.elderlyPool,
+    priceCents: voucher.priceCents,
+  };
+}
+
 /**
- * Public status lookup by Voucher Code: the one path a visitor can hit with
- * no session, so it deliberately does NOT filter out Test Vouchers the way
- * `countsAsRealVoucher` does — a tester needs to see their own voucher's real
- * state to exercise the full purchase-to-entry path. It still hides
- * soft-deleted vouchers, and returns only the fields a stranger holding a
- * guessed code may see: no name, phone, price, or Mercado Pago identifiers.
+ * Exchanges a Voucher Code for an opaque, voucher-scoped lookup capability.
+ * Every anonymous attempt — including a miss — spends from one shared token
+ * bucket, preventing callers from spreading a keyspace sweep across fake
+ * sessions. The capability is authorization, not another voucher identifier:
+ * Voucher Code remains the domain identity exposed in every returned record.
  */
-export const getByCode = query({
+export const authorizeLookup = mutation({
   args: { code: v.string() },
   returns: v.union(
     v.object({
-      code: v.string(),
-      createdAt: v.number(),
-      status: v.union(
-        v.literal("pending"),
-        v.literal("valid"),
-        v.literal("redeemed"),
-        v.literal("expired"),
-        v.literal("refunded"),
-      ),
-      visitDate: v.string(),
-      expiresAt: v.number(),
-      adults: v.number(),
-      elderly: v.number(),
-      adultsPool: v.number(),
-      elderlyPool: v.number(),
-      // The amount actually charged at purchase time. Low-sensitivity on its
-      // own (unlike name/phone), so it's safe to include here — see
-      // `getVoucherForImage` below for the fields that stay off this path.
-      priceCents: v.number(),
+      kind: v.literal("authorized"),
+      lookupToken: v.string(),
+      voucher: publicVoucherValidator,
     }),
-    v.null(),
+    v.object({ kind: v.literal("not_found") }),
+    v.object({
+      kind: v.literal("rate_limited"),
+      retryAfterMs: v.number(),
+    }),
   ),
   handler: async (ctx, args) => {
+    const limit = await rateLimiter.limit(ctx, "voucherLookupGlobal");
+    if (!limit.ok) {
+      return {
+        kind: "rate_limited" as const,
+        retryAfterMs: limit.retryAfter ?? 0,
+      };
+    }
+
+    // Bound attacker-controlled index keys while preserving legacy and future
+    // Voucher Code formats. Invalid shapes are indistinguishable from misses.
+    if (args.code.length === 0 || args.code.length > 64) {
+      return { kind: "not_found" as const };
+    }
+
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (!voucher || voucher.deletedAt !== undefined) {
+      return { kind: "not_found" as const };
+    }
+
+    const lookupToken = voucher.lookupToken ?? crypto.randomUUID();
+    if (voucher.lookupToken === undefined) {
+      await ctx.db.patch("vouchers", voucher._id, { lookupToken });
+    }
+
+    return {
+      kind: "authorized" as const,
+      lookupToken,
+      voucher: summarizeForPublic(voucher),
+    };
+  },
+});
+
+/**
+ * Reactively reads exactly the Voucher authorized by `lookupToken`. The query
+ * accepts no Voucher Code, so it cannot be repurposed into an unthrottled code
+ * sweep. Unknown capabilities and soft-deleted Vouchers both resolve to null.
+ */
+export const getAuthorized = query({
+  args: { lookupToken: v.string() },
+  returns: v.union(publicVoucherValidator, v.null()),
+  handler: async (ctx, args) => {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+        args.lookupToken,
+      )
+    ) {
+      return null;
+    }
+
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_lookupToken", (q) =>
+        q.eq("lookupToken", args.lookupToken),
+      )
+      .unique();
+
+    if (!voucher || voucher.deletedAt !== undefined) {
+      return null;
+    }
+
+    return summarizeForPublic(voucher);
+  },
+});
+
+/**
+ * Staff-only reactive lookup for the gate. Authentication, rather than the
+ * anonymous shared bucket, protects this direct Voucher Code query so gate
+ * validation remains available even when public lookup traffic is blocked.
+ */
+export const getByCodeForStaff = query({
+  args: { code: v.string() },
+  returns: v.union(publicVoucherValidator, v.null()),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "employee");
+
+    if (args.code.length === 0 || args.code.length > 64) {
+      return null;
+    }
+
     const voucher = await ctx.db
       .query("vouchers")
       .withIndex("by_code", (q) => q.eq("code", args.code))
@@ -88,18 +194,7 @@ export const getByCode = query({
       return null;
     }
 
-    return {
-      code: voucher.code,
-      createdAt: voucher._creationTime,
-      status: voucher.status,
-      visitDate: voucher.visitDate,
-      expiresAt: voucher.expiresAt,
-      adults: voucher.adults,
-      elderly: voucher.elderly,
-      adultsPool: voucher.adultsPool,
-      elderlyPool: voucher.elderlyPool,
-      priceCents: voucher.priceCents,
-    };
+    return summarizeForPublic(voucher);
   },
 });
 
@@ -107,12 +202,13 @@ export const getByCode = query({
  * The full record needed to render the "Meus Vouchers" OG image, including
  * name and phone. Internal only, deliberately not a public query — reached
  * exclusively via the `/services/voucher-image-data` HTTP action
- * (convex/http.ts) behind the same shared secret as the Mercado Pago
- * webhook, so name/phone exposure never grows beyond what the OG route
- * already rendered (see src/app/api/og/route.tsx).
+ * (convex/http.ts) behind the same shared secret as the Mercado Pago webhook.
+ * The caller must also present the opaque capability bound to this Voucher
+ * Code, preventing the public OG adapter from becoming a code-enumeration
+ * bypass that exposes buyer data.
  */
 export const getVoucherForImage = internalQuery({
-  args: { code: v.string() },
+  args: { code: v.string(), lookupToken: v.string() },
   returns: v.union(
     v.object({
       code: v.string(),
@@ -141,7 +237,11 @@ export const getVoucherForImage = internalQuery({
       .withIndex("by_code", (q) => q.eq("code", args.code))
       .unique();
 
-    if (!voucher || voucher.deletedAt !== undefined) {
+    if (
+      !voucher ||
+      voucher.deletedAt !== undefined ||
+      voucher.lookupToken !== args.lookupToken
+    ) {
       return null;
     }
 
@@ -167,14 +267,6 @@ export const referrerValidator = v.object({
   source: v.string(),
   url: v.string(),
 });
-
-export const voucherStatusValidator = v.union(
-  v.literal("pending"),
-  v.literal("valid"),
-  v.literal("redeemed"),
-  v.literal("expired"),
-  v.literal("refunded"),
-);
 
 function buildReferrer(
   referrerUrl: string | null | undefined,

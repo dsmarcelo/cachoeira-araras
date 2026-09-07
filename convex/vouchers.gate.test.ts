@@ -55,6 +55,21 @@ test("the gate list shows today's real vouchers and hides Test Vouchers", async 
   expect(list.map((v) => v.code)).toEqual(["real"]);
 });
 
+test("staff can reactively look up a Voucher Code without spending anonymous lookup capacity", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t);
+  const asEmployee = await withAuth(t, "employee");
+
+  const voucher = await asEmployee.query(api.vouchers.getByCodeForStaff, {
+    code: "a1b2",
+  });
+  expect(voucher).toMatchObject({ code: "a1b2", status: "valid" });
+
+  await expect(
+    t.query(api.vouchers.getByCodeForStaff, { code: "a1b2" }),
+  ).rejects.toThrow(/not signed in/);
+});
+
 test("a public caller cannot read the gate list", async () => {
   const t = createConvexTest();
   await insertVoucher(t);
