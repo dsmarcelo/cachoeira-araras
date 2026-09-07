@@ -49,41 +49,40 @@ export type VoucherSchema = z.infer<typeof voucherSchema>;
  * today through `maxIntendedDays` days ahead, both in the Sao Paulo
  * timezone. `maxIntendedDays` should come from the live `max.intended.days`
  * Convex setting so the client never diverges from the server's limit.
+ *
+ * Every rule lives on its own field (rather than in an object-level
+ * `.refine`) so a first submit reports all of them at once instead of
+ * surfacing the phone error only after the others are fixed.
  */
 export function createVoucherFormSchema(maxIntendedDays: number) {
   const todayKey = getSaoPauloDateKey();
   const maxDateKey = addDaysToDateKey(todayKey, maxIntendedDays);
 
-  return z
-    .object({
-      name: z
-        .string()
-        .min(1, "Nome é obrigatório")
-        .max(40, "Nome deve ser menor que 40 caracteres"),
-      phone: z.string().trim(),
-      adults: z.coerce
-        .number({
-          required_error: "Campo obrigatório",
-          invalid_type_error: "Deve ser um número",
-        })
-        .gte(0, "Quantidade inválida")
-        .lte(20, "No maximo 20 pessoas")
-        .int(),
-      intendedDate: z
-        .date({ required_error: "Campo obrigatório" })
-        .min(new Date(startOfSaoPauloDayMs(todayKey)), "Data inválida")
-        .max(new Date(endOfSaoPauloDayMs(maxDateKey)), "Data inválida"),
-    })
-    .refine(
-      (data) => {
-        return data.phone.length >= 11 && data.phone.charAt(2) === "9";
-      },
-      {
-        message:
-          "Número incorreto, não se esqueça de colocar o DDD e o 9 no início",
-        path: ["phone"],
-      },
-    );
+  return z.object({
+    name: z
+      .string()
+      .min(1, "Nome é obrigatório")
+      .max(40, "Nome deve ser menor que 40 caracteres"),
+    phone: z
+      .string()
+      .trim()
+      .refine(
+        (phone) => phone.length >= 11 && phone.charAt(2) === "9",
+        "Número incorreto, não se esqueça de colocar o DDD e o 9 no início",
+      ),
+    adults: z.coerce
+      .number({
+        required_error: "Campo obrigatório",
+        invalid_type_error: "Deve ser um número",
+      })
+      .gte(0, "Quantidade inválida")
+      .lte(20, "No maximo 20 pessoas")
+      .int(),
+    intendedDate: z
+      .date({ required_error: "Campo obrigatório" })
+      .min(new Date(startOfSaoPauloDayMs(todayKey)), "Data inválida")
+      .max(new Date(endOfSaoPauloDayMs(maxDateKey)), "Data inválida"),
+  });
 }
 
 export type VoucherFormSchema = z.infer<
