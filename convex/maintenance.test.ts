@@ -63,6 +63,26 @@ async function runMaintenanceAt(t: ConvexTest, atMs: number) {
   }
 }
 
+/**
+ * Like `runMaintenanceAt`, but also drains every self-rescheduled
+ * continuation (see the `mayHaveMoreWork` branch in
+ * convex/maintenance.ts), so the backlog existing at `atMs` is fully
+ * processed regardless of how many batches it takes.
+ */
+async function runMaintenanceToCompletionAt(t: ConvexTest, atMs: number) {
+  vi.useFakeTimers();
+  vi.setSystemTime(atMs);
+  try {
+    await t.mutation(internal.maintenance.runDailyMaintenance, {});
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
+// Must match BATCH_SIZE in convex/maintenance.ts.
+const BATCH_SIZE = 200;
+
 async function getByCode(t: ConvexTest, code: string) {
   return t.run(async (ctx) =>
     ctx.db
@@ -182,4 +202,72 @@ test("real vouchers are never hard-deleted, no matter how old or how far past th
 
   expect(await getByCode(t, "old-real-valid")).not.toBeNull();
   expect(await getByCode(t, "old-real-pending")).not.toBeNull();
+});
+
+test("a backlog bigger than one batch is processed across scheduled continuations, not in a single run", async () => {
+  const t = convexTest(schema, modules);
+  const expiresAt = Date.UTC(2026, 0, 5, 12, 0, 0);
+  const BACKLOG = BATCH_SIZE + 50;
+
+  await t.run(async (ctx) => {
+    for (let i = 0; i < BACKLOG; i++) {
+      await ctx.db.insert("vouchers", {
+        ...defaults(),
+        code: `pending-${i}`,
+        status: "pending",
+        expiresAt,
+      });
+    }
+  });
+
+  // Counts vouchers still sitting in the same indexed range the mutation
+  // itself queries — i.e. not yet soft-deleted.
+  const unprocessedCount = () =>
+    t.run(async (ctx) =>
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_status_and_deletedAt_and_expiresAt", (q) =>
+          q
+            .eq("status", "pending")
+            .eq("deletedAt", undefined)
+            .lte("expiresAt", expiresAt),
+        )
+        .collect(),
+    );
+
+  vi.useFakeTimers();
+  vi.setSystemTime(expiresAt + 1000);
+  try {
+    // A single mutation call only ever handles one batch, leaving the rest
+    // for its self-scheduled continuation.
+    await t.mutation(internal.maintenance.runDailyMaintenance, {});
+    expect(await unprocessedCount()).toHaveLength(BACKLOG - BATCH_SIZE);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await unprocessedCount()).toHaveLength(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("running maintenance again once the backlog is cleared changes nothing and schedules no further work", async () => {
+  const t = convexTest(schema, modules);
+  const expiresAt = Date.UTC(2026, 0, 5, 12, 0, 0);
+  await insertVoucherAt(t, expiresAt - DAY_MS, {
+    code: "settled",
+    status: "pending",
+    expiresAt,
+  });
+
+  await runMaintenanceToCompletionAt(t, expiresAt + 1000);
+  const afterFirst = await getByCode(t, "settled");
+  expect(afterFirst?.deletedAt).toBeDefined();
+
+  // A second run, later the same day, must find nothing left in its indexed
+  // range (the voucher's `deletedAt` already excludes it) and therefore
+  // neither touch it again nor schedule another continuation.
+  await runMaintenanceToCompletionAt(t, expiresAt + 2000);
+  const afterSecond = await getByCode(t, "settled");
+  expect(afterSecond?.deletedAt).toBe(afterFirst?.deletedAt);
+  expect(afterSecond?.status).toBe("pending");
 });
