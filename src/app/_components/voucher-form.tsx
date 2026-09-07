@@ -1,7 +1,7 @@
 "use client";
 import { useAction, useConvex, useQuery } from "convex/react";
 import { api as convexApi } from "../../../convex/_generated/api";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
-import { voucherFormSchema } from "@/lib/voucher/types";
+import { createVoucherFormSchema } from "@/lib/voucher/types";
 import { cn, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -98,6 +98,13 @@ export default function VoucherForm({
     setRestored(true);
   }, [ready, vouchers, restored]);
 
+  // Rebuilt whenever the live setting changes, so the client's Visit Date
+  // window (used for both the calendar and this schema) never diverges from
+  // the server's `max.intended.days` limit.
+  const voucherFormSchema = useMemo(
+    () => createVoucherFormSchema(maxIntendedDays),
+    [maxIntendedDays],
+  );
   type FormSchema = z.infer<typeof voucherFormSchema>;
   const [checkoutFailed, setCheckoutFailed] = useState(false);
 
