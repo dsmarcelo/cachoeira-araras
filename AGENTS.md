@@ -26,7 +26,7 @@ Follow these conventions:
 * Use `PascalCase` for components and types
 * Respect ESLint rules
 * Handle errors and edge cases robustly
-* Show errors in the UI when applicable
+* Show errors in the UI when applicable, do not error silently. Translate error messages to the final user in readable, non technical messages.
 * Validate inputs
 * Add character limits where appropriate
 * Verify that the intended functionality works correctly
@@ -68,11 +68,9 @@ I love to build. I focus on building complex things as simple as possible. I lov
 
 # Pull requests
 
-- Never make a PR unless the developer explicitly asks you to do so.
 - Conventional commit titles, plain language: `fix(web): new threads no longer spike CPU`.
 - Body: the problem in a sentence or two, then how you fixed it. End with the model and harness that did the work.
-- **Rebase onto latest main before opening.** Stale branches conflict and burn a review round.
-- UI changes need before/after images. Motion or timing needs a short video.
+- Open PRs based on the current branch.
 - One concern per PR. If the description says "also", split it.
 
 ## Taste
