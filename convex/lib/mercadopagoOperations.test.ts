@@ -136,24 +136,25 @@ test("returns an approval racing cancellation instead of claiming cancellation",
 test("search reads every page without date or status restrictions", async () => {
   replies = [
     {
-      paging: { total: 101 },
-      results: Array.from({ length: 100 }, (_, id) => ({
+      paging: { total: 51 },
+      results: Array.from({ length: 50 }, (_, id) => ({
         ...payment,
         id: id + 1,
       })),
     },
     {
-      paging: { total: 101 },
-      results: [{ ...payment, id: 101, status: "approved" }],
+      paging: { total: 51 },
+      results: [{ ...payment, id: 51, status: "approved" }],
     },
   ];
   expect(await findPaymentsByExternalReference("ABC123", intent)).toHaveLength(
-    101,
+    51,
   );
   const urls = calls.map((c) => new URL(c.url));
-  expect(urls.map((u) => u.searchParams.get("offset"))).toEqual(["0", "100"]);
+  expect(urls.map((u) => u.searchParams.get("offset"))).toEqual(["0", "50"]);
   for (const [index, url] of urls.entries()) {
     expect(url.searchParams.get("external_reference")).toBe("ABC123");
+    expect(url.searchParams.get("limit")).toBe("50");
     expect(url.searchParams.has("begin_date")).toBe(false);
     expect(url.searchParams.has("status")).toBe(false);
     expect(calls[index]!.init.headers).toMatchObject({

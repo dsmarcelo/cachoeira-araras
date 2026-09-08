@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { env } from "../_generated/server";
 import type { ProviderIntent } from "./paymentOperation";
 
 // Unlike the admin listing, financial operations must never interpret an HTTP
@@ -9,7 +10,7 @@ async function request(
   method = "GET",
   body?: unknown,
 ): Promise<unknown> {
-  const token = process.env.MERCADOPAGO_TOKEN;
+  const token = env.MERCADOPAGO_TOKEN;
   if (!token) throw new Error("MERCADOPAGO_TOKEN não está configurado.");
   const response = await fetch(`https://api.mercadopago.com${path}`, {
     method,
@@ -105,10 +106,10 @@ export async function findPaymentsByExternalReference(
     paging: z.object({ total: z.number().int().nonnegative() }),
     results: z.array(paymentResponse),
   });
-  for (let offset = 0; offset < 1000; offset += 100) {
+  for (let offset = 0; offset < 1000; offset += 50) {
     const params = new URLSearchParams({
       external_reference: externalReference,
-      limit: "100",
+      limit: "50",
       offset: String(offset),
       sort: "date_created",
       criteria: "asc",
@@ -123,9 +124,13 @@ export async function findPaymentsByExternalReference(
     }
     if (offset + page.results.length >= page.paging.total)
       return [...payments.values()];
-    if (page.results.length < 100) throw new Error("Incomplete payment search");
+    if (page.results.length < 50) throw new Error("Incomplete payment search");
   }
   throw new Error("Payment search exceeds safe scan limit");
+}
+
+function isCancellable(status: string) {
+  return ["pending", "in_process", "authorized"].includes(status);
 }
 
 /** Re-read first to reconcile lost responses and preserve an approval racing cancellation. */
@@ -137,23 +142,18 @@ export async function cancelPayment(paymentId: string, intent: ProviderIntent) {
     return payment;
   };
   const payment = await readPayment();
-  if (!["pending", "in_process", "authorized"].includes(payment.status))
-    return payment;
+  if (!isCancellable(payment.status)) return payment;
   try {
     const updated = paymentResponse.parse(
       await request(path, intent, "PUT", { status: "cancelled" }),
     );
-    if (
-      updated.id !== paymentId ||
-      ["pending", "in_process", "authorized"].includes(updated.status)
-    ) {
+    if (updated.id !== paymentId || isCancellable(updated.status)) {
       throw new Error("Payment cancellation not confirmed");
     }
     return updated;
   } catch (error) {
     const reconciled = await readPayment();
-    if (["pending", "in_process", "authorized"].includes(reconciled.status))
-      throw error;
+    if (isCancellable(reconciled.status)) throw error;
     return reconciled;
   }
 }
