@@ -26,4 +26,5 @@ export const operationResult = v.union(
 );
 export type OperationResult = Infer<typeof operationResult>;
 export type OperationRequest = Infer<typeof operationRequest>;
+export type PaymentSnapshot = Infer<typeof paymentSnapshot>;
 export type ProviderIntent = { idempotencyKey: string; recordedAt: number };

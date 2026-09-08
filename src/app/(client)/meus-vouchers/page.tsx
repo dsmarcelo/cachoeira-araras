@@ -82,6 +82,10 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convex, entry.code]);
 
+  const refundNotices = useQuery(api.refunds.getRefundNoticesForVouchers, {
+    voucherCodes: [entry.code],
+  });
+
   return (
     <li className="flex flex-col gap-4 rounded-xl bg-dark-blue p-6">
       <h2 className="text-2xl font-bold">Voucher {entry.code}</h2>
@@ -111,12 +115,35 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
           <p>Valor: {formatToBRL(voucher.priceCents / 100)}</p>
         </div>
       )}
+      {refundNotices && refundNotices.length > 0 && (
+        <div className="space-y-2">
+          {refundNotices.map((notice) => {
+            const isCompleted = notice.status === "completed";
+            const isNeedsRetry = notice.status === "needs_retry";
+            return (
+              <div
+                key={notice.refundId}
+                role="status"
+                className={`p-3 rounded-lg border text-sm ${
+                  isCompleted
+                    ? "bg-green-950/40 border-green-500/40 text-green-200"
+                    : isNeedsRetry
+                      ? "bg-amber-950/40 border-amber-500/40 text-amber-200"
+                      : "bg-blue-950/40 border-blue-500/40 text-blue-200"
+                }`}
+              >
+                {notice.message}
+              </div>
+            );
+          })}
+        </div>
+      )}
       {voucher?.status === "pending" && entry.initPoint && (
         <Button asChild className="bg-positive-green">
           <a href={entry.initPoint}>Finalizar pagamento</a>
         </Button>
       )}
-      {voucher && voucher.status !== "pending" && (
+      {voucher && (voucher.status === "valid" || voucher.status === "redeemed") && (
         <div className="flex flex-col gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element -- server-generated, non-optimizable OG image */}
           <img

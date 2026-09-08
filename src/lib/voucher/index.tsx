@@ -13,6 +13,8 @@ export function formatVoucherStatus(status: string) {
       return <p className="text-slate-500 w-fit bg-slate-200/30 rounded-lg px-1 pb-1">Voucher expirado</p>;
     case "refunded":
       return <p className="text-red-500 w-fit bg-red-200/30 rounded-lg px-1 pb-1">Pagamento estornado</p>;
+    case "cancelled":
+      return <p className="text-slate-500 w-fit bg-slate-200/30 rounded-lg px-1 pb-1">Cancelado</p>;
     default:
       return <p className="text-red-500 w-fit bg-red-200/30 rounded-lg px-1 pb-1">Voucher inválido</p>;
   }
@@ -32,8 +34,35 @@ export function formatVoucherStatusWithoutBg(status: string, expiration_date: st
       return <span style={{ color: 'gray' }}>Voucher expirado</span>;
     case "refunded":
       return <span style={{ color: 'red' }}>Pagamento estornado</span>;
+    case "cancelled":
+      return <span style={{ color: 'gray' }}>Cancelado</span>;
     default:
       return <span style={{ color: 'red' }}>Voucher inválido</span>;
+  }
+}
+
+export type RefundStatus = "pending_attempt" | "processing" | "completed" | "needs_retry";
+
+export function formatRefundMessage({
+  status,
+  isPostCancellation,
+}: {
+  status: RefundStatus;
+  isPostCancellation: boolean;
+}): string {
+  switch (status) {
+    case "completed":
+      return isPostCancellation
+        ? "O pagamento feito após o cancelamento foi reembolsado."
+        : "O pagamento duplicado foi reembolsado.";
+    case "needs_retry":
+      return "O reembolso ainda não foi concluído. Continuaremos tentando automaticamente.";
+    case "pending_attempt":
+    case "processing":
+    default:
+      return isPostCancellation
+        ? "Recebemos um pagamento após o cancelamento. O reembolso integral está sendo processado."
+        : "Identificamos um pagamento duplicado. O reembolso integral está sendo processado.";
   }
 }
 
@@ -64,6 +93,10 @@ export function formatVoucherStatusIcons(status: string) {
     case "refunded":
       return (
         <FaTimesCircle className="text-red-400" size={iconSize} />
+      );
+    case "cancelled":
+      return (
+        <FaTimesCircle className="text-slate-400" size={iconSize} />
       );
     default:
       return null; // No icon for unknown status
