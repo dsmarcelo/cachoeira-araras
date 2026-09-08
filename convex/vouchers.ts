@@ -6,7 +6,7 @@ import {
   startOfSaoPauloDayMs,
 } from "../src/lib/utils/date";
 import { api, internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   action,
   internalMutation,
@@ -187,6 +187,131 @@ export const getAuthorized = query({
   },
 });
 
+export const pendingConflictVoucherValidator = v.object({
+  code: v.string(),
+  visitDate: v.string(),
+  adults: v.number(),
+  elderly: v.number(),
+  adultsPool: v.number(),
+  elderlyPool: v.number(),
+  priceCents: v.number(),
+  status: voucherStatusValidator,
+  actions: v.object({
+    canResume: v.boolean(),
+    canCancel: v.boolean(),
+  }),
+});
+
+/**
+ * Resolves pending purchase conflicts reactively when a phone number hits
+ * the one-pending limit. If the caller provides valid management capability
+ * tokens stored in their browser for that phone's purchases, returns an
+ * authorized summary and allowed actions for every matching pending purchase.
+ * If the caller lacks a valid capability, returns only a generic notice
+ * directing them to the originating browser, without revealing any voucher
+ * details or financial identifiers.
+ */
+export const getPendingConflict = query({
+  args: {
+    phone: v.string(),
+    managementTokens: v.array(v.string()),
+  },
+  returns: v.union(
+    v.object({
+      kind: v.literal("authorized"),
+      vouchers: v.array(pendingConflictVoucherValidator),
+    }),
+    v.object({
+      kind: v.literal("generic"),
+      message: v.string(),
+    }),
+    v.object({
+      kind: v.literal("none"),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const vouchersForPhone = await ctx.db
+      .query("vouchers")
+      .withIndex("by_phone", (q) => q.eq("phone", args.phone))
+      .collect();
+
+    const livePending = vouchersForPhone.filter((voucher) =>
+      isLivePendingVoucher(voucher, now),
+    );
+
+    const validTokens = new Set(
+      args.managementTokens.filter((token) => token && token.length > 0),
+    );
+
+    const matchingPending = livePending.filter(
+      (voucher) =>
+        voucher.managementToken !== undefined &&
+        validTokens.has(voucher.managementToken),
+    );
+
+    if (matchingPending.length > 0) {
+      return {
+        kind: "authorized" as const,
+        vouchers: matchingPending.map((v) => ({
+          code: v.code,
+          visitDate: v.visitDate,
+          adults: v.adults,
+          elderly: v.elderly,
+          adultsPool: v.adultsPool,
+          elderlyPool: v.elderlyPool,
+          priceCents: v.priceCents,
+          status: v.status,
+          actions: {
+            canResume: v.status === "pending" && v.expiresAt > now,
+            canCancel: v.status === "pending",
+          },
+        })),
+      };
+    }
+
+    if (livePending.length > 0) {
+      return {
+        kind: "generic" as const,
+        message:
+          "Você já tem uma compra pendente com este telefone. Acesse pelo navegador onde a compra foi iniciada para continuar ou cancelar.",
+      };
+    }
+
+    const matchingUpdated = vouchersForPhone.filter(
+      (voucher) =>
+        voucher.deletedAt === undefined &&
+        voucher.managementToken !== undefined &&
+        validTokens.has(voucher.managementToken),
+    );
+
+    if (matchingUpdated.length > 0) {
+      return {
+        kind: "authorized" as const,
+        vouchers: matchingUpdated.map((v) => ({
+          code: v.code,
+          visitDate: v.visitDate,
+          adults: v.adults,
+          elderly: v.elderly,
+          adultsPool: v.adultsPool,
+          elderlyPool: v.elderlyPool,
+          priceCents: v.priceCents,
+          status: v.status,
+          actions: {
+            canResume: v.status === "pending" && v.expiresAt > now,
+            canCancel: v.status === "pending",
+          },
+        })),
+      };
+    }
+
+    return {
+      kind: "none" as const,
+    };
+  },
+});
+
+
 /**
  * Staff-only reactive lookup for the gate. Authentication, rather than the
  * anonymous shared bucket, protects this direct Voucher Code query so gate
@@ -324,8 +449,18 @@ export const startCheckout = action({
     preferenceId: v.string(),
     initPoint: v.string(),
     priceCents: v.number(),
+    managementToken: v.string(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    code: string;
+    preferenceId: string;
+    initPoint: string;
+    priceCents: number;
+    managementToken: string;
+  }> => {
     const role = await getRole(ctx);
     const canUseTestMode = role === "admin" || role === "employee";
 
@@ -347,10 +482,19 @@ export const startCheckout = action({
       { canUseTestMode, settings },
     );
 
+    type InsertPendingVoucherResult =
+      | { ok: true; managementToken: string }
+      | { ok: false; reason: "code_collision" }
+      | {
+          ok: false;
+          reason: "pending_conflict";
+          operationId: Id<"paymentOperations">;
+        };
+
     // Ceiling on unexpired Pending Vouchers per phone, checked before any
     // rate-limit token is spent: an abandoned pending checkout should send
     // the customer back to finish that one, not toward "wait and retry".
-    const pendingCount = await ctx.runQuery(
+    const pendingCount: number = await ctx.runQuery(
       internal.vouchers.countUnexpiredPendingByPhone,
       { phone: args.phone, now: Date.now() },
     );
@@ -383,6 +527,7 @@ export const startCheckout = action({
 
     for (let attempt = 1; attempt <= maxVoucherCodeAttempts; attempt += 1) {
       const code = generateVoucherCode();
+      const managementToken = crypto.randomUUID();
 
       const preference = await createCheckoutPreference({
         code,
@@ -400,10 +545,11 @@ export const startCheckout = action({
         phone: args.phone,
       });
 
-      const result = await ctx.runMutation(
+      const result: InsertPendingVoucherResult = await ctx.runMutation(
         internal.vouchers.insertPendingVoucher,
         {
           code,
+          managementToken,
           name: args.name,
           phone: args.phone,
           adults: args.adults,
@@ -425,6 +571,7 @@ export const startCheckout = action({
           preferenceId: preference.id,
           initPoint: preference.initPoint,
           priceCents,
+          managementToken: result.managementToken,
         };
       }
 
@@ -560,6 +707,7 @@ export const findForPaymentEnrichment = internalQuery({
 export const insertPendingVoucher = internalMutation({
   args: {
     code: v.string(),
+    managementToken: v.optional(v.string()),
     name: v.string(),
     phone: v.string(),
     adults: v.number(),
@@ -575,7 +723,7 @@ export const insertPendingVoucher = internalMutation({
     now: v.optional(v.number()),
   },
   returns: v.union(
-    v.object({ ok: v.literal(true) }),
+    v.object({ ok: v.literal(true), managementToken: v.string() }),
     v.object({
       ok: v.literal(false),
       reason: v.literal("code_collision"),
@@ -628,8 +776,11 @@ export const insertPendingVoucher = internalMutation({
       };
     }
 
+    const managementToken = args.managementToken ?? crypto.randomUUID();
+
     await ctx.db.insert("vouchers", {
       code: args.code,
+      managementToken,
       name: args.name,
       phone: args.phone,
       adults: args.adults,
@@ -645,7 +796,7 @@ export const insertPendingVoucher = internalMutation({
       isTest: args.isTest,
     });
 
-    return { ok: true as const };
+    return { ok: true as const, managementToken };
   },
 });
 

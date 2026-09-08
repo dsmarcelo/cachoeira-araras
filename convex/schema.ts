@@ -74,10 +74,15 @@ const vouchers = defineTable({
   // Code lookup. It authorizes access but is not a second voucher identity;
   // Voucher Code remains the only identifier shared across contexts.
   lookupToken: v.optional(v.string()),
+
+  // Opaque, high-entropy management capability returned on checkout and
+  // held only by the originating browser to view, resume or cancel purchases.
+  managementToken: v.optional(v.string()),
   deletedAt: v.optional(v.number()),
 })
   .index("by_code", ["code"])
   .index("by_lookupToken", ["lookupToken"])
+  .index("by_managementToken", ["managementToken"])
   .index("by_paymentId", ["paymentId"])
   .index("by_phone", ["phone"])
   .index("by_visitDate", ["visitDate"])
