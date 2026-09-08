@@ -22,7 +22,7 @@ test("marks the checkout item as a service so Mercado Pago skips shipping guaran
       { status: 200 },
     ),
   );
-  global.fetch = fetchMock as unknown as typeof fetch;
+  global.fetch = fetchMock;
 
   await createCheckoutPreference({
     code: "ABC123",
