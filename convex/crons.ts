@@ -24,4 +24,11 @@ crons.cron(
   {},
 );
 
+crons.interval(
+  "sweep overdue payment refunds",
+  { minutes: 15 },
+  internal.refunds.sweepOverdueRefunds,
+  {},
+);
+
 export default crons;
