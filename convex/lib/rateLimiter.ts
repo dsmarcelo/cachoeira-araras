@@ -56,7 +56,7 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
  * out in time (the failure mode the audit found: 56 abandoned Pending
  * Vouchers in the dev deployment).
  */
-export const MAX_PENDING_VOUCHERS_PER_PHONE = 2;
+export const MAX_PENDING_VOUCHERS_PER_PHONE = 1;
 
 /**
  * Renders a `retryAfter` duration (ms, from a rate limiter result) as a

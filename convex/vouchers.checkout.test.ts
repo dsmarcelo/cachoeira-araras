@@ -7,6 +7,8 @@ import type * as voucherCodeModule from "./lib/voucherCode";
 import { MAX_PENDING_VOUCHERS_PER_PHONE } from "./lib/rateLimiter";
 import { createConvexTest, withAuth } from "./test.setup";
 
+import { createMercadoPagoFake } from "./testing/mercadopagoFake";
+
 interface CheckoutPreferenceStubInput {
   code: string;
 }
@@ -31,6 +33,20 @@ vi.mock("./lib/mercadopago", () => ({
     createCheckoutPreference(input),
 }));
 
+let mpFake: ReturnType<typeof createMercadoPagoFake>;
+vi.mock("./lib/mercadopagoOperations", () => ({
+  refundPayment: (...args: Parameters<typeof mpFake.api.refundPayment>) =>
+    mpFake.api.refundPayment(...args),
+  invalidatePreference: (
+    ...args: Parameters<typeof mpFake.api.invalidatePreference>
+  ) => mpFake.api.invalidatePreference(...args),
+  findPaymentsByExternalReference: (
+    ...args: Parameters<typeof mpFake.api.findPaymentsByExternalReference>
+  ) => mpFake.api.findPaymentsByExternalReference(...args),
+  cancelPayment: (...args: Parameters<typeof mpFake.api.cancelPayment>) =>
+    mpFake.api.cancelPayment(...args),
+}));
+
 // generateVoucherCode is mocked in one test only, to deterministically force
 // a code collision and prove the retry path; every other test uses the real
 // (random) generator via mockImplementation's default below.
@@ -46,6 +62,7 @@ vi.mock("./lib/voucherCode", async (importOriginal) => {
 let codeSequence = 0;
 
 beforeEach(() => {
+  mpFake = createMercadoPagoFake();
   createCheckoutPreference.mockReset();
   createCheckoutPreference.mockImplementation(
     async (input: { code: string }) => ({
@@ -131,42 +148,46 @@ test("a disabled day is refused with an actionable reason", async () => {
   ).rejects.toThrow(/indisponível/);
 });
 
-test("a phone that already holds a valid voucher is refused at checkout", async () => {
+test("a phone holding only valid, redeemed, expired, or refunded vouchers can complete a new purchase", async () => {
   const t = createConvexTest();
-  await t.run(async (ctx) => {
-    await ctx.db.insert("vouchers", {
-      code: "abcd",
-      name: "Outro Visitante",
-      phone: "11999999999",
-      adults: 1,
-      elderly: 0,
-      adultsPool: 0,
-      elderlyPool: 0,
-      priceCents: 5000,
-      status: "valid",
-      visitDate: "2026-09-01",
-      expiresAt: Date.now() + 1000 * 60 * 60 * 24,
-      preferenceId: "pref-existing",
-      isTest: false,
+  const phone = "11999999999";
+  const nonPendingStatuses = [
+    "valid",
+    "redeemed",
+    "expired",
+    "refunded",
+  ] as const;
+
+  for (const [i, status] of nonPendingStatuses.entries()) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("vouchers", {
+        code: `prev-${i}`,
+        name: "Outro Visitante",
+        phone,
+        adults: 1,
+        elderly: 0,
+        adultsPool: 0,
+        elderlyPool: 0,
+        priceCents: 5000,
+        status,
+        visitDate: "2026-09-01",
+        expiresAt: Date.now() + 1000 * 60 * 60 * 24,
+        preferenceId: `pref-existing-${i}`,
+        isTest: false,
+      });
     });
-  });
+  }
 
-  const error = await t
-    .action(api.vouchers.startCheckout, validArgs())
-    .catch((e: unknown) => e);
-
-  // A ConvexError, not a plain Error: Convex only forwards a thrown error's
-  // message to the client via `.data` (a plain Error is sanitized away in
-  // production), so this pins the contract against a future regression back
-  // to `throw new Error(...)`.
-  expect(error).toBeInstanceOf(ConvexError);
-  // Deliberately omits the existing voucher's code: this check is keyed by
-  // phone number alone, so echoing the code back would let anyone enumerate
-  // a stranger's phone number into their voucher code.
-  expect((error as ConvexError<string>).data).toBe(
-    "Você já possui um voucher válido cadastrado com este telefone. Verifique o código enviado anteriormente antes de comprar outro.",
+  const result = await t.action(
+    api.vouchers.startCheckout,
+    validArgs({ phone }),
   );
-  expect(createCheckoutPreference).not.toHaveBeenCalled();
+
+  expect(result.code).toBeTruthy();
+  expect(result.preferenceId).toBe(`pref-${result.code}`);
+  expect(createCheckoutPreference).toHaveBeenCalledWith(
+    expect.objectContaining({ phone }),
+  );
 });
 
 test("quantity limits and per-entry-type toggles from settings are honoured", async () => {
@@ -401,3 +422,134 @@ test("exceeding the global rate limit blocks checkout even across different phon
   ).rejects.toThrow(/O sistema está processando muitas compras/);
   expect(createCheckoutPreference).not.toHaveBeenCalled();
 });
+
+test("two concurrent purchases for the same phone leave at most one pending voucher and return only one preference", async () => {
+  const t = createConvexTest();
+  const phone = "11987654321";
+
+  let releaseFirstPreference: () => void;
+  const firstPreferenceGate = new Promise<void>((resolve) => {
+    releaseFirstPreference = resolve;
+  });
+
+  let callCount = 0;
+  createCheckoutPreference.mockImplementation(
+    async (input: { code: string }) => {
+      callCount += 1;
+      if (callCount === 1) {
+        await firstPreferenceGate;
+      }
+      return {
+        id: `pref-${input.code}`,
+        initPoint: `https://mercadopago.example/${input.code}`,
+      };
+    },
+  );
+
+  const p1 = t.action(api.vouchers.startCheckout, validArgs({ phone }));
+  await new Promise((resolve) => setTimeout(resolve, 15));
+
+  const p2 = t.action(api.vouchers.startCheckout, validArgs({ phone }));
+  await new Promise((resolve) => setTimeout(resolve, 15));
+
+  releaseFirstPreference!();
+
+  const [res1, res2] = await Promise.allSettled([p1, p2]);
+
+  const [winning, rejected] =
+    res1?.status === "fulfilled" ? [res1, res2] : [res2, res1];
+
+  expect(winning?.status).toBe("fulfilled");
+  expect(rejected?.status).toBe("rejected");
+
+  if (winning?.status === "fulfilled" && rejected?.status === "rejected") {
+    expect(winning.value.code).toBeTruthy();
+    expect(winning.value.preferenceId).toBeTruthy();
+
+    const rejectionReason: unknown = rejected.reason;
+    expect(rejectionReason).toBeInstanceOf(ConvexError);
+    expect((rejectionReason as ConvexError<string>).data).toContain(
+      "Você já tem uma compra pendente",
+    );
+
+    const storedVouchers = await t.run(async (ctx) =>
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_phone", (q) => q.eq("phone", phone))
+        .collect(),
+    );
+    expect(storedVouchers).toHaveLength(1);
+    expect(storedVouchers[0]?.code).toBe(winning.value.code);
+
+    const loserCode = winning.value.code === "code1" ? "code2" : "code1";
+    expect(mpFake.invalidatedPreferences.has(`pref-${loserCode}`)).toBe(true);
+  }
+});
+
+test("when losing preference invalidation encounters a transient provider failure, it surfaces in paymentOperations and is retried", async () => {
+  const t = createConvexTest();
+  const phone = "11988889999";
+
+  mpFake.respondWith("invalidatePreference", "transientFailure");
+
+  let releaseFirst: () => void;
+  const gate = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+
+  let callCount = 0;
+  createCheckoutPreference.mockImplementation(
+    async (input: { code: string }) => {
+      callCount += 1;
+      if (callCount === 1) {
+        await gate;
+      }
+      return {
+        id: `pref-${input.code}`,
+        initPoint: `https://mercadopago.example/${input.code}`,
+      };
+    },
+  );
+
+  const p1 = t.action(api.vouchers.startCheckout, validArgs({ phone }));
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  const p2 = t.action(api.vouchers.startCheckout, validArgs({ phone }));
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  releaseFirst!();
+
+  const [res1, res2] = await Promise.allSettled([p1, p2]);
+
+  expect([res1, res2].filter((r) => r.status === "fulfilled")).toHaveLength(1);
+  expect([res1, res2].filter((r) => r.status === "rejected")).toHaveLength(1);
+
+  const operations = await t.run(async (ctx) =>
+    ctx.db.query("paymentOperations").collect(),
+  );
+  expect(operations).toHaveLength(1);
+  const op = operations[0]!;
+  expect(op.request.kind).toBe("invalidatePreference");
+
+  expect(op.lastError).toContain("Transient provider failure");
+  expect(op.result).toBeUndefined();
+
+  vi.useFakeTimers();
+  try {
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+  } finally {
+    vi.useRealTimers();
+  }
+
+  const resolvedOp = await t.run(async (ctx) => ctx.db.get(op._id));
+  expect(resolvedOp?.result).toMatchObject({
+    id: (op.request as { preferenceId: string }).preferenceId,
+    invalidated: true,
+  });
+  expect(resolvedOp?.lastError).toBeUndefined();
+
+  expect(
+    mpFake.invalidatedPreferences.has(
+      (op.request as { preferenceId: string }).preferenceId,
+    ),
+  ).toBe(true);
+});
+

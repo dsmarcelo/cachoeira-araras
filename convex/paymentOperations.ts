@@ -119,3 +119,29 @@ export const execute = internalAction({
     }
   },
 });
+
+export const executeWithRetry = internalAction({
+  args: {
+    id: v.id("paymentOperations"),
+    attempt: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { id, attempt = 1 }) => {
+    try {
+      await ctx.runAction(internal.paymentOperations.execute, { id });
+      return null;
+    } catch {
+      const maxAttempts = 5;
+      if (attempt < maxAttempts) {
+        const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 60000);
+        await ctx.scheduler.runAfter(
+          delayMs,
+          internal.paymentOperations.executeWithRetry,
+          { id, attempt: attempt + 1 },
+        );
+      }
+      return null;
+    }
+  },
+});
+
