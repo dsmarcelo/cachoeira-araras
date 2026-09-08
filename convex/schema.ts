@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { operationRequest, operationResult } from "./lib/paymentOperation";
 
 // A Voucher Code is the identity of a voucher; there is no separate surrogate
 // id. `status` is the single source of truth for voucher state (no parallel
@@ -116,4 +117,10 @@ const settings = defineTable({
 export default defineSchema({
   vouchers,
   settings,
+  paymentOperations: defineTable({
+    request: operationRequest,
+    result: v.optional(operationResult),
+    lastError: v.optional(v.string()),
+    completedAt: v.optional(v.number()),
+  }),
 });

@@ -15,6 +15,8 @@ import type * as http from "../http.js";
 import type * as import_ from "../import.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_mercadopago from "../lib/mercadopago.js";
+import type * as lib_mercadopagoOperations from "../lib/mercadopagoOperations.js";
+import type * as lib_paymentOperation from "../lib/paymentOperation.js";
 import type * as lib_rateLimiter from "../lib/rateLimiter.js";
 import type * as lib_serviceAuth from "../lib/serviceAuth.js";
 import type * as lib_settings from "../lib/settings.js";
@@ -22,7 +24,9 @@ import type * as lib_voucherCode from "../lib/voucherCode.js";
 import type * as lib_voucherPurchase from "../lib/voucherPurchase.js";
 import type * as maintenance from "../maintenance.js";
 import type * as mercadopago from "../mercadopago.js";
+import type * as paymentOperations from "../paymentOperations.js";
 import type * as settings from "../settings.js";
+import type * as testing_mercadopagoFake from "../testing/mercadopagoFake.js";
 import type * as vouchers from "../vouchers.js";
 
 import type {
@@ -39,6 +43,8 @@ declare const fullApi: ApiFromModules<{
   import: typeof import_;
   "lib/auth": typeof lib_auth;
   "lib/mercadopago": typeof lib_mercadopago;
+  "lib/mercadopagoOperations": typeof lib_mercadopagoOperations;
+  "lib/paymentOperation": typeof lib_paymentOperation;
   "lib/rateLimiter": typeof lib_rateLimiter;
   "lib/serviceAuth": typeof lib_serviceAuth;
   "lib/settings": typeof lib_settings;
@@ -46,7 +52,9 @@ declare const fullApi: ApiFromModules<{
   "lib/voucherPurchase": typeof lib_voucherPurchase;
   maintenance: typeof maintenance;
   mercadopago: typeof mercadopago;
+  paymentOperations: typeof paymentOperations;
   settings: typeof settings;
+  "testing/mercadopagoFake": typeof testing_mercadopagoFake;
   vouchers: typeof vouchers;
 }>;
 
