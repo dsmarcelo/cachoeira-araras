@@ -21,6 +21,7 @@ const statuses = {
   redeemed: "Resgatado",
   expired: "Expirado",
   refunded: "Pagamento estornado",
+  cancelled: "Cancelado",
 };
 
 /** "2026-09-10" -> "10/09/2026". Formats the date-key string directly instead

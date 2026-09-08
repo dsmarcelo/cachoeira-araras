@@ -31,6 +31,7 @@ const vouchers = defineTable({
     v.literal("redeemed"),
     v.literal("expired"),
     v.literal("refunded"),
+    v.literal("cancelled"),
   ),
 
   // The day the customer chose at purchase, as "YYYY-MM-DD" in the Sao Paulo
@@ -114,9 +115,29 @@ const settings = defineTable({
   updatedAt: v.optional(v.number()),
 }).index("by_key", ["key"]);
 
+// Each observed payment Mercado Pago reports for a Voucher is persisted
+// individually, unique by its Mercado Pago payment identifier.
+// The first approved payment becomes the Official Payment (isOfficial: true,
+// owesRefund: false). Any further approval is an Excess Payment (isOfficial: false,
+// owesRefund: true).
+const payments = defineTable({
+  paymentId: v.string(),
+  voucherCode: v.string(),
+  status: v.union(v.string(), v.null()),
+  isOfficial: v.boolean(),
+  owesRefund: v.boolean(),
+  createdAt: v.number(),
+  updatedAt: v.optional(v.number()),
+})
+  .index("by_paymentId", ["paymentId"])
+  .index("by_voucherCode", ["voucherCode"])
+  .index("by_voucherCode_and_isOfficial", ["voucherCode", "isOfficial"])
+  .index("by_owesRefund", ["owesRefund"]);
+
 export default defineSchema({
   vouchers,
   settings,
+  payments,
   paymentOperations: defineTable({
     request: operationRequest,
     result: v.optional(operationResult),
