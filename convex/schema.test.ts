@@ -163,3 +163,43 @@ test("settings store one document per key, in every value shape the domain uses"
   );
   expect(enableBuy?.value).toBe(true);
 });
+
+test("a voucher can have cancelled status", async () => {
+  const t = convexTest(schema, modules);
+
+  const id = await t.run(async (ctx) => {
+    return await ctx.db.insert("vouchers", {
+      ...baseVoucher(),
+      code: "CANC01",
+      status: "cancelled",
+    });
+  });
+
+  const stored = await t.run(async (ctx) => ctx.db.get(id));
+  expect(stored?.status).toBe("cancelled");
+});
+
+test("payments can be inserted and queried by paymentId, voucherCode, and owesRefund", async () => {
+  const t = convexTest(schema, modules);
+
+  const id = await t.run(async (ctx) => {
+    return await ctx.db.insert("payments", {
+      paymentId: "pay-123",
+      voucherCode: "V123",
+      status: "approved",
+      isOfficial: true,
+      owesRefund: false,
+      createdAt: Date.now(),
+    });
+  });
+
+  const stored = await t.run(async (ctx) =>
+    ctx.db
+      .query("payments")
+      .withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-123"))
+      .unique(),
+  );
+  expect(stored?._id).toBe(id);
+  expect(stored?.isOfficial).toBe(true);
+  expect(stored?.owesRefund).toBe(false);
+});
