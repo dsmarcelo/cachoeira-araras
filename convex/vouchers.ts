@@ -52,6 +52,23 @@ export const voucherStatusValidator = v.union(
   v.literal("refunded"),
 );
 
+/**
+ * Whether a voucher counts as a live pending purchase that blocks a new checkout.
+ * A pending voucher whose Visit Date has passed (expiresAt <= now) no longer blocks anything.
+ * Cancelled, refunded, valid, redeemed, expired, and soft-deleted vouchers never block.
+ */
+export function isLivePendingVoucher(
+  voucher: Pick<Doc<"vouchers">, "status" | "deletedAt" | "expiresAt">,
+  now: number,
+): boolean {
+  return (
+    voucher.status === "pending" &&
+    voucher.deletedAt === undefined &&
+    voucher.expiresAt > now
+  );
+}
+
+
 const publicVoucherValidator = v.object({
   code: v.string(),
   createdAt: v.number(),
@@ -330,21 +347,6 @@ export const startCheckout = action({
       { canUseTestMode, settings },
     );
 
-    const activeVoucher: { code: string } | null = await ctx.runQuery(
-      internal.vouchers.findActiveByPhone,
-      { phone: args.phone },
-    );
-    if (activeVoucher) {
-      // Deliberately omits the voucher code: this check is keyed by
-      // phone number alone and runs before the rate limiter below, so
-      // echoing the code here would let anyone enumerate a stranger's
-      // phone number into their valid voucher code. The customer already
-      // has a rate-limited way to recover it (the lookup flow).
-      throw new ConvexError(
-        "Você já possui um voucher válido cadastrado com este telefone. Verifique o código enviado anteriormente antes de comprar outro.",
-      );
-    }
-
     // Ceiling on unexpired Pending Vouchers per phone, checked before any
     // rate-limit token is spent: an abandoned pending checkout should send
     // the customer back to finish that one, not toward "wait and retry".
@@ -398,7 +400,7 @@ export const startCheckout = action({
         phone: args.phone,
       });
 
-      const result: { ok: boolean } = await ctx.runMutation(
+      const result = await ctx.runMutation(
         internal.vouchers.insertPendingVoucher,
         {
           code,
@@ -425,6 +427,22 @@ export const startCheckout = action({
           priceCents,
         };
       }
+
+      if (result.reason === "pending_conflict") {
+        try {
+          await ctx.runAction(internal.paymentOperations.execute, {
+            id: result.operationId,
+          });
+        } catch {
+          // Failure is observable on paymentOperations (reconcile records lastError);
+          // background retry is already scheduled.
+        }
+
+        throw new ConvexError(
+          "Você já tem uma compra pendente com este telefone. Finalize o pagamento pendente (verifique o código enviado anteriormente) antes de iniciar uma nova compra.",
+        );
+      }
+
       // Code collision: retry with a fresh code and a fresh preference
       // rather than surfacing an error to the loser.
     }
@@ -436,32 +454,10 @@ export const startCheckout = action({
 });
 
 /**
- * Whether `phone` already holds a valid voucher, so checkout can refuse a
- * second purchase. Scoped by the `by_phone` index; a given phone number
- * accrues at most a handful of vouchers, so collecting them is bounded.
- */
-export const findActiveByPhone = internalQuery({
-  args: { phone: v.string() },
-  returns: v.union(v.object({ code: v.string() }), v.null()),
-  handler: async (ctx, args) => {
-    const vouchers = await ctx.db
-      .query("vouchers")
-      .withIndex("by_phone", (q) => q.eq("phone", args.phone))
-      .collect();
-
-    const active = vouchers.find(
-      (voucher) => voucher.status === "valid" && voucher.deletedAt === undefined,
-    );
-
-    return active ? { code: active.code } : null;
-  },
-});
-
-/**
  * Counts unexpired Pending Vouchers held by `phone`, so checkout can refuse
  * to pile up abandoned preferences (audit issue 10: 56 abandoned Pending
  * Vouchers accumulated for lack of this ceiling). Scoped by the `by_phone`
- * index; bounded the same way `findActiveByPhone` is.
+ * index.
  */
 export const countUnexpiredPendingByPhone = internalQuery({
   args: { phone: v.string(), now: v.number() },
@@ -472,11 +468,8 @@ export const countUnexpiredPendingByPhone = internalQuery({
       .withIndex("by_phone", (q) => q.eq("phone", args.phone))
       .collect();
 
-    return vouchers.filter(
-      (voucher) =>
-        voucher.status === "pending" &&
-        voucher.deletedAt === undefined &&
-        voucher.expiresAt > args.now,
+    return vouchers.filter((voucher) =>
+      isLivePendingVoucher(voucher, args.now),
     ).length;
   },
 });
@@ -558,10 +551,11 @@ export const findForPaymentEnrichment = internalQuery({
 });
 
 /**
- * Re-checks code uniqueness and inserts the Pending voucher in one
- * transaction, closing the time-of-check/time-of-use race where the two
- * used to be separate calls. Returns `{ ok: false }` on a collision instead
- * of throwing, so `startCheckout` can retry with a new code.
+ * Re-checks code uniqueness and phone pending-purchase limit, then inserts
+ * the Pending voucher in one transaction, closing the time-of-check/time-of-use
+ * race. If the phone already holds a live pending voucher, creates an invalidation
+ * intent for the losing preference, schedules retry, and returns pending_conflict.
+ * If code collides, returns code_collision so checkout can retry with a fresh code.
  */
 export const insertPendingVoucher = internalMutation({
   args: {
@@ -578,10 +572,19 @@ export const insertPendingVoucher = internalMutation({
     preferenceId: v.string(),
     referrer: v.optional(referrerValidator),
     isTest: v.boolean(),
+    now: v.optional(v.number()),
   },
   returns: v.union(
     v.object({ ok: v.literal(true) }),
-    v.object({ ok: v.literal(false) }),
+    v.object({
+      ok: v.literal(false),
+      reason: v.literal("code_collision"),
+    }),
+    v.object({
+      ok: v.literal(false),
+      reason: v.literal("pending_conflict"),
+      operationId: v.id("paymentOperations"),
+    }),
   ),
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -590,7 +593,39 @@ export const insertPendingVoucher = internalMutation({
       .first();
 
     if (existing) {
-      return { ok: false };
+      return { ok: false as const, reason: "code_collision" as const };
+    }
+
+    const now = args.now ?? Date.now();
+
+    const vouchersForPhone = await ctx.db
+      .query("vouchers")
+      .withIndex("by_phone", (q) => q.eq("phone", args.phone))
+      .collect();
+
+    const hasLivePending = vouchersForPhone.some((voucher) =>
+      isLivePendingVoucher(voucher, now),
+    );
+
+    if (hasLivePending) {
+      const operationId = await ctx.db.insert("paymentOperations", {
+        request: {
+          kind: "invalidatePreference",
+          preferenceId: args.preferenceId,
+        },
+      });
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.paymentOperations.executeWithRetry,
+        { id: operationId },
+      );
+
+      return {
+        ok: false as const,
+        reason: "pending_conflict" as const,
+        operationId,
+      };
     }
 
     await ctx.db.insert("vouchers", {
@@ -610,7 +645,7 @@ export const insertPendingVoucher = internalMutation({
       isTest: args.isTest,
     });
 
-    return { ok: true };
+    return { ok: true as const };
   },
 });
 
