@@ -4,7 +4,11 @@
 
 ### Issue tracker
 
-Issues live as local markdown files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+Issues live in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default GitHub triage labels are used. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
