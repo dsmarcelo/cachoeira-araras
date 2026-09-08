@@ -79,6 +79,14 @@ const vouchers = defineTable({
   // Opaque, high-entropy management capability returned on checkout and
   // held only by the originating browser to view, resume or cancel purchases.
   managementToken: v.optional(v.string()),
+
+  // Checkout address (Mercado Pago init_point) stored for server-verified resume.
+  initPoint: v.optional(v.string()),
+
+  // Internal cancellation coordination: timestamp when cancellation begins,
+  // preventing concurrent payment resumption.
+  cancellationStartedAt: v.optional(v.number()),
+
   deletedAt: v.optional(v.number()),
 })
   .index("by_code", ["code"])

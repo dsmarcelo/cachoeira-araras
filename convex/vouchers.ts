@@ -264,8 +264,12 @@ export const getPendingConflict = query({
           priceCents: v.priceCents,
           status: v.status,
           actions: {
-            canResume: v.status === "pending" && v.expiresAt > now,
-            canCancel: v.status === "pending",
+            canResume:
+              v.status === "pending" &&
+              v.expiresAt > now &&
+              v.cancellationStartedAt === undefined,
+            canCancel:
+              v.status === "pending" && v.cancellationStartedAt === undefined,
           },
         })),
       };
@@ -299,8 +303,12 @@ export const getPendingConflict = query({
           priceCents: v.priceCents,
           status: v.status,
           actions: {
-            canResume: v.status === "pending" && v.expiresAt > now,
-            canCancel: v.status === "pending",
+            canResume:
+              v.status === "pending" &&
+              v.expiresAt > now &&
+              v.cancellationStartedAt === undefined,
+            canCancel:
+              v.status === "pending" && v.cancellationStartedAt === undefined,
           },
         })),
       };
@@ -308,6 +316,148 @@ export const getPendingConflict = query({
 
     return {
       kind: "none" as const,
+    };
+  },
+});
+
+/**
+ * Server-verified resume of a pending purchase.
+ * Requires the opaque management capability held by the originating browser.
+ * Re-checks that the voucher is still pending, is not mid-cancellation,
+ * and has no Official Payment before returning the payable checkout URL.
+ * If already approved, returns redirect to the valid voucher.
+ * If terminal (cancelled, expired, refunded, redeemed, or cancelling),
+ * returns terminal status with an explanation and no payment action.
+ */
+export const resumePayment = mutation({
+  args: {
+    code: v.string(),
+    managementToken: v.string(),
+    savedInitPoint: v.optional(v.string()),
+  },
+  returns: v.union(
+    v.object({
+      kind: v.literal("resumed"),
+      code: v.string(),
+      checkoutUrl: v.string(),
+    }),
+    v.object({
+      kind: v.literal("already_paid"),
+      code: v.string(),
+      redirectUrl: v.string(),
+    }),
+    v.object({
+      kind: v.literal("terminal"),
+      status: v.string(),
+      message: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (!voucher || voucher.deletedAt !== undefined) {
+      throw new ConvexError("Voucher não encontrado.");
+    }
+
+    if (
+      !voucher.managementToken ||
+      voucher.managementToken !== args.managementToken
+    ) {
+      throw new ConvexError(
+        "Não autorizado. A retomada do pagamento só é permitida no navegador original.",
+      );
+    }
+
+    const now = Date.now();
+
+    // 1. If payment is already approved, take caller to valid voucher
+    if (voucher.status === "valid") {
+      return {
+        kind: "already_paid" as const,
+        code: voucher.code,
+        redirectUrl: `/pagamento?external_reference=${voucher.code}`,
+      };
+    }
+
+    const officialPayment = await ctx.db
+      .query("payments")
+      .withIndex("by_voucherCode_and_isOfficial", (q) =>
+        q.eq("voucherCode", voucher.code).eq("isOfficial", true),
+      )
+      .first();
+
+    if (officialPayment?.status === "approved") {
+      return {
+        kind: "already_paid" as const,
+        code: voucher.code,
+        redirectUrl: `/pagamento?external_reference=${voucher.code}`,
+      };
+    }
+
+    // 2. If mid-cancellation, no payment action
+    if (voucher.cancellationStartedAt !== undefined) {
+      return {
+        kind: "terminal" as const,
+        status: "cancelling",
+        message:
+          "Esta compra está em processo de cancelamento e não pode ser paga.",
+      };
+    }
+
+    // 3. If terminal, no payment action and explain why
+    if (voucher.status === "cancelled") {
+      return {
+        kind: "terminal" as const,
+        status: "cancelled",
+        message: "Esta compra foi cancelada e não pode mais ser paga.",
+      };
+    }
+
+    if (voucher.status === "expired" || voucher.expiresAt <= now) {
+      return {
+        kind: "terminal" as const,
+        status: "expired",
+        message: "Esta compra expirou e não pode mais ser paga.",
+      };
+    }
+
+    if (voucher.status === "refunded") {
+      return {
+        kind: "terminal" as const,
+        status: "refunded",
+        message: "Esta compra foi estornada e não pode mais ser paga.",
+      };
+    }
+
+    if (voucher.status === "redeemed") {
+      return {
+        kind: "terminal" as const,
+        status: "redeemed",
+        message: "Este voucher já foi resgatado.",
+      };
+    }
+
+    // 4. Still pending and payable
+    if (voucher.status === "pending") {
+      const checkoutUrl = voucher.initPoint ?? args.savedInitPoint;
+      if (!checkoutUrl) {
+        throw new ConvexError("Endereço de checkout não disponível.");
+      }
+
+      return {
+        kind: "resumed" as const,
+        code: voucher.code,
+        checkoutUrl,
+      };
+    }
+
+    return {
+      kind: "terminal" as const,
+      status: voucher.status,
+      message: "Esta compra não está mais disponível para pagamento.",
     };
   },
 });
@@ -555,6 +705,7 @@ export const startCheckout = action({
           visitDate,
           expiresAt,
           preferenceId: preference.id,
+          initPoint: preference.initPoint,
           referrer,
           isTest,
         },
@@ -726,6 +877,7 @@ export const insertPendingVoucher = internalMutation({
     visitDate: v.string(),
     expiresAt: v.number(),
     preferenceId: v.string(),
+    initPoint: v.optional(v.string()),
     referrer: v.optional(referrerValidator),
     isTest: v.boolean(),
     now: v.optional(v.number()),
@@ -800,6 +952,7 @@ export const insertPendingVoucher = internalMutation({
       visitDate: args.visitDate,
       expiresAt: args.expiresAt,
       preferenceId: args.preferenceId,
+      initPoint: args.initPoint,
       referrer: args.referrer,
       isTest: args.isTest,
     });
