@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api as convexApi } from "../../../convex/_generated/api";
 import {
@@ -60,7 +60,10 @@ export default function PendingPurchaseDialog({
 }: PendingPurchaseDialogProps) {
   const router = useRouter();
   const resumePaymentMutation = useMutation(convexApi.vouchers.resumePayment);
+  const cancelPurchaseAction = useAction(convexApi.vouchers.cancelPendingPurchase);
   const [resumingCode, setResumingCode] = React.useState<string | null>(null);
+  const [confirmingCancelCode, setConfirmingCancelCode] = React.useState<string | null>(null);
+  const [cancellingCode, setCancellingCode] = React.useState<string | null>(null);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
   const conflict = useQuery(
@@ -101,7 +104,7 @@ export default function PendingPurchaseDialog({
       });
 
       if (result.kind === "resumed") {
-        window.location.href = result.checkoutUrl;
+        window.location.assign(result.checkoutUrl);
         return;
       }
 
@@ -120,6 +123,57 @@ export default function PendingPurchaseDialog({
       setErrorMessage(msg);
     } finally {
       setResumingCode(null);
+    }
+  }
+
+  async function handleCancel(code: string) {
+    try {
+      setCancellingCode(code);
+      setErrorMessage(null);
+
+      let token = "";
+      if (typeof window !== "undefined") {
+        const saved = readVouchers(localStorage);
+        const match = saved.find((v) => v.code === code);
+        if (match?.managementToken) {
+          token = match.managementToken;
+        }
+      }
+      const firstFallback = managementTokens[0];
+      if (!token && firstFallback) {
+        token = firstFallback;
+      }
+
+      if (!token) {
+        throw new Error(
+          "Não foi possível encontrar a autorização desta compra neste navegador.",
+        );
+      }
+
+      const result = await cancelPurchaseAction({
+        code,
+        managementToken: token,
+      });
+
+      if (result.kind === "cancelled" || result.kind === "already_cancelled") {
+        setConfirmingCancelCode(null);
+        onCancel?.(code);
+        return;
+      }
+
+      if (result.kind === "already_approved") {
+        setConfirmingCancelCode(null);
+        router.push(result.redirectUrl);
+        return;
+      }
+
+      setErrorMessage(result.message);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Erro ao cancelar a compra.";
+      setErrorMessage(msg);
+    } finally {
+      setCancellingCode(null);
     }
   }
 
@@ -239,13 +293,49 @@ export default function PendingPurchaseDialog({
                     <div className="rounded-lg bg-white/5 p-2 text-center text-xs text-slate-300">
                       {formatTerminalExplanation(voucher.status)}
                     </div>
+                  ) : confirmingCancelCode === voucher.code ? (
+                    <div className="space-y-2 rounded-lg border border-red-500/30 bg-red-950/40 p-3 text-sm">
+                      <p className="font-medium text-red-200">
+                        Deseja realmente cancelar esta compra pendente?
+                      </p>
+                      <p className="text-xs text-red-300">
+                        Esta ação liberará seu telefone para uma nova compra. O link de pagamento atual será desativado.
+                      </p>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={cancellingCode === voucher.code}
+                          onClick={() => setConfirmingCancelCode(null)}
+                          className="text-xs text-primary-200 hover:text-white"
+                        >
+                          Voltar
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={cancellingCode === voucher.code}
+                          onClick={() => handleCancel(voucher.code)}
+                          className="bg-red-600 text-xs text-white hover:bg-red-700"
+                        >
+                          {cancellingCode === voucher.code ? (
+                            <>
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              Cancelando...
+                            </>
+                          ) : (
+                            "Confirmar cancelamento"
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   ) : (
                     <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:justify-end">
                       {voucher.actions.canCancel && (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => onCancel?.(voucher.code)}
+                          disabled={cancellingCode === voucher.code || resumingCode === voucher.code}
+                          onClick={() => setConfirmingCancelCode(voucher.code)}
                           className="rounded-lg border-red-500/40 bg-transparent text-red-300 hover:bg-red-500/20 hover:text-red-200"
                         >
                           Cancelar compra
@@ -254,7 +344,7 @@ export default function PendingPurchaseDialog({
                       {voucher.actions.canResume && (
                         <Button
                           size="sm"
-                          disabled={resumingCode === voucher.code}
+                          disabled={resumingCode === voucher.code || cancellingCode === voucher.code}
                           onClick={() => handleResume(voucher.code)}
                           className="rounded-lg bg-positive-green text-white hover:bg-positive-green/80"
                         >

@@ -31,6 +31,7 @@ import {
   splitCustomerName,
 } from "./lib/voucherCode";
 import { validateVoucherPurchase } from "./lib/voucherPurchase";
+import type { PaymentSnapshot } from "./lib/paymentOperation";
 
 /**
  * Whether a voucher counts as a real, live voucher for operational and
@@ -462,6 +463,336 @@ export const resumePayment = mutation({
   },
 });
 
+export const prepareCancellation = internalMutation({
+  args: {
+    code: v.string(),
+    managementToken: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      ok: v.literal(true),
+      stage: v.literal("proceed"),
+      searchOpId: v.id("paymentOperations"),
+      invalidateOpId: v.optional(v.id("paymentOperations")),
+      preferenceId: v.string(),
+      voucherId: v.id("vouchers"),
+    }),
+    v.object({
+      ok: v.literal(true),
+      stage: v.literal("already_cancelled"),
+    }),
+    v.object({
+      ok: v.literal(true),
+      stage: v.literal("already_approved"),
+    }),
+    v.object({
+      ok: v.literal(false),
+      reason: v.union(
+        v.literal("not_found"),
+        v.literal("unauthorized"),
+        v.literal("terminal"),
+      ),
+      status: v.optional(voucherStatusValidator),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (!voucher || voucher.deletedAt !== undefined) {
+      return { ok: false as const, reason: "not_found" as const };
+    }
+
+    if (
+      !voucher.managementToken ||
+      voucher.managementToken !== args.managementToken
+    ) {
+      return { ok: false as const, reason: "unauthorized" as const };
+    }
+
+    if (voucher.status === "cancelled") {
+      return { ok: true as const, stage: "already_cancelled" as const };
+    }
+
+    if (voucher.status === "valid" || voucher.status === "redeemed") {
+      return { ok: true as const, stage: "already_approved" as const };
+    }
+
+    if (voucher.status !== "pending") {
+      return {
+        ok: false as const,
+        reason: "terminal" as const,
+        status: voucher.status,
+      };
+    }
+
+    const officialPayment = await ctx.db
+      .query("payments")
+      .withIndex("by_voucherCode_and_isOfficial", (q) =>
+        q.eq("voucherCode", voucher.code).eq("isOfficial", true),
+      )
+      .first();
+
+    if (officialPayment?.status === "approved") {
+      await ctx.db.patch(voucher._id, {
+        status: "valid",
+        paymentId: officialPayment.paymentId,
+        cancellationStartedAt: undefined,
+      });
+      return { ok: true as const, stage: "already_approved" as const };
+    }
+
+    const now = Date.now();
+    let searchOpId = voucher.cancellationSearchOpId;
+    searchOpId ??= await ctx.db.insert("paymentOperations", {
+      request: { kind: "search", externalReference: voucher.code },
+    });
+
+    let invalidateOpId = voucher.cancellationInvalidateOpId;
+    if (invalidateOpId === undefined && voucher.preferenceId) {
+      invalidateOpId = await ctx.db.insert("paymentOperations", {
+        request: {
+          kind: "invalidatePreference",
+          preferenceId: voucher.preferenceId,
+        },
+      });
+    }
+
+    await ctx.db.patch(voucher._id, {
+      cancellationStartedAt: voucher.cancellationStartedAt ?? now,
+      cancellationSearchOpId: searchOpId,
+      cancellationInvalidateOpId: invalidateOpId,
+    });
+
+    return {
+      ok: true as const,
+      stage: "proceed" as const,
+      searchOpId,
+      invalidateOpId,
+      preferenceId: voucher.preferenceId,
+      voucherId: voucher._id,
+    };
+  },
+});
+
+export const recordCancelPaymentOperation = internalMutation({
+  args: { paymentId: v.string() },
+  returns: v.id("paymentOperations"),
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("paymentOperations", {
+      request: { kind: "cancel", paymentId: args.paymentId },
+    });
+  },
+});
+
+export const finalizeCancellation = internalMutation({
+  args: {
+    code: v.string(),
+  },
+  returns: v.union(
+    v.object({ outcome: v.literal("cancelled") }),
+    v.object({ outcome: v.literal("already_approved") }),
+  ),
+  handler: async (ctx, args) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (!voucher) return { outcome: "cancelled" as const };
+
+    if (voucher.status === "valid" || voucher.status === "redeemed") {
+      return { outcome: "already_approved" as const };
+    }
+
+    await ctx.db.patch(voucher._id, {
+      status: "cancelled",
+      cancellationStartedAt: undefined,
+    });
+
+    const payments = await ctx.db
+      .query("payments")
+      .withIndex("by_voucherCode_and_isOfficial", (q) =>
+        q.eq("voucherCode", voucher.code),
+      )
+      .collect();
+
+    for (const payment of payments) {
+      if (payment.status !== "approved" && payment.status !== "refunded") {
+        await ctx.db.patch(payment._id, {
+          status: "cancelled",
+          updatedAt: Date.now(),
+        });
+      }
+    }
+
+    return { outcome: "cancelled" as const };
+  },
+});
+
+export const clearCancellationIntent = internalMutation({
+  args: { code: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (voucher?.status === "pending") {
+      await ctx.db.patch(voucher._id, {
+        cancellationStartedAt: undefined,
+      });
+    }
+    return null;
+  },
+});
+
+export const cancelPendingPurchase = action({
+  args: {
+    code: v.string(),
+    managementToken: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      kind: v.literal("cancelled"),
+      message: v.string(),
+    }),
+    v.object({
+      kind: v.literal("already_approved"),
+      redirectUrl: v.string(),
+      message: v.string(),
+    }),
+    v.object({
+      kind: v.literal("already_cancelled"),
+      message: v.string(),
+    }),
+    v.object({
+      kind: v.literal("unauthorized"),
+      message: v.string(),
+    }),
+    v.object({
+      kind: v.literal("error"),
+      message: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const prep = await ctx.runMutation(
+      internal.vouchers.prepareCancellation,
+      { code: args.code, managementToken: args.managementToken },
+    );
+
+    if (!prep.ok) {
+      if (prep.reason === "unauthorized") {
+        return {
+          kind: "unauthorized" as const,
+          message:
+            "Apenas o navegador que iniciou esta compra possui autorização para cancelá-la.",
+        };
+      }
+      return {
+        kind: "error" as const,
+        message: "Não foi possível encontrar a compra para cancelamento.",
+      };
+    }
+
+    if (prep.stage === "already_cancelled") {
+      return {
+        kind: "already_cancelled" as const,
+        message: "Esta compra já foi cancelada.",
+      };
+    }
+
+    if (prep.stage === "already_approved") {
+      return {
+        kind: "already_approved" as const,
+        redirectUrl: `/pagamento?external_reference=${args.code}`,
+        message:
+          "O pagamento desta compra já foi aprovado. O cancelamento não foi realizado.",
+      };
+    }
+
+    try {
+      const searchResult = (await ctx.runAction(
+        internal.paymentOperations.execute,
+        { id: prep.searchOpId },
+      )) as PaymentSnapshot[];
+
+      const approvedPayment = searchResult.find(
+        (p) => p.status === "approved",
+      );
+
+      if (approvedPayment) {
+        await ctx.runMutation(internal.vouchers.confirmPayment, {
+          code: args.code,
+          paymentId: approvedPayment.id,
+          paymentStatus: "approved",
+        });
+        await ctx.runMutation(internal.vouchers.clearCancellationIntent, {
+          code: args.code,
+        });
+        return {
+          kind: "already_approved" as const,
+          redirectUrl: `/pagamento?external_reference=${args.code}`,
+          message:
+            "O pagamento desta compra já foi aprovado. O cancelamento não foi realizado.",
+        };
+      }
+
+      if (prep.invalidateOpId) {
+        await ctx.runAction(internal.paymentOperations.execute, {
+          id: prep.invalidateOpId,
+        });
+      }
+
+      const cancellableStatuses = ["pending", "in_process", "authorized"];
+      const paymentsToCancel = searchResult.filter((p) =>
+        cancellableStatuses.includes(p.status),
+      );
+
+      for (const p of paymentsToCancel) {
+        const cancelOpId = await ctx.runMutation(
+          internal.vouchers.recordCancelPaymentOperation,
+          { paymentId: p.id },
+        );
+        await ctx.runAction(internal.paymentOperations.execute, {
+          id: cancelOpId,
+        });
+      }
+
+      const finalized = await ctx.runMutation(
+        internal.vouchers.finalizeCancellation,
+        { code: args.code },
+      );
+
+      if (finalized.outcome === "already_approved") {
+        return {
+          kind: "already_approved" as const,
+          redirectUrl: `/pagamento?external_reference=${args.code}`,
+          message:
+            "O pagamento desta compra já foi aprovado. O cancelamento não foi realizado.",
+        };
+      }
+
+      return {
+        kind: "cancelled" as const,
+        message: "A compra foi cancelada com sucesso.",
+      };
+    } catch {
+      await ctx.runMutation(internal.vouchers.clearCancellationIntent, {
+        code: args.code,
+      });
+      return {
+        kind: "error" as const,
+        message:
+          "Não foi possível concluir o cancelamento devido a uma instabilidade no Mercado Pago. Por favor, tente novamente.",
+      };
+    }
+  },
+});
+
 
 /**
  * Staff-only reactive lookup for the gate. Authentication, rather than the
@@ -527,7 +858,8 @@ export const getVoucherForImage = internalQuery({
     if (
       !voucher ||
       voucher.deletedAt !== undefined ||
-      voucher.lookupToken !== args.lookupToken
+      voucher.lookupToken !== args.lookupToken ||
+      voucher.status === "cancelled"
     ) {
       return null;
     }
@@ -1388,7 +1720,7 @@ async function todaysRealVouchers(ctx: { db: QueryCtx["db"] }) {
     .collect();
 
   return vouchers
-    .filter(countsAsRealVoucher)
+    .filter((v) => countsAsRealVoucher(v) && v.status !== "cancelled")
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -1534,6 +1866,10 @@ export const reactivate = mutation({
 
     if (!voucher || voucher.deletedAt !== undefined) {
       throw new ConvexError("Voucher não encontrado.");
+    }
+
+    if (voucher.status === "cancelled") {
+      throw new ConvexError("Um voucher cancelado não pode ser reativado.");
     }
 
     const expiresAt = endOfSaoPauloDayMs(getSaoPauloDateKey());
@@ -1735,7 +2071,11 @@ function resolveDateRange(args: {
  * contributes to no summary figure.
  */
 function countsAsSoldVoucher(voucher: Doc<"vouchers">): boolean {
-  return countsAsRealVoucher(voucher) && voucher.status !== "pending";
+  return (
+    countsAsRealVoucher(voucher) &&
+    voucher.status !== "pending" &&
+    voucher.status !== "cancelled"
+  );
 }
 
 /** Every sold voucher (see `countsAsSoldVoucher`) created within `[fromKey, toKey]`, inclusive, Sao Paulo calendar days. */

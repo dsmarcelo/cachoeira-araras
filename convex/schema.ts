@@ -86,6 +86,8 @@ const vouchers = defineTable({
   // Internal cancellation coordination: timestamp when cancellation begins,
   // preventing concurrent payment resumption.
   cancellationStartedAt: v.optional(v.number()),
+  cancellationSearchOpId: v.optional(v.id("paymentOperations")),
+  cancellationInvalidateOpId: v.optional(v.id("paymentOperations")),
 
   deletedAt: v.optional(v.number()),
 })
