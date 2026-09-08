@@ -6,6 +6,7 @@ import betterAuth from "./betterAuth/convex.config";
 
 const app = defineApp({
   env: {
+    MERCADOPAGO_TOKEN: v.optional(v.string()),
     ADMIN_USERNAME: v.optional(v.string()),
     ADMIN_PASSWORD: v.optional(v.string()),
     SITE_URL: v.optional(v.string()),
