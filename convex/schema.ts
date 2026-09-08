@@ -147,10 +147,50 @@ const payments = defineTable({
   .index("by_voucherCode_and_isOfficial", ["voucherCode", "isOfficial"])
   .index("by_owesRefund", ["owesRefund"]);
 
+const paymentRefunds = defineTable({
+  paymentId: v.string(),
+  voucherCode: v.string(),
+  amountCents: v.number(),
+  status: v.union(
+    v.literal("pending_attempt"),
+    v.literal("processing"),
+    v.literal("completed"),
+    v.literal("needs_retry"),
+  ),
+  attemptCount: v.number(),
+  nextAttemptAt: v.optional(v.number()),
+  lastError: v.optional(v.string()),
+  operationId: v.optional(v.id("paymentOperations")),
+  completedAt: v.optional(v.number()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index("by_paymentId", ["paymentId"])
+  .index("by_voucherCode", ["voucherCode"])
+  .index("by_status", ["status"])
+  .index("by_status_and_nextAttemptAt", ["status", "nextAttemptAt"]);
+
+const operationalAlerts = defineTable({
+  kind: v.literal("refund_failed"),
+  voucherCode: v.string(),
+  paymentId: v.string(),
+  customerContact: v.object({
+    name: v.string(),
+    phone: v.string(),
+  }),
+  lastError: v.string(),
+  attemptCount: v.number(),
+  createdAt: v.number(),
+})
+  .index("by_voucherCode", ["voucherCode"])
+  .index("by_paymentId", ["paymentId"]);
+
 export default defineSchema({
   vouchers,
   settings,
   payments,
+  paymentRefunds,
+  operationalAlerts,
   paymentOperations: defineTable({
     request: operationRequest,
     result: v.optional(operationResult),

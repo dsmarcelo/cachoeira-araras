@@ -1282,6 +1282,29 @@ export const confirmPayment = internalMutation({
         });
       }
 
+      const existingRefund = await ctx.db
+        .query("paymentRefunds")
+        .withIndex("by_paymentId", (q) => q.eq("paymentId", args.paymentId))
+        .first();
+
+      if (!existingRefund) {
+        const now = Date.now();
+        const refundId = await ctx.db.insert("paymentRefunds", {
+          paymentId: args.paymentId,
+          voucherCode: voucher.code,
+          amountCents: voucher.priceCents,
+          status: "pending_attempt",
+          attemptCount: 0,
+          nextAttemptAt: now,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        await ctx.scheduler.runAfter(0, internal.refunds.attemptRefund, {
+          refundId,
+        });
+      }
+
       return {
         outcome: "updated" as const,
         becameValid: false,

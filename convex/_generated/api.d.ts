@@ -25,6 +25,7 @@ import type * as lib_voucherPurchase from "../lib/voucherPurchase.js";
 import type * as maintenance from "../maintenance.js";
 import type * as mercadopago from "../mercadopago.js";
 import type * as paymentOperations from "../paymentOperations.js";
+import type * as refunds from "../refunds.js";
 import type * as settings from "../settings.js";
 import type * as testing_mercadopagoFake from "../testing/mercadopagoFake.js";
 import type * as vouchers from "../vouchers.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   maintenance: typeof maintenance;
   mercadopago: typeof mercadopago;
   paymentOperations: typeof paymentOperations;
+  refunds: typeof refunds;
   settings: typeof settings;
   "testing/mercadopagoFake": typeof testing_mercadopagoFake;
   vouchers: typeof vouchers;
