@@ -14,6 +14,7 @@ const savedVoucherSchema = z.object({
     }
   }),
   createdAt: z.number().finite().nonnegative(),
+  managementToken: z.string().optional(),
 });
 export type SavedVoucher = z.infer<typeof savedVoucherSchema>;
 type VoucherStorage = Pick<Storage, "getItem" | "setItem">;

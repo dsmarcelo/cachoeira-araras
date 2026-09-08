@@ -86,4 +86,14 @@ describe("browser voucher history", () => {
     };
     expect(() => saveVoucher(full, first, now)).toThrow("quota");
   });
+
+  it("stores and preserves managementToken when present", () => {
+    const store = storage();
+    const withToken = {
+      ...first,
+      managementToken: "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    };
+    saveVoucher(store, withToken, now);
+    expect(readVouchers(store, now)).toEqual([withToken]);
+  });
 });
