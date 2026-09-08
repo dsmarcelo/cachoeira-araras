@@ -4,6 +4,7 @@ import {
   internalAction,
   internalMutation,
   internalQuery,
+  query,
 } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
@@ -237,5 +238,91 @@ export const sweepOverdueRefunds = internalMutation({
     }
 
     return overdue.length;
+  },
+});
+
+export const getRefundNoticesForVouchers = query({
+  args: {
+    voucherCodes: v.array(v.string()),
+  },
+  returns: v.array(
+    v.object({
+      refundId: v.id("paymentRefunds"),
+      paymentId: v.string(),
+      voucherCode: v.string(),
+      amountCents: v.number(),
+      status: v.union(
+        v.literal("pending_attempt"),
+        v.literal("processing"),
+        v.literal("completed"),
+        v.literal("needs_retry"),
+      ),
+      isPostCancellation: v.boolean(),
+      message: v.string(),
+      isDismissible: v.boolean(),
+      completedAt: v.optional(v.number()),
+      updatedAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    if (args.voucherCodes.length === 0) {
+      return [];
+    }
+
+    const results = [];
+    for (const code of args.voucherCodes) {
+      const voucher = await ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", code))
+        .unique();
+
+      if (!voucher || voucher.deletedAt !== undefined) {
+        continue;
+      }
+
+      const refunds = await ctx.db
+        .query("paymentRefunds")
+        .withIndex("by_voucherCode", (q) => q.eq("voucherCode", code))
+        .collect();
+
+      for (const refund of refunds) {
+        const isPostCancellation = voucher.status === "cancelled";
+        let message: string;
+
+        switch (refund.status) {
+          case "completed":
+            message = isPostCancellation
+              ? "O pagamento feito após o cancelamento foi reembolsado."
+              : "O pagamento duplicado foi reembolsado.";
+            break;
+          case "needs_retry":
+            message =
+              "O reembolso ainda não foi concluído. Continuaremos tentando automaticamente.";
+            break;
+          case "pending_attempt":
+          case "processing":
+          default:
+            message = isPostCancellation
+              ? "Recebemos um pagamento após o cancelamento. O reembolso integral está sendo processado."
+              : "Identificamos um pagamento duplicado. O reembolso integral está sendo processado.";
+            break;
+        }
+
+        results.push({
+          refundId: refund._id,
+          paymentId: refund.paymentId,
+          voucherCode: refund.voucherCode,
+          amountCents: refund.amountCents,
+          status: refund.status,
+          isPostCancellation,
+          message,
+          isDismissible: refund.status === "completed",
+          completedAt: refund.completedAt,
+          updatedAt: refund.updatedAt,
+        });
+      }
+    }
+
+    return results;
   },
 });

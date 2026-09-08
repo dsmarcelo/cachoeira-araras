@@ -6,10 +6,12 @@ import Image from "next/image";
 import { RiGalleryView2 } from "react-icons/ri";
 import { AttractionCardCarousel } from "../_components/attraction-card-carousel";
 import { MapAppButtons } from "../_components/map-app-buttons";
+import RefundNoticeBanner from "../_components/refund-notice-banner";
 
 export default async function Home() {
   return (
     <div className="flex min-h-screen min-w-0 flex-col items-center bg-bg-blue lg:pt-8 text-primary-200">
+      <RefundNoticeBanner />
       <ImageCarousel />
       <main className="flex flex-col items-center w-full min-w-0 px-4 gap-12 md:gap-24 pb-8 z-10 -mt-6 lg:mt-0 md:py-8 md:px-8">
         {/* Mobile: voucher → carousel → info → galeria. md+: voucher | info, then attractions + galeria. */}
