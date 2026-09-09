@@ -14,7 +14,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatQuantity, formatVoucherStatus } from "@/lib/voucher";
 import { formatPhone } from "@/lib/utils";
-import { readVouchers } from "@/lib/voucher/browser-storage";
+import {
+  readVouchers,
+  touchFinancialEvent,
+} from "@/lib/voucher/browser-storage";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 
@@ -156,12 +159,18 @@ export default function PendingPurchaseDialog({
       });
 
       if (result.kind === "cancelled" || result.kind === "already_cancelled") {
+        if (typeof window !== "undefined") {
+          touchFinancialEvent(localStorage, code, { eventAt: Date.now() });
+        }
         setConfirmingCancelCode(null);
         onCancel?.(code);
         return;
       }
 
       if (result.kind === "already_approved") {
+        if (typeof window !== "undefined") {
+          touchFinancialEvent(localStorage, code, { eventAt: Date.now() });
+        }
         setConfirmingCancelCode(null);
         router.push(result.redirectUrl);
         return;

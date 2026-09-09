@@ -33,6 +33,7 @@ function formatVisitDate(visitDate: string) {
 }
 
 function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
+  const { touchEvent } = useSavedVouchers();
   const convex = useConvex();
   const [lookupToken, setLookupToken] = useState<string | null>(() =>
     getCachedLookupToken(entry.code) ?? null,
@@ -85,6 +86,29 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
   const refundNotices = useQuery(api.refunds.getRefundNoticesForVouchers, {
     voucherCodes: [entry.code],
   });
+
+  const hasIncompleteRefund =
+    (entry.hasPendingRefund ?? false) ||
+    Boolean(refundNotices?.some((notice) => notice.status !== "completed"));
+
+  useEffect(() => {
+    if (!voucher && (!refundNotices || refundNotices.length === 0)) return;
+
+    let eventAt: number | undefined;
+    if (refundNotices && refundNotices.length > 0) {
+      eventAt = Math.max(...refundNotices.map((n) => n.updatedAt));
+    } else if (voucher && voucher.status !== "pending") {
+      eventAt = Date.now();
+    }
+
+    const hasPending =
+      refundNotices?.some((n) => n.status !== "completed") ?? false;
+
+    touchEvent(entry.code, {
+      eventAt,
+      hasPendingRefund: hasPending,
+    });
+  }, [voucher, refundNotices, entry.code, touchEvent]);
 
   return (
     <li className="flex flex-col gap-4 rounded-xl bg-dark-blue p-6">
@@ -158,7 +182,13 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
           </Button>
         </div>
       )}
-      <DeleteVoucherCookieBtn code={entry.code} />
+      {hasIncompleteRefund ? (
+        <p className="text-xs text-amber-300">
+          Reembolso em processamento não pode ser removido deste navegador.
+        </p>
+      ) : (
+        <DeleteVoucherCookieBtn code={entry.code} />
+      )}
     </li>
   );
 }
@@ -178,7 +208,7 @@ export default function MyVouchersPage() {
       <div className="mx-auto flex max-w-3xl flex-col gap-6">
         <h1 className="text-3xl font-bold">Meus Vouchers</h1>
         <p>
-          Compras iniciadas neste navegador ficam salvas por 90 dias após a
+          Compras iniciadas neste navegador ficam salvas por 60 dias após a
           criação. Limpar os dados do navegador remove este histórico.
         </p>
         {warning && <p role="alert">{warning}</p>}
