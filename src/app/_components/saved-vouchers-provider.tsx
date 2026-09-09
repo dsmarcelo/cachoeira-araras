@@ -12,9 +12,12 @@ import Link from "next/link";
 import { api } from "../../../convex/_generated/api";
 import { deleteCookieVoucher, getCookieVoucher } from "../lib";
 import {
+  canRemoveVoucher,
+  isVoucherRemoved,
   readVouchers,
   removeVoucher,
   saveVoucher,
+  touchFinancialEvent,
   VOUCHERS_KEY,
   type SavedVoucher,
 } from "@/lib/voucher/browser-storage";
@@ -26,6 +29,10 @@ const SavedVouchersContext = createContext<{
   warning: string;
   save: (voucher: SavedVoucher) => boolean;
   remove: (code: string) => Promise<void>;
+  touchEvent: (
+    code: string,
+    options?: { eventAt?: number; hasPendingRefund?: boolean },
+  ) => void;
 } | null>(null);
 
 export function SavedVouchersProvider({
@@ -50,6 +57,20 @@ export function SavedVouchersProvider({
     }
   }, []);
 
+  const touchEvent = useCallback(
+    (
+      code: string,
+      options?: { eventAt?: number; hasPendingRefund?: boolean },
+    ) => {
+      try {
+        setVouchers(touchFinancialEvent(window.localStorage, code, options));
+      } catch {
+        // ignore
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     let active = true;
     function refresh() {
@@ -65,6 +86,10 @@ export function SavedVouchersProvider({
       try {
         const cookie = await getCookieVoucher();
         if (cookie) {
+          if (isVoucherRemoved(window.localStorage, cookie.code)) {
+            await deleteCookieVoucher(cookie.code);
+            return;
+          }
           const authorization = await convex.mutation(
             api.vouchers.authorizeLookup,
             { code: cookie.code },
@@ -99,6 +124,14 @@ export function SavedVouchersProvider({
 
   async function remove(code: string) {
     try {
+      const current = readVouchers(window.localStorage);
+      const target = current.find((entry) => entry.code === code);
+      if (target && !canRemoveVoucher(target)) {
+        setWarning(
+          "Este voucher possui um reembolso em andamento e não pode ser removido.",
+        );
+        return;
+      }
       // Clear only the matching pointer, before removal, so migration cannot restore it.
       await deleteCookieVoucher(code);
       setVouchers(removeVoucher(window.localStorage, code));
@@ -111,7 +144,7 @@ export function SavedVouchersProvider({
 
   return (
     <SavedVouchersContext.Provider
-      value={{ vouchers, ready, warning, save, remove }}
+      value={{ vouchers, ready, warning, save, remove, touchEvent }}
     >
       {children}
     </SavedVouchersContext.Provider>

@@ -33,6 +33,7 @@ function formatVisitDate(visitDate: string) {
 }
 
 function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
+  const { touchEvent } = useSavedVouchers();
   const convex = useConvex();
   const [lookupToken, setLookupToken] = useState<string | null>(() =>
     getCachedLookupToken(entry.code) ?? null,
@@ -82,6 +83,33 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convex, entry.code]);
 
+  const refundNotices = useQuery(api.refunds.getRefundNoticesForVouchers, {
+    voucherCodes: [entry.code],
+  });
+
+  const hasIncompleteRefund =
+    (entry.hasPendingRefund ?? false) ||
+    Boolean(refundNotices?.some((notice) => notice.status !== "completed"));
+
+  useEffect(() => {
+    if (!voucher && (!refundNotices || refundNotices.length === 0)) return;
+
+    let eventAt: number | undefined;
+    if (refundNotices && refundNotices.length > 0) {
+      eventAt = Math.max(...refundNotices.map((n) => n.updatedAt));
+    } else if (voucher && voucher.status !== "pending") {
+      eventAt = Date.now();
+    }
+
+    const hasPending =
+      refundNotices?.some((n) => n.status !== "completed") ?? false;
+
+    touchEvent(entry.code, {
+      eventAt,
+      hasPendingRefund: hasPending,
+    });
+  }, [voucher, refundNotices, entry.code, touchEvent]);
+
   return (
     <li className="flex flex-col gap-4 rounded-xl bg-dark-blue p-6">
       <h2 className="text-2xl font-bold">Voucher {entry.code}</h2>
@@ -111,12 +139,35 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
           <p>Valor: {formatToBRL(voucher.priceCents / 100)}</p>
         </div>
       )}
+      {refundNotices && refundNotices.length > 0 && (
+        <div className="space-y-2">
+          {refundNotices.map((notice) => {
+            const isCompleted = notice.status === "completed";
+            const isNeedsRetry = notice.status === "needs_retry";
+            return (
+              <div
+                key={notice.refundId}
+                role="status"
+                className={`p-3 rounded-lg border text-sm ${
+                  isCompleted
+                    ? "bg-green-950/40 border-green-500/40 text-green-200"
+                    : isNeedsRetry
+                      ? "bg-amber-950/40 border-amber-500/40 text-amber-200"
+                      : "bg-blue-950/40 border-blue-500/40 text-blue-200"
+                }`}
+              >
+                {notice.message}
+              </div>
+            );
+          })}
+        </div>
+      )}
       {voucher?.status === "pending" && entry.initPoint && (
         <Button asChild className="bg-positive-green">
           <a href={entry.initPoint}>Finalizar pagamento</a>
         </Button>
       )}
-      {voucher && voucher.status !== "pending" && (
+      {voucher && (voucher.status === "valid" || voucher.status === "redeemed") && (
         <div className="flex flex-col gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element -- server-generated, non-optimizable OG image */}
           <img
@@ -131,7 +182,13 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
           </Button>
         </div>
       )}
-      <DeleteVoucherCookieBtn code={entry.code} />
+      {hasIncompleteRefund ? (
+        <p className="text-xs text-amber-300">
+          Reembolso em processamento não pode ser removido deste navegador.
+        </p>
+      ) : (
+        <DeleteVoucherCookieBtn code={entry.code} />
+      )}
     </li>
   );
 }
@@ -151,7 +208,7 @@ export default function MyVouchersPage() {
       <div className="mx-auto flex max-w-3xl flex-col gap-6">
         <h1 className="text-3xl font-bold">Meus Vouchers</h1>
         <p>
-          Compras iniciadas neste navegador ficam salvas por 90 dias após a
+          Compras iniciadas neste navegador ficam salvas por 60 dias após a
           criação. Limpar os dados do navegador remove este histórico.
         </p>
         {warning && <p role="alert">{warning}</p>}

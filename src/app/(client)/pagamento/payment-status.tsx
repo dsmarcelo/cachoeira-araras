@@ -48,7 +48,7 @@ export default function PaymentStatus({
     code: string;
     initPoint: string;
   } | null>(initialCookieVoucher);
-  const { vouchers: savedVouchers, ready: savedReady, save } =
+  const { vouchers: savedVouchers, ready: savedReady, save, touchEvent } =
     useSavedVouchers();
   const [persistFailed, setPersistFailed] = useState(false);
 
@@ -103,14 +103,28 @@ export default function PaymentStatus({
     // fallback cookie carried the code back). Recover it from the server so
     // "Meus Vouchers" can offer it; if saving fails, fall back to showing
     // the paid voucher's image right here instead.
-    if (!isPaid || !savedReady || hasLocalEntry || !voucher) return;
+    if (!isPaid || !savedReady || !voucher) return;
+    if (hasLocalEntry) {
+      touchEvent(code, { eventAt: Date.now() });
+      return;
+    }
     const ok = save({
       code,
       initPoint: cookieVoucher?.code === code ? cookieVoucher.initPoint : "",
       createdAt: voucher.createdAt,
+      lastFinancialEventAt: Date.now(),
     });
     if (!ok) setPersistFailed(true);
-  }, [isPaid, savedReady, hasLocalEntry, voucher, code, cookieVoucher, save]);
+  }, [
+    isPaid,
+    savedReady,
+    hasLocalEntry,
+    voucher,
+    code,
+    cookieVoucher,
+    save,
+    touchEvent,
+  ]);
 
   if (lookupFailure === "rate_limited") {
     return (

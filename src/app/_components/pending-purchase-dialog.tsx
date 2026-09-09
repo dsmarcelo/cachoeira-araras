@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
+import { useRouter } from "next/navigation";
 import { api as convexApi } from "../../../convex/_generated/api";
 import {
   Dialog,
@@ -13,6 +14,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatQuantity, formatVoucherStatus } from "@/lib/voucher";
 import { formatPhone } from "@/lib/utils";
+import {
+  readVouchers,
+  touchFinancialEvent,
+} from "@/lib/voucher/browser-storage";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 
@@ -33,6 +38,21 @@ function formatDate(dateKey: string) {
   return dateKey;
 }
 
+function formatTerminalExplanation(status: string) {
+  switch (status) {
+    case "cancelled":
+      return "Esta compra foi cancelada e não pode mais ser paga.";
+    case "expired":
+      return "Esta compra expirou e não pode mais ser paga.";
+    case "refunded":
+      return "Esta compra foi estornada e não pode mais ser paga.";
+    case "redeemed":
+      return "Este voucher já foi resgatado.";
+    default:
+      return "Esta compra está finalizada e não pode mais ser alterada.";
+  }
+}
+
 export default function PendingPurchaseDialog({
   open,
   onOpenChange,
@@ -41,10 +61,130 @@ export default function PendingPurchaseDialog({
   onResume,
   onCancel,
 }: PendingPurchaseDialogProps) {
+  const router = useRouter();
+  const resumePaymentMutation = useMutation(convexApi.vouchers.resumePayment);
+  const cancelPurchaseAction = useAction(convexApi.vouchers.cancelPendingPurchase);
+  const [resumingCode, setResumingCode] = React.useState<string | null>(null);
+  const [confirmingCancelCode, setConfirmingCancelCode] = React.useState<string | null>(null);
+  const [cancellingCode, setCancellingCode] = React.useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+
   const conflict = useQuery(
     convexApi.vouchers.getPendingConflict,
     open && phone ? { phone, managementTokens } : "skip",
   );
+
+  async function handleResume(code: string) {
+    try {
+      setResumingCode(code);
+      setErrorMessage(null);
+
+      let token = "";
+      let savedInitPoint: string | undefined;
+      if (typeof window !== "undefined") {
+        const saved = readVouchers(localStorage);
+        const match = saved.find((v) => v.code === code);
+        if (match?.managementToken) {
+          token = match.managementToken;
+        }
+        savedInitPoint = match?.initPoint;
+      }
+      const firstFallback = managementTokens[0];
+      if (!token && firstFallback) {
+        token = firstFallback;
+      }
+
+      if (!token) {
+        throw new Error(
+          "Não foi possível encontrar a autorização desta compra neste navegador.",
+        );
+      }
+
+      const result = await resumePaymentMutation({
+        code,
+        managementToken: token,
+        savedInitPoint,
+      });
+
+      if (result.kind === "resumed") {
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
+
+      if (result.kind === "already_paid") {
+        router.push(result.redirectUrl);
+        return;
+      }
+
+      if (result.kind === "terminal") {
+        setErrorMessage(result.message);
+      }
+      onResume?.(code);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Erro ao retomar o pagamento.";
+      setErrorMessage(msg);
+    } finally {
+      setResumingCode(null);
+    }
+  }
+
+  async function handleCancel(code: string) {
+    try {
+      setCancellingCode(code);
+      setErrorMessage(null);
+
+      let token = "";
+      if (typeof window !== "undefined") {
+        const saved = readVouchers(localStorage);
+        const match = saved.find((v) => v.code === code);
+        if (match?.managementToken) {
+          token = match.managementToken;
+        }
+      }
+      const firstFallback = managementTokens[0];
+      if (!token && firstFallback) {
+        token = firstFallback;
+      }
+
+      if (!token) {
+        throw new Error(
+          "Não foi possível encontrar a autorização desta compra neste navegador.",
+        );
+      }
+
+      const result = await cancelPurchaseAction({
+        code,
+        managementToken: token,
+      });
+
+      if (result.kind === "cancelled" || result.kind === "already_cancelled") {
+        if (typeof window !== "undefined") {
+          touchFinancialEvent(localStorage, code, { eventAt: Date.now() });
+        }
+        setConfirmingCancelCode(null);
+        onCancel?.(code);
+        return;
+      }
+
+      if (result.kind === "already_approved") {
+        if (typeof window !== "undefined") {
+          touchFinancialEvent(localStorage, code, { eventAt: Date.now() });
+        }
+        setConfirmingCancelCode(null);
+        router.push(result.redirectUrl);
+        return;
+      }
+
+      setErrorMessage(result.message);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Erro ao cancelar a compra.";
+      setErrorMessage(msg);
+    } finally {
+      setCancellingCode(null);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -100,6 +240,12 @@ export default function PendingPurchaseDialog({
               </DialogDescription>
             </DialogHeader>
 
+            {errorMessage && (
+              <div className="rounded-lg border border-red-500/30 bg-red-900/40 p-3 text-sm text-red-200">
+                {errorMessage}
+              </div>
+            )}
+
             <div className="space-y-4">
               {conflict.vouchers.map((voucher) => (
                 <div
@@ -154,7 +300,42 @@ export default function PendingPurchaseDialog({
                     </div>
                   ) : voucher.status !== "pending" ? (
                     <div className="rounded-lg bg-white/5 p-2 text-center text-xs text-slate-300">
-                      Esta compra está finalizada e não pode mais ser alterada.
+                      {formatTerminalExplanation(voucher.status)}
+                    </div>
+                  ) : confirmingCancelCode === voucher.code ? (
+                    <div className="space-y-2 rounded-lg border border-red-500/30 bg-red-950/40 p-3 text-sm">
+                      <p className="font-medium text-red-200">
+                        Deseja realmente cancelar esta compra pendente?
+                      </p>
+                      <p className="text-xs text-red-300">
+                        Esta ação liberará seu telefone para uma nova compra. O link de pagamento atual será desativado.
+                      </p>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={cancellingCode === voucher.code}
+                          onClick={() => setConfirmingCancelCode(null)}
+                          className="text-xs text-primary-200 hover:text-white"
+                        >
+                          Voltar
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={cancellingCode === voucher.code}
+                          onClick={() => handleCancel(voucher.code)}
+                          className="bg-red-600 text-xs text-white hover:bg-red-700"
+                        >
+                          {cancellingCode === voucher.code ? (
+                            <>
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              Cancelando...
+                            </>
+                          ) : (
+                            "Confirmar cancelamento"
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:justify-end">
@@ -162,7 +343,8 @@ export default function PendingPurchaseDialog({
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => onCancel?.(voucher.code)}
+                          disabled={cancellingCode === voucher.code || resumingCode === voucher.code}
+                          onClick={() => setConfirmingCancelCode(voucher.code)}
                           className="rounded-lg border-red-500/40 bg-transparent text-red-300 hover:bg-red-500/20 hover:text-red-200"
                         >
                           Cancelar compra
@@ -171,10 +353,18 @@ export default function PendingPurchaseDialog({
                       {voucher.actions.canResume && (
                         <Button
                           size="sm"
-                          onClick={() => onResume?.(voucher.code)}
+                          disabled={resumingCode === voucher.code || cancellingCode === voucher.code}
+                          onClick={() => handleResume(voucher.code)}
                           className="rounded-lg bg-positive-green text-white hover:bg-positive-green/80"
                         >
-                          Finalizar pagamento
+                          {resumingCode === voucher.code ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Verificando...
+                            </>
+                          ) : (
+                            "Finalizar pagamento"
+                          )}
                         </Button>
                       )}
                     </div>
