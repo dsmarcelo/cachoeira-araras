@@ -17,7 +17,13 @@ function defaults() {
     adultsPool: 0,
     elderlyPool: 0,
     priceCents: 5000,
-    status: "valid" as "pending" | "valid" | "redeemed" | "expired",
+    status: "valid" as
+      | "pending"
+      | "valid"
+      | "redeemed"
+      | "expired"
+      | "refunded"
+      | "cancelled",
     visitDate: today,
     expiresAt: Date.now() + 1000 * 60 * 60 * 24,
     preferenceId: "pref-1",
@@ -137,6 +143,19 @@ test("editing a voucher's status persists it", async () => {
 
   const [row] = await asAdmin.query(api.vouchers.listAdmin, {});
   expect(row?.status).toBe("valid");
+});
+
+test("an admin cannot move a cancelled voucher back into circulation", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t, { status: "cancelled" });
+  const asAdmin = await withAuth(t, "admin");
+
+  await expect(
+    asAdmin.mutation(api.vouchers.updateStatus, {
+      code: "a1b2",
+      status: "valid",
+    }),
+  ).rejects.toThrow("terminal");
 });
 
 test("soft-deleting removes a voucher from the main list and surfaces it in the deleted view; restoring reverses both", async () => {

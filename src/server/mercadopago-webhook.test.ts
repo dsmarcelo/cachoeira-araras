@@ -360,6 +360,26 @@ await test("sends conversion events only for newly processed vouchers", async ()
   });
 });
 
+await test("forwards the observed payment amount as integer cents", async () => {
+  let receivedAmount: number | undefined;
+  await processMercadoPagoPaymentWebhook({
+    dataId,
+    type: "payment",
+    getPayment: async () => ({
+      external_reference: "abcd",
+      status: "approved",
+      transaction_amount: 123.45,
+    }),
+    processVoucherPayment: async (input) => {
+      receivedAmount = input.paymentAmountCents;
+      return { outcome: "updated", shouldSendConversionEvents: false };
+    },
+    logger: silentLogger,
+  });
+
+  assert.equal(receivedAmount, 12345);
+});
+
 await test("does not send conversion events for already processed vouchers", async () => {
   let conversionCalls = 0;
   const result = await processMercadoPagoPaymentWebhook({
@@ -419,7 +439,9 @@ await test("site URL is used as webhook fallback", () => {
 
 await test("Mercado Pago webhook URL forces signed Webhooks", () => {
   assert.equal(
-    buildMercadoPagoWebhookUrl("https://tough-totally-honeybee.ngrok-free.app/"),
+    buildMercadoPagoWebhookUrl(
+      "https://tough-totally-honeybee.ngrok-free.app/",
+    ),
     "https://tough-totally-honeybee.ngrok-free.app/api/webhook?source_news=webhooks",
   );
 });
@@ -472,7 +494,10 @@ function buildSignature({
     requestId,
     ts,
   });
-  const hash = crypto.createHmac("sha256", secret).update(manifest).digest("hex");
+  const hash = crypto
+    .createHmac("sha256", secret)
+    .update(manifest)
+    .digest("hex");
 
   return `ts=${ts},v1=${hash}`;
 }

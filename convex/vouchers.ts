@@ -6,7 +6,7 @@ import {
   startOfSaoPauloDayMs,
 } from "../src/lib/utils/date";
 import { api, internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   action,
   internalMutation,
@@ -31,6 +31,7 @@ import {
   splitCustomerName,
 } from "./lib/voucherCode";
 import { validateVoucherPurchase } from "./lib/voucherPurchase";
+import type { PaymentSnapshot } from "./lib/paymentOperation";
 
 /**
  * Whether a voucher counts as a real, live voucher for operational and
@@ -50,7 +51,24 @@ export const voucherStatusValidator = v.union(
   v.literal("redeemed"),
   v.literal("expired"),
   v.literal("refunded"),
+  v.literal("cancelled"),
 );
+
+/**
+ * Whether a voucher counts as a live pending purchase that blocks a new checkout.
+ * A pending voucher whose Visit Date has passed (expiresAt <= now) no longer blocks anything.
+ * Cancelled, refunded, valid, redeemed, expired, and soft-deleted vouchers never block.
+ */
+export function isLivePendingVoucher(
+  voucher: Pick<Doc<"vouchers">, "status" | "deletedAt" | "expiresAt">,
+  now: number,
+): boolean {
+  return (
+    voucher.status === "pending" &&
+    voucher.deletedAt === undefined &&
+    voucher.expiresAt > now
+  );
+}
 
 const publicVoucherValidator = v.object({
   code: v.string(),
@@ -157,9 +175,7 @@ export const getAuthorized = query({
 
     const voucher = await ctx.db
       .query("vouchers")
-      .withIndex("by_lookupToken", (q) =>
-        q.eq("lookupToken", args.lookupToken),
-      )
+      .withIndex("by_lookupToken", (q) => q.eq("lookupToken", args.lookupToken))
       .unique();
 
     if (!voucher || voucher.deletedAt !== undefined) {
@@ -167,6 +183,630 @@ export const getAuthorized = query({
     }
 
     return summarizeForPublic(voucher);
+  },
+});
+
+export const pendingConflictVoucherValidator = v.object({
+  code: v.string(),
+  visitDate: v.string(),
+  adults: v.number(),
+  elderly: v.number(),
+  adultsPool: v.number(),
+  elderlyPool: v.number(),
+  priceCents: v.number(),
+  status: voucherStatusValidator,
+  actions: v.object({
+    canResume: v.boolean(),
+    canCancel: v.boolean(),
+  }),
+});
+
+/**
+ * Resolves pending purchase conflicts reactively when a phone number hits
+ * the one-pending limit. If the caller provides valid management capability
+ * tokens stored in their browser for that phone's purchases, returns an
+ * authorized summary and allowed actions for every matching pending purchase.
+ * If the caller lacks a valid capability, returns only a generic notice
+ * directing them to the originating browser, without revealing any voucher
+ * details or financial identifiers.
+ */
+export const getPendingConflict = query({
+  args: {
+    phone: v.string(),
+    managementTokens: v.array(v.string()),
+    now: v.optional(v.number()),
+  },
+  returns: v.union(
+    v.object({
+      kind: v.literal("authorized"),
+      vouchers: v.array(pendingConflictVoucherValidator),
+    }),
+    v.object({
+      kind: v.literal("generic"),
+      message: v.string(),
+    }),
+    v.object({
+      kind: v.literal("none"),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const now = args.now ?? Date.now();
+    const vouchersForPhone = await ctx.db
+      .query("vouchers")
+      .withIndex("by_phone", (q) => q.eq("phone", args.phone))
+      .collect();
+
+    const livePending = vouchersForPhone.filter((voucher) =>
+      isLivePendingVoucher(voucher, now),
+    );
+
+    const validTokens = new Set(
+      args.managementTokens.filter((token) => token && token.length > 0),
+    );
+
+    const matchingPending = livePending.filter(
+      (voucher) =>
+        voucher.managementToken !== undefined &&
+        validTokens.has(voucher.managementToken),
+    );
+
+    if (matchingPending.length > 0) {
+      return {
+        kind: "authorized" as const,
+        vouchers: matchingPending.map((v) => ({
+          code: v.code,
+          visitDate: v.visitDate,
+          adults: v.adults,
+          elderly: v.elderly,
+          adultsPool: v.adultsPool,
+          elderlyPool: v.elderlyPool,
+          priceCents: v.priceCents,
+          status: v.status,
+          actions: {
+            canResume:
+              v.status === "pending" &&
+              v.expiresAt > now &&
+              v.cancellationStartedAt === undefined,
+            canCancel:
+              v.status === "pending" && v.cancellationStartedAt === undefined,
+          },
+        })),
+      };
+    }
+
+    if (livePending.length > 0) {
+      return {
+        kind: "generic" as const,
+        message:
+          "Você já tem uma compra pendente com este telefone. Acesse pelo navegador onde a compra foi iniciada para continuar ou cancelar.",
+      };
+    }
+
+    const matchingUpdated = vouchersForPhone.filter(
+      (voucher) =>
+        voucher.deletedAt === undefined &&
+        voucher.managementToken !== undefined &&
+        validTokens.has(voucher.managementToken),
+    );
+
+    if (matchingUpdated.length > 0) {
+      return {
+        kind: "authorized" as const,
+        vouchers: matchingUpdated.map((v) => ({
+          code: v.code,
+          visitDate: v.visitDate,
+          adults: v.adults,
+          elderly: v.elderly,
+          adultsPool: v.adultsPool,
+          elderlyPool: v.elderlyPool,
+          priceCents: v.priceCents,
+          status: v.status,
+          actions: {
+            canResume:
+              v.status === "pending" &&
+              v.expiresAt > now &&
+              v.cancellationStartedAt === undefined,
+            canCancel:
+              v.status === "pending" && v.cancellationStartedAt === undefined,
+          },
+        })),
+      };
+    }
+
+    return {
+      kind: "none" as const,
+    };
+  },
+});
+
+/**
+ * Server-verified resume of a pending purchase.
+ * Requires the opaque management capability held by the originating browser.
+ * Re-checks that the voucher is still pending, is not mid-cancellation,
+ * and has no Official Payment before returning the payable checkout URL.
+ * If already approved, returns redirect to the valid voucher.
+ * If terminal (cancelled, expired, refunded, redeemed, or cancelling),
+ * returns terminal status with an explanation and no payment action.
+ */
+export const resumePayment = mutation({
+  args: {
+    code: v.string(),
+    managementToken: v.string(),
+    savedInitPoint: v.optional(v.string()),
+  },
+  returns: v.union(
+    v.object({
+      kind: v.literal("resumed"),
+      code: v.string(),
+      checkoutUrl: v.string(),
+    }),
+    v.object({
+      kind: v.literal("already_paid"),
+      code: v.string(),
+      redirectUrl: v.string(),
+    }),
+    v.object({
+      kind: v.literal("terminal"),
+      status: v.string(),
+      message: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (!voucher || voucher.deletedAt !== undefined) {
+      throw new ConvexError("Voucher não encontrado.");
+    }
+
+    if (
+      !voucher.managementToken ||
+      voucher.managementToken !== args.managementToken
+    ) {
+      throw new ConvexError(
+        "Não autorizado. A retomada do pagamento só é permitida no navegador original.",
+      );
+    }
+
+    const now = Date.now();
+
+    // 1. If payment is already approved, take caller to valid voucher
+    if (voucher.status === "valid") {
+      return {
+        kind: "already_paid" as const,
+        code: voucher.code,
+        redirectUrl: `/pagamento?external_reference=${voucher.code}`,
+      };
+    }
+
+    const officialPayment = await ctx.db
+      .query("payments")
+      .withIndex("by_voucherCode_and_isOfficial", (q) =>
+        q.eq("voucherCode", voucher.code).eq("isOfficial", true),
+      )
+      .first();
+
+    if (officialPayment?.status === "approved") {
+      return {
+        kind: "already_paid" as const,
+        code: voucher.code,
+        redirectUrl: `/pagamento?external_reference=${voucher.code}`,
+      };
+    }
+
+    // 2. If mid-cancellation, no payment action
+    if (voucher.cancellationStartedAt !== undefined) {
+      return {
+        kind: "terminal" as const,
+        status: "cancelling",
+        message:
+          "Esta compra está em processo de cancelamento e não pode ser paga.",
+      };
+    }
+
+    // 3. If terminal, no payment action and explain why
+    if (voucher.status === "cancelled") {
+      return {
+        kind: "terminal" as const,
+        status: "cancelled",
+        message: "Esta compra foi cancelada e não pode mais ser paga.",
+      };
+    }
+
+    if (voucher.status === "expired" || voucher.expiresAt <= now) {
+      return {
+        kind: "terminal" as const,
+        status: "expired",
+        message: "Esta compra expirou e não pode mais ser paga.",
+      };
+    }
+
+    if (voucher.status === "refunded") {
+      return {
+        kind: "terminal" as const,
+        status: "refunded",
+        message: "Esta compra foi estornada e não pode mais ser paga.",
+      };
+    }
+
+    if (voucher.status === "redeemed") {
+      return {
+        kind: "terminal" as const,
+        status: "redeemed",
+        message: "Este voucher já foi resgatado.",
+      };
+    }
+
+    // 4. Still pending and payable
+    if (voucher.status === "pending") {
+      const checkoutUrl = voucher.initPoint ?? args.savedInitPoint;
+      if (!checkoutUrl) {
+        throw new ConvexError("Endereço de checkout não disponível.");
+      }
+
+      return {
+        kind: "resumed" as const,
+        code: voucher.code,
+        checkoutUrl,
+      };
+    }
+
+    return {
+      kind: "terminal" as const,
+      status: voucher.status,
+      message: "Esta compra não está mais disponível para pagamento.",
+    };
+  },
+});
+
+export const prepareCancellation = internalMutation({
+  args: {
+    code: v.string(),
+    managementToken: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      ok: v.literal(true),
+      stage: v.literal("proceed"),
+      searchOpId: v.id("paymentOperations"),
+      invalidateOpId: v.optional(v.id("paymentOperations")),
+      preferenceId: v.string(),
+      voucherId: v.id("vouchers"),
+    }),
+    v.object({
+      ok: v.literal(true),
+      stage: v.literal("already_cancelled"),
+    }),
+    v.object({
+      ok: v.literal(true),
+      stage: v.literal("already_approved"),
+    }),
+    v.object({
+      ok: v.literal(false),
+      reason: v.union(
+        v.literal("not_found"),
+        v.literal("unauthorized"),
+        v.literal("terminal"),
+      ),
+      status: v.optional(voucherStatusValidator),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (!voucher || voucher.deletedAt !== undefined) {
+      return { ok: false as const, reason: "not_found" as const };
+    }
+
+    if (
+      !voucher.managementToken ||
+      voucher.managementToken !== args.managementToken
+    ) {
+      return { ok: false as const, reason: "unauthorized" as const };
+    }
+
+    if (voucher.status === "cancelled") {
+      return { ok: true as const, stage: "already_cancelled" as const };
+    }
+
+    if (voucher.status === "valid" || voucher.status === "redeemed") {
+      return { ok: true as const, stage: "already_approved" as const };
+    }
+
+    if (voucher.status !== "pending") {
+      return {
+        ok: false as const,
+        reason: "terminal" as const,
+        status: voucher.status,
+      };
+    }
+
+    const officialPayment = await ctx.db
+      .query("payments")
+      .withIndex("by_voucherCode_and_isOfficial", (q) =>
+        q.eq("voucherCode", voucher.code).eq("isOfficial", true),
+      )
+      .first();
+
+    if (officialPayment?.status === "approved") {
+      await ctx.db.patch(voucher._id, {
+        status: "valid",
+        paymentId: officialPayment.paymentId,
+        cancellationStartedAt: undefined,
+      });
+      return { ok: true as const, stage: "already_approved" as const };
+    }
+
+    const now = Date.now();
+    let searchOpId = voucher.cancellationSearchOpId;
+    searchOpId ??= await ctx.db.insert("paymentOperations", {
+      request: { kind: "search", externalReference: voucher.code },
+    });
+
+    let invalidateOpId = voucher.cancellationInvalidateOpId;
+    if (invalidateOpId === undefined && voucher.preferenceId) {
+      invalidateOpId = await ctx.db.insert("paymentOperations", {
+        request: {
+          kind: "invalidatePreference",
+          preferenceId: voucher.preferenceId,
+        },
+      });
+    }
+
+    await ctx.db.patch(voucher._id, {
+      cancellationStartedAt: voucher.cancellationStartedAt ?? now,
+      cancellationSearchOpId: searchOpId,
+      cancellationInvalidateOpId: invalidateOpId,
+    });
+
+    return {
+      ok: true as const,
+      stage: "proceed" as const,
+      searchOpId,
+      invalidateOpId,
+      preferenceId: voucher.preferenceId,
+      voucherId: voucher._id,
+    };
+  },
+});
+
+export const recordCancelPaymentOperation = internalMutation({
+  args: { paymentId: v.string() },
+  returns: v.id("paymentOperations"),
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("paymentOperations", {
+      request: { kind: "cancel", paymentId: args.paymentId },
+    });
+  },
+});
+
+export const finalizeCancellation = internalMutation({
+  args: {
+    code: v.string(),
+  },
+  returns: v.union(
+    v.object({ outcome: v.literal("cancelled") }),
+    v.object({ outcome: v.literal("already_approved") }),
+  ),
+  handler: async (ctx, args) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (!voucher) return { outcome: "cancelled" as const };
+
+    if (voucher.status === "valid" || voucher.status === "redeemed") {
+      return { outcome: "already_approved" as const };
+    }
+
+    await ctx.db.patch(voucher._id, {
+      status: "cancelled",
+      cancellationStartedAt: undefined,
+    });
+
+    const payments = await ctx.db
+      .query("payments")
+      .withIndex("by_voucherCode_and_isOfficial", (q) =>
+        q.eq("voucherCode", voucher.code),
+      )
+      .collect();
+
+    for (const payment of payments) {
+      if (payment.status !== "approved" && payment.status !== "refunded") {
+        await ctx.db.patch(payment._id, {
+          status: "cancelled",
+          updatedAt: Date.now(),
+        });
+      }
+    }
+
+    return { outcome: "cancelled" as const };
+  },
+});
+
+export const clearCancellationIntent = internalMutation({
+  args: { code: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (voucher?.status === "pending") {
+      await ctx.db.patch(voucher._id, {
+        cancellationStartedAt: undefined,
+      });
+    }
+    return null;
+  },
+});
+
+export const cancelPendingPurchase = action({
+  args: {
+    code: v.string(),
+    managementToken: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      kind: v.literal("cancelled"),
+      message: v.string(),
+    }),
+    v.object({
+      kind: v.literal("already_approved"),
+      redirectUrl: v.string(),
+      message: v.string(),
+    }),
+    v.object({
+      kind: v.literal("already_cancelled"),
+      message: v.string(),
+    }),
+    v.object({
+      kind: v.literal("unauthorized"),
+      message: v.string(),
+    }),
+    v.object({
+      kind: v.literal("error"),
+      message: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const prep = await ctx.runMutation(internal.vouchers.prepareCancellation, {
+      code: args.code,
+      managementToken: args.managementToken,
+    });
+
+    if (!prep.ok) {
+      if (prep.reason === "unauthorized") {
+        return {
+          kind: "unauthorized" as const,
+          message:
+            "Apenas o navegador que iniciou esta compra possui autorização para cancelá-la.",
+        };
+      }
+      return {
+        kind: "error" as const,
+        message: "Não foi possível encontrar a compra para cancelamento.",
+      };
+    }
+
+    if (prep.stage === "already_cancelled") {
+      return {
+        kind: "already_cancelled" as const,
+        message: "Esta compra já foi cancelada.",
+      };
+    }
+
+    if (prep.stage === "already_approved") {
+      return {
+        kind: "already_approved" as const,
+        redirectUrl: `/pagamento?external_reference=${args.code}`,
+        message:
+          "O pagamento desta compra já foi aprovado. O cancelamento não foi realizado.",
+      };
+    }
+
+    try {
+      const searchResult = (await ctx.runAction(
+        internal.paymentOperations.execute,
+        { id: prep.searchOpId },
+      )) as PaymentSnapshot[];
+
+      const approvedPayment = searchResult.find((p) => p.status === "approved");
+
+      if (approvedPayment) {
+        await ctx.runMutation(internal.vouchers.confirmPayment, {
+          code: args.code,
+          paymentId: approvedPayment.id,
+          paymentStatus: "approved",
+        });
+        await ctx.runMutation(internal.vouchers.clearCancellationIntent, {
+          code: args.code,
+        });
+        return {
+          kind: "already_approved" as const,
+          redirectUrl: `/pagamento?external_reference=${args.code}`,
+          message:
+            "O pagamento desta compra já foi aprovado. O cancelamento não foi realizado.",
+        };
+      }
+
+      if (prep.invalidateOpId) {
+        await ctx.runAction(internal.paymentOperations.execute, {
+          id: prep.invalidateOpId,
+        });
+      }
+
+      const cancellableStatuses = ["pending", "in_process", "authorized"];
+      const paymentsToCancel = searchResult.filter((p) =>
+        cancellableStatuses.includes(p.status),
+      );
+
+      for (const p of paymentsToCancel) {
+        const cancelOpId = await ctx.runMutation(
+          internal.vouchers.recordCancelPaymentOperation,
+          { paymentId: p.id },
+        );
+        const cancelledPayment = (await ctx.runAction(
+          internal.paymentOperations.execute,
+          {
+            id: cancelOpId,
+          },
+        )) as PaymentSnapshot;
+
+        if (cancelledPayment.status === "approved") {
+          await ctx.runMutation(internal.vouchers.confirmPayment, {
+            code: args.code,
+            paymentId: cancelledPayment.id,
+            paymentStatus: "approved",
+            paymentAmountCents: Math.round(cancelledPayment.amount * 100),
+          });
+          await ctx.runMutation(internal.vouchers.clearCancellationIntent, {
+            code: args.code,
+          });
+          return {
+            kind: "already_approved" as const,
+            redirectUrl: `/pagamento?external_reference=${args.code}`,
+            message:
+              "O pagamento desta compra já foi aprovado. O cancelamento não foi realizado.",
+          };
+        }
+      }
+
+      const finalized = await ctx.runMutation(
+        internal.vouchers.finalizeCancellation,
+        { code: args.code },
+      );
+
+      if (finalized.outcome === "already_approved") {
+        return {
+          kind: "already_approved" as const,
+          redirectUrl: `/pagamento?external_reference=${args.code}`,
+          message:
+            "O pagamento desta compra já foi aprovado. O cancelamento não foi realizado.",
+        };
+      }
+
+      return {
+        kind: "cancelled" as const,
+        message: "A compra foi cancelada com sucesso.",
+      };
+    } catch {
+      await ctx.runMutation(internal.vouchers.clearCancellationIntent, {
+        code: args.code,
+      });
+      return {
+        kind: "error" as const,
+        message:
+          "Não foi possível concluir o cancelamento devido a uma instabilidade no Mercado Pago. Por favor, tente novamente.",
+      };
+    }
   },
 });
 
@@ -219,13 +859,7 @@ export const getVoucherForImage = internalQuery({
       adultsPool: v.number(),
       elderlyPool: v.number(),
       priceCents: v.number(),
-      status: v.union(
-        v.literal("pending"),
-        v.literal("valid"),
-        v.literal("redeemed"),
-        v.literal("expired"),
-        v.literal("refunded"),
-      ),
+      status: voucherStatusValidator,
       visitDate: v.string(),
       expiresAt: v.number(),
     }),
@@ -240,7 +874,8 @@ export const getVoucherForImage = internalQuery({
     if (
       !voucher ||
       voucher.deletedAt !== undefined ||
-      voucher.lookupToken !== args.lookupToken
+      voucher.lookupToken !== args.lookupToken ||
+      voucher.status === "cancelled"
     ) {
       return null;
     }
@@ -307,8 +942,18 @@ export const startCheckout = action({
     preferenceId: v.string(),
     initPoint: v.string(),
     priceCents: v.number(),
+    managementToken: v.string(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    code: string;
+    preferenceId: string;
+    initPoint: string;
+    priceCents: number;
+    managementToken: string;
+  }> => {
     const role = await getRole(ctx);
     const canUseTestMode = role === "admin" || role === "employee";
 
@@ -330,25 +975,19 @@ export const startCheckout = action({
       { canUseTestMode, settings },
     );
 
-    const activeVoucher: { code: string } | null = await ctx.runQuery(
-      internal.vouchers.findActiveByPhone,
-      { phone: args.phone },
-    );
-    if (activeVoucher) {
-      // Deliberately omits the voucher code: this check is keyed by
-      // phone number alone and runs before the rate limiter below, so
-      // echoing the code here would let anyone enumerate a stranger's
-      // phone number into their valid voucher code. The customer already
-      // has a rate-limited way to recover it (the lookup flow).
-      throw new ConvexError(
-        "Você já possui um voucher válido cadastrado com este telefone. Verifique o código enviado anteriormente antes de comprar outro.",
-      );
-    }
+    type InsertPendingVoucherResult =
+      | { ok: true; managementToken: string }
+      | { ok: false; reason: "code_collision" }
+      | {
+          ok: false;
+          reason: "pending_conflict";
+          operationId: Id<"paymentOperations">;
+        };
 
     // Ceiling on unexpired Pending Vouchers per phone, checked before any
     // rate-limit token is spent: an abandoned pending checkout should send
     // the customer back to finish that one, not toward "wait and retry".
-    const pendingCount = await ctx.runQuery(
+    const pendingCount: number = await ctx.runQuery(
       internal.vouchers.countUnexpiredPendingByPhone,
       { phone: args.phone, now: Date.now() },
     );
@@ -381,6 +1020,7 @@ export const startCheckout = action({
 
     for (let attempt = 1; attempt <= maxVoucherCodeAttempts; attempt += 1) {
       const code = generateVoucherCode();
+      const managementToken = crypto.randomUUID();
 
       const preference = await createCheckoutPreference({
         code,
@@ -398,10 +1038,11 @@ export const startCheckout = action({
         phone: args.phone,
       });
 
-      const result: { ok: boolean } = await ctx.runMutation(
+      const result: InsertPendingVoucherResult = await ctx.runMutation(
         internal.vouchers.insertPendingVoucher,
         {
           code,
+          managementToken,
           name: args.name,
           phone: args.phone,
           adults: args.adults,
@@ -412,6 +1053,7 @@ export const startCheckout = action({
           visitDate,
           expiresAt,
           preferenceId: preference.id,
+          initPoint: preference.initPoint,
           referrer,
           isTest,
         },
@@ -423,8 +1065,25 @@ export const startCheckout = action({
           preferenceId: preference.id,
           initPoint: preference.initPoint,
           priceCents,
+          managementToken: result.managementToken,
         };
       }
+
+      if (result.reason === "pending_conflict") {
+        try {
+          await ctx.runAction(internal.paymentOperations.execute, {
+            id: result.operationId,
+          });
+        } catch {
+          // Failure is observable on paymentOperations (reconcile records lastError);
+          // background retry is already scheduled.
+        }
+
+        throw new ConvexError(
+          "Você já tem uma compra pendente com este telefone. Finalize o pagamento pendente (verifique o código enviado anteriormente) antes de iniciar uma nova compra.",
+        );
+      }
+
       // Code collision: retry with a fresh code and a fresh preference
       // rather than surfacing an error to the loser.
     }
@@ -436,32 +1095,10 @@ export const startCheckout = action({
 });
 
 /**
- * Whether `phone` already holds a valid voucher, so checkout can refuse a
- * second purchase. Scoped by the `by_phone` index; a given phone number
- * accrues at most a handful of vouchers, so collecting them is bounded.
- */
-export const findActiveByPhone = internalQuery({
-  args: { phone: v.string() },
-  returns: v.union(v.object({ code: v.string() }), v.null()),
-  handler: async (ctx, args) => {
-    const vouchers = await ctx.db
-      .query("vouchers")
-      .withIndex("by_phone", (q) => q.eq("phone", args.phone))
-      .collect();
-
-    const active = vouchers.find(
-      (voucher) => voucher.status === "valid" && voucher.deletedAt === undefined,
-    );
-
-    return active ? { code: active.code } : null;
-  },
-});
-
-/**
  * Counts unexpired Pending Vouchers held by `phone`, so checkout can refuse
  * to pile up abandoned preferences (audit issue 10: 56 abandoned Pending
  * Vouchers accumulated for lack of this ceiling). Scoped by the `by_phone`
- * index; bounded the same way `findActiveByPhone` is.
+ * index.
  */
 export const countUnexpiredPendingByPhone = internalQuery({
   args: { phone: v.string(), now: v.number() },
@@ -472,12 +1109,8 @@ export const countUnexpiredPendingByPhone = internalQuery({
       .withIndex("by_phone", (q) => q.eq("phone", args.phone))
       .collect();
 
-    return vouchers.filter(
-      (voucher) =>
-        voucher.status === "pending" &&
-        voucher.deletedAt === undefined &&
-        voucher.expiresAt > args.now,
-    ).length;
+    return vouchers.filter((voucher) => isLivePendingVoucher(voucher, args.now))
+      .length;
   },
 });
 
@@ -532,10 +1165,23 @@ export const findForPaymentEnrichment = internalQuery({
 
     for (const paymentId of args.paymentIds) {
       if (!paymentId) continue;
-      const voucher = await ctx.db
+      let voucher = await ctx.db
         .query("vouchers")
         .withIndex("by_paymentId", (q) => q.eq("paymentId", paymentId))
         .unique();
+
+      if (!voucher) {
+        const payment = await ctx.db
+          .query("payments")
+          .withIndex("by_paymentId", (q) => q.eq("paymentId", paymentId))
+          .unique();
+        if (payment) {
+          voucher = await ctx.db
+            .query("vouchers")
+            .withIndex("by_code", (q) => q.eq("code", payment.voucherCode))
+            .unique();
+        }
+      }
 
       if (
         voucher &&
@@ -558,14 +1204,16 @@ export const findForPaymentEnrichment = internalQuery({
 });
 
 /**
- * Re-checks code uniqueness and inserts the Pending voucher in one
- * transaction, closing the time-of-check/time-of-use race where the two
- * used to be separate calls. Returns `{ ok: false }` on a collision instead
- * of throwing, so `startCheckout` can retry with a new code.
+ * Re-checks code uniqueness and phone pending-purchase limit, then inserts
+ * the Pending voucher in one transaction, closing the time-of-check/time-of-use
+ * race. If the phone already holds a live pending voucher, creates an invalidation
+ * intent for the losing preference, schedules retry, and returns pending_conflict.
+ * If code collides, returns code_collision so checkout can retry with a fresh code.
  */
 export const insertPendingVoucher = internalMutation({
   args: {
     code: v.string(),
+    managementToken: v.optional(v.string()),
     name: v.string(),
     phone: v.string(),
     adults: v.number(),
@@ -576,12 +1224,22 @@ export const insertPendingVoucher = internalMutation({
     visitDate: v.string(),
     expiresAt: v.number(),
     preferenceId: v.string(),
+    initPoint: v.optional(v.string()),
     referrer: v.optional(referrerValidator),
     isTest: v.boolean(),
+    now: v.optional(v.number()),
   },
   returns: v.union(
-    v.object({ ok: v.literal(true) }),
-    v.object({ ok: v.literal(false) }),
+    v.object({ ok: v.literal(true), managementToken: v.string() }),
+    v.object({
+      ok: v.literal(false),
+      reason: v.literal("code_collision"),
+    }),
+    v.object({
+      ok: v.literal(false),
+      reason: v.literal("pending_conflict"),
+      operationId: v.id("paymentOperations"),
+    }),
   ),
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -590,11 +1248,46 @@ export const insertPendingVoucher = internalMutation({
       .first();
 
     if (existing) {
-      return { ok: false };
+      return { ok: false as const, reason: "code_collision" as const };
     }
+
+    const now = args.now ?? Date.now();
+
+    const vouchersForPhone = await ctx.db
+      .query("vouchers")
+      .withIndex("by_phone", (q) => q.eq("phone", args.phone))
+      .collect();
+
+    const hasLivePending = vouchersForPhone.some((voucher) =>
+      isLivePendingVoucher(voucher, now),
+    );
+
+    if (hasLivePending) {
+      const operationId = await ctx.db.insert("paymentOperations", {
+        request: {
+          kind: "invalidatePreference",
+          preferenceId: args.preferenceId,
+        },
+      });
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.paymentOperations.executeWithRetry,
+        { id: operationId },
+      );
+
+      return {
+        ok: false as const,
+        reason: "pending_conflict" as const,
+        operationId,
+      };
+    }
+
+    const managementToken = args.managementToken ?? crypto.randomUUID();
 
     await ctx.db.insert("vouchers", {
       code: args.code,
+      managementToken,
       name: args.name,
       phone: args.phone,
       adults: args.adults,
@@ -606,11 +1299,12 @@ export const insertPendingVoucher = internalMutation({
       visitDate: args.visitDate,
       expiresAt: args.expiresAt,
       preferenceId: args.preferenceId,
+      initPoint: args.initPoint,
       referrer: args.referrer,
       isTest: args.isTest,
     });
 
-    return { ok: true };
+    return { ok: true as const, managementToken };
   },
 });
 
@@ -635,23 +1329,32 @@ const negativeTerminalPaymentStatuses = new Set([
  * public `mutation` wrapping this: a signed-in admin session has no path to
  * it at all.
  *
- * Idempotent: a repeated delivery for a voucher already `valid`, `redeemed`,
- * or `refunded` changes nothing beyond what the first delivery already did,
- * and reports `becameValid: false`, so the caller fires no second conversion
- * event.
+ * Each observed payment is recorded individually in the `payments` table,
+ * unique by its Mercado Pago payment identifier.
+ *
+ * The first approved payment for a Voucher becomes its Official Payment and is
+ * the only payment that can make the Voucher Valid. Two concurrent approvals
+ * cannot both validate the same Voucher.
+ *
+ * Every further approval is an Excess Payment, recorded with `isOfficial: false`
+ * and `owesRefund: true`. It leaves a Valid, Redeemed, Expired, Cancelled, or
+ * Refunded Voucher untouched.
+ *
+ * Redelivering the same payment identifier with the same status is idempotent
+ * and reports no new conversion.
  *
  * A negative-terminal notification (`refunded`, `charged_back`, `cancelled`)
- * for a Voucher that is already `valid` moves it to `refunded` — a dead end,
- * never redeemable and never reverted back to `valid`. The same
- * notification for a Voucher that is already `redeemed` never reverts the
- * redemption (the entry already happened); instead it records a `reversal`
- * warning for staff, once, the first time it's seen.
+ * for the Official Payment moves a `valid` Voucher to `refunded`, or records
+ * a `reversal` warning on an already `redeemed` Voucher. A negative-terminal
+ * notification for an Excess Payment updates that payment record and leaves the
+ * Voucher untouched.
  */
 export const confirmPayment = internalMutation({
   args: {
     code: v.string(),
     paymentId: v.string(),
     paymentStatus: v.union(v.string(), v.null()),
+    paymentAmountCents: v.optional(v.number()),
   },
   returns: v.union(
     v.object({
@@ -676,22 +1379,17 @@ export const confirmPayment = internalMutation({
       return { outcome: "not_found" as const };
     }
 
-    // The raw Mercado Pago status, narrowed to a non-null string only when
-    // it's one of the negative-terminal reasons this function reacts to.
-    const reversalReason: string | null =
-      args.paymentStatus !== null &&
-      negativeTerminalPaymentStatuses.has(args.paymentStatus)
-        ? args.paymentStatus
-        : null;
+    const existingPayment = await ctx.db
+      .query("payments")
+      .withIndex("by_paymentId", (q) => q.eq("paymentId", args.paymentId))
+      .unique();
 
-    if (voucher.status === "redeemed") {
-      // The entry already happened and is never undone. Record the reversal
-      // as a staff-visible warning, but only the first time — a repeated
-      // notification (or one delivered after another already landed) must
-      // not overwrite the original reason or timestamp.
-      if (reversalReason !== null && voucher.reversal === undefined) {
-        const reversal = { reason: reversalReason, notedAt: Date.now() };
-        await ctx.db.patch(voucher._id, { reversal });
+    // Idempotent redelivery check: if this payment was already recorded with the same status
+    if (
+      existingPayment !== null &&
+      existingPayment.status === args.paymentStatus
+    ) {
+      if (voucher.status === "redeemed") {
         return {
           outcome: "redeemed" as const,
           becameValid: false,
@@ -699,28 +1397,30 @@ export const confirmPayment = internalMutation({
         };
       }
       return {
-        outcome: "redeemed" as const,
-        becameValid: false,
-        isTest: voucher.isTest,
-      };
-    }
-
-    if (voucher.status === "refunded") {
-      // Already moved out of `valid`; a repeated or later negative-terminal
-      // delivery changes nothing further.
-      return {
         outcome: "already_processed" as const,
         becameValid: false,
         isTest: voucher.isTest,
       };
     }
 
-    if (voucher.status === "valid") {
-      if (reversalReason !== null) {
-        const reversal = { reason: reversalReason, notedAt: Date.now() };
-        await ctx.db.patch(voucher._id, { status: "refunded", reversal });
+    // Handle legacy or test vouchers with paymentId on voucher but no row in payments
+    if (
+      existingPayment === null &&
+      voucher.paymentId === args.paymentId &&
+      args.paymentStatus === "approved" &&
+      voucher.status !== "pending"
+    ) {
+      await ctx.db.insert("payments", {
+        paymentId: args.paymentId,
+        voucherCode: voucher.code,
+        status: args.paymentStatus,
+        isOfficial: true,
+        owesRefund: false,
+        createdAt: Date.now(),
+      });
+      if (voucher.status === "redeemed") {
         return {
-          outcome: "reversed" as const,
+          outcome: "redeemed" as const,
           becameValid: false,
           isTest: voucher.isTest,
         };
@@ -732,10 +1432,227 @@ export const confirmPayment = internalMutation({
       };
     }
 
-    if (args.paymentStatus !== "approved") {
-      // Record the payment id so it's correlated even though the voucher
-      // isn't confirmed valid yet; no conversion event.
-      await ctx.db.patch(voucher._id, { paymentId: args.paymentId });
+    const reversalReason: string | null =
+      args.paymentStatus !== null &&
+      negativeTerminalPaymentStatuses.has(args.paymentStatus)
+        ? args.paymentStatus
+        : null;
+
+    const isOfficialPayment =
+      Boolean(existingPayment?.isOfficial) ||
+      voucher.paymentId === args.paymentId;
+
+    if (reversalReason !== null) {
+      if (isOfficialPayment) {
+        if (voucher.status === "redeemed") {
+          if (voucher.reversal === undefined) {
+            const reversal = { reason: reversalReason, notedAt: Date.now() };
+            await ctx.db.patch(voucher._id, { reversal });
+          }
+          if (existingPayment) {
+            await ctx.db.patch(existingPayment._id, {
+              status: args.paymentStatus,
+              updatedAt: Date.now(),
+            });
+          } else {
+            await ctx.db.insert("payments", {
+              paymentId: args.paymentId,
+              voucherCode: voucher.code,
+              status: args.paymentStatus,
+              isOfficial: true,
+              owesRefund: false,
+              createdAt: Date.now(),
+            });
+          }
+          return {
+            outcome: "redeemed" as const,
+            becameValid: false,
+            isTest: voucher.isTest,
+          };
+        }
+
+        if (voucher.status === "refunded") {
+          if (existingPayment) {
+            await ctx.db.patch(existingPayment._id, {
+              status: args.paymentStatus,
+              updatedAt: Date.now(),
+            });
+          } else {
+            await ctx.db.insert("payments", {
+              paymentId: args.paymentId,
+              voucherCode: voucher.code,
+              status: args.paymentStatus,
+              isOfficial: true,
+              owesRefund: false,
+              createdAt: Date.now(),
+            });
+          }
+          return {
+            outcome: "already_processed" as const,
+            becameValid: false,
+            isTest: voucher.isTest,
+          };
+        }
+
+        if (voucher.status === "valid") {
+          const reversal = { reason: reversalReason, notedAt: Date.now() };
+          await ctx.db.patch(voucher._id, { status: "refunded", reversal });
+          if (existingPayment) {
+            await ctx.db.patch(existingPayment._id, {
+              status: args.paymentStatus,
+              updatedAt: Date.now(),
+            });
+          } else {
+            await ctx.db.insert("payments", {
+              paymentId: args.paymentId,
+              voucherCode: voucher.code,
+              status: args.paymentStatus,
+              isOfficial: true,
+              owesRefund: false,
+              createdAt: Date.now(),
+            });
+          }
+          return {
+            outcome: "reversed" as const,
+            becameValid: false,
+            isTest: voucher.isTest,
+          };
+        }
+
+        if (existingPayment) {
+          await ctx.db.patch(existingPayment._id, {
+            status: args.paymentStatus,
+            updatedAt: Date.now(),
+          });
+        } else {
+          await ctx.db.insert("payments", {
+            paymentId: args.paymentId,
+            voucherCode: voucher.code,
+            status: args.paymentStatus,
+            isOfficial: false,
+            owesRefund: false,
+            createdAt: Date.now(),
+          });
+        }
+        return {
+          outcome: "updated" as const,
+          becameValid: false,
+          isTest: voucher.isTest,
+        };
+      } else {
+        // Reversal of an Excess Payment
+        if (existingPayment) {
+          await ctx.db.patch(existingPayment._id, {
+            status: args.paymentStatus,
+            owesRefund: false,
+            updatedAt: Date.now(),
+          });
+        } else {
+          await ctx.db.insert("payments", {
+            paymentId: args.paymentId,
+            voucherCode: voucher.code,
+            status: args.paymentStatus,
+            isOfficial: false,
+            owesRefund: false,
+            createdAt: Date.now(),
+          });
+        }
+        return {
+          outcome: "updated" as const,
+          becameValid: false,
+          isTest: voucher.isTest,
+        };
+      }
+    }
+
+    if (args.paymentStatus === "approved") {
+      const existingOfficialPayment = await ctx.db
+        .query("payments")
+        .withIndex("by_voucherCode_and_isOfficial", (q) =>
+          q.eq("voucherCode", voucher.code).eq("isOfficial", true),
+        )
+        .first();
+
+      const canBeOfficial =
+        voucher.status === "pending" &&
+        voucher.deletedAt === undefined &&
+        voucher.expiresAt > Date.now() &&
+        (!existingOfficialPayment ||
+          existingOfficialPayment.paymentId === args.paymentId);
+
+      if (canBeOfficial) {
+        await ctx.db.patch(voucher._id, {
+          status: "valid",
+          paymentId: args.paymentId,
+        });
+
+        if (existingPayment) {
+          await ctx.db.patch(existingPayment._id, {
+            status: "approved",
+            isOfficial: true,
+            owesRefund: false,
+            updatedAt: Date.now(),
+          });
+        } else {
+          await ctx.db.insert("payments", {
+            paymentId: args.paymentId,
+            voucherCode: voucher.code,
+            status: "approved",
+            isOfficial: true,
+            owesRefund: false,
+            createdAt: Date.now(),
+          });
+        }
+
+        return {
+          outcome: "updated" as const,
+          becameValid: true,
+          isTest: voucher.isTest,
+        };
+      }
+
+      // Excess Payment: voucher is Valid, Redeemed, Expired, Cancelled or Refunded
+      if (existingPayment) {
+        await ctx.db.patch(existingPayment._id, {
+          status: "approved",
+          isOfficial: false,
+          owesRefund: true,
+          updatedAt: Date.now(),
+        });
+      } else {
+        await ctx.db.insert("payments", {
+          paymentId: args.paymentId,
+          voucherCode: voucher.code,
+          status: "approved",
+          isOfficial: false,
+          owesRefund: true,
+          createdAt: Date.now(),
+        });
+      }
+
+      const existingRefund = await ctx.db
+        .query("paymentRefunds")
+        .withIndex("by_paymentId", (q) => q.eq("paymentId", args.paymentId))
+        .first();
+
+      if (!existingRefund) {
+        const now = Date.now();
+        const refundId = await ctx.db.insert("paymentRefunds", {
+          paymentId: args.paymentId,
+          voucherCode: voucher.code,
+          amountCents: args.paymentAmountCents ?? voucher.priceCents,
+          status: "pending_attempt",
+          attemptCount: 0,
+          nextAttemptAt: now,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        await ctx.scheduler.runAfter(0, internal.refunds.attemptRefund, {
+          refundId,
+        });
+      }
+
       return {
         outcome: "updated" as const,
         becameValid: false,
@@ -743,14 +1660,32 @@ export const confirmPayment = internalMutation({
       };
     }
 
-    await ctx.db.patch(voucher._id, {
-      status: "valid",
-      paymentId: args.paymentId,
-    });
+    // Non-approved payment (e.g. in_process, pending, rejected)
+    if (existingPayment) {
+      await ctx.db.patch(existingPayment._id, {
+        status: args.paymentStatus,
+        isOfficial: false,
+        owesRefund: false,
+        updatedAt: Date.now(),
+      });
+    } else {
+      await ctx.db.insert("payments", {
+        paymentId: args.paymentId,
+        voucherCode: voucher.code,
+        status: args.paymentStatus,
+        isOfficial: false,
+        owesRefund: false,
+        createdAt: Date.now(),
+      });
+    }
+
+    if (voucher.status === "pending" && voucher.paymentId === undefined) {
+      await ctx.db.patch(voucher._id, { paymentId: args.paymentId });
+    }
 
     return {
       outcome: "updated" as const,
-      becameValid: true,
+      becameValid: false,
       isTest: voucher.isTest,
     };
   },
@@ -760,13 +1695,7 @@ const gateVoucherValidator = v.object({
   code: v.string(),
   name: v.string(),
   phone: v.string(),
-  status: v.union(
-    v.literal("pending"),
-    v.literal("valid"),
-    v.literal("redeemed"),
-    v.literal("expired"),
-    v.literal("refunded"),
-  ),
+  status: voucherStatusValidator,
   adults: v.number(),
   elderly: v.number(),
   adultsPool: v.number(),
@@ -807,7 +1736,7 @@ async function todaysRealVouchers(ctx: { db: QueryCtx["db"] }) {
     .collect();
 
   return vouchers
-    .filter(countsAsRealVoucher)
+    .filter((v) => countsAsRealVoucher(v) && v.status !== "cancelled")
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -838,13 +1767,7 @@ const gateVoucherAdminValidator = v.object({
   code: v.string(),
   name: v.string(),
   phone: v.string(),
-  status: v.union(
-    v.literal("pending"),
-    v.literal("valid"),
-    v.literal("redeemed"),
-    v.literal("expired"),
-    v.literal("refunded"),
-  ),
+  status: voucherStatusValidator,
   adults: v.number(),
   elderly: v.number(),
   adultsPool: v.number(),
@@ -858,9 +1781,7 @@ const gateVoucherAdminValidator = v.object({
   // The staff-visible warning set when a payment is reversed after the
   // Voucher was already redeemed (see `confirmPayment`). Undefined for
   // every Voucher this never happened to.
-  reversal: v.optional(
-    v.object({ reason: v.string(), notedAt: v.number() }),
-  ),
+  reversal: v.optional(v.object({ reason: v.string(), notedAt: v.number() })),
 });
 
 function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
@@ -961,6 +1882,10 @@ export const reactivate = mutation({
       throw new ConvexError("Voucher não encontrado.");
     }
 
+    if (voucher.status === "cancelled") {
+      throw new ConvexError("Um voucher cancelado não pode ser reativado.");
+    }
+
     const expiresAt = endOfSaoPauloDayMs(getSaoPauloDateKey());
     await ctx.db.patch(voucher._id, { status: "valid", expiresAt });
 
@@ -994,7 +1919,10 @@ export const listAdmin = query({
 
     return vouchers
       .filter(countsAsRealVoucher)
-      .filter((voucher) => args.status === undefined || voucher.status === args.status)
+      .filter(
+        (voucher) =>
+          args.status === undefined || voucher.status === args.status,
+      )
       .filter(
         (voucher) =>
           args.createdAfter === undefined ||
@@ -1061,6 +1989,11 @@ export const updateStatus = mutation({
     await requireRole(ctx, "admin");
 
     const voucher = await requireVoucherByCode(ctx, args.code);
+    if (voucher.status === "cancelled" && args.status !== "cancelled") {
+      throw new ConvexError(
+        "Um voucher cancelado é terminal e não pode ter o status alterado.",
+      );
+    }
     await ctx.db.patch(voucher._id, { status: args.status });
     return null;
   },
@@ -1124,10 +2057,10 @@ function currentSaoPauloMonthRange(): { fromKey: string; toKey: string } {
  * bound), and an explicit `null` on either side — a caller asking for an
  * unbounded range on purpose — is refused too.
  */
-function resolveDateRange(args: {
-  from?: string | null;
-  to?: string | null;
-}): { fromKey: string; toKey: string } {
+function resolveDateRange(args: { from?: string | null; to?: string | null }): {
+  fromKey: string;
+  toKey: string;
+} {
   const { from, to } = args;
 
   if (from === undefined && to === undefined) {
@@ -1160,7 +2093,11 @@ function resolveDateRange(args: {
  * contributes to no summary figure.
  */
 function countsAsSoldVoucher(voucher: Doc<"vouchers">): boolean {
-  return countsAsRealVoucher(voucher) && voucher.status !== "pending";
+  return (
+    countsAsRealVoucher(voucher) &&
+    voucher.status !== "pending" &&
+    voucher.status !== "cancelled"
+  );
 }
 
 /** Every sold voucher (see `countsAsSoldVoucher`) created within `[fromKey, toKey]`, inclusive, Sao Paulo calendar days. */
@@ -1297,7 +2234,10 @@ export const dailyBreakdown = query({
         date,
         ...bucket,
         visitorCount:
-          bucket.adults + bucket.elderly + bucket.adultsPool + bucket.elderlyPool,
+          bucket.adults +
+          bucket.elderly +
+          bucket.adultsPool +
+          bucket.elderlyPool,
       }));
   },
 });

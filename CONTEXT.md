@@ -47,6 +47,10 @@ _Avoid_: used
 **Expired**:
 The Voucher passed its Expiry without being redeemed. Terminal.
 
+**Cancelled**:
+The purchase was abandoned before payment. The Voucher remains in the historical
+record and terminal; any payment approved later is automatically refunded.
+
 ### Purchase
 
 **Voucher Purchase Intake**:
@@ -60,6 +64,20 @@ status.
 **Referrer**:
 The marketing channel a purchase arrived from, captured once at purchase and
 belonging to the Voucher it describes.
+
+### Payment
+
+**Official Payment**:
+The first approved payment attached to a Voucher. It is the only payment that may
+make that Voucher Valid.
+
+**Excess Payment**:
+An approved payment received after the Official Payment or after the Voucher was
+Cancelled. It never changes the Voucher and is refunded in full automatically.
+
+**Payment Refund**:
+The tracked return of an Excess Payment to the customer. It remains in progress
+until the payment provider confirms the full refund.
 
 ### Configuration
 

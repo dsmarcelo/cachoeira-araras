@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { operationRequest, operationResult } from "./lib/paymentOperation";
 
 // A Voucher Code is the identity of a voucher; there is no separate surrogate
 // id. `status` is the single source of truth for voucher state (no parallel
@@ -30,6 +31,7 @@ const vouchers = defineTable({
     v.literal("redeemed"),
     v.literal("expired"),
     v.literal("refunded"),
+    v.literal("cancelled"),
   ),
 
   // The day the customer chose at purchase, as "YYYY-MM-DD" in the Sao Paulo
@@ -73,10 +75,25 @@ const vouchers = defineTable({
   // Code lookup. It authorizes access but is not a second voucher identity;
   // Voucher Code remains the only identifier shared across contexts.
   lookupToken: v.optional(v.string()),
+
+  // Opaque, high-entropy management capability returned on checkout and
+  // held only by the originating browser to view, resume or cancel purchases.
+  managementToken: v.optional(v.string()),
+
+  // Checkout address (Mercado Pago init_point) stored for server-verified resume.
+  initPoint: v.optional(v.string()),
+
+  // Internal cancellation coordination: timestamp when cancellation begins,
+  // preventing concurrent payment resumption.
+  cancellationStartedAt: v.optional(v.number()),
+  cancellationSearchOpId: v.optional(v.id("paymentOperations")),
+  cancellationInvalidateOpId: v.optional(v.id("paymentOperations")),
+
   deletedAt: v.optional(v.number()),
 })
   .index("by_code", ["code"])
   .index("by_lookupToken", ["lookupToken"])
+  .index("by_managementToken", ["managementToken"])
   .index("by_paymentId", ["paymentId"])
   .index("by_phone", ["phone"])
   .index("by_visitDate", ["visitDate"])
@@ -103,17 +120,79 @@ const vouchers = defineTable({
 // so a surprising value can be traced to who changed it and when.
 const settings = defineTable({
   key: v.string(),
-  value: v.union(
-    v.number(),
-    v.string(),
-    v.boolean(),
-    v.array(v.string()),
-  ),
+  value: v.union(v.number(), v.string(), v.boolean(), v.array(v.string())),
   updatedBy: v.optional(v.string()),
   updatedAt: v.optional(v.number()),
 }).index("by_key", ["key"]);
 
+// Each observed payment Mercado Pago reports for a Voucher is persisted
+// individually, unique by its Mercado Pago payment identifier.
+// The first approved payment becomes the Official Payment (isOfficial: true,
+// owesRefund: false). Any further approval is an Excess Payment (isOfficial: false,
+// owesRefund: true).
+const payments = defineTable({
+  paymentId: v.string(),
+  voucherCode: v.string(),
+  status: v.union(v.string(), v.null()),
+  isOfficial: v.boolean(),
+  owesRefund: v.boolean(),
+  createdAt: v.number(),
+  updatedAt: v.optional(v.number()),
+})
+  .index("by_paymentId", ["paymentId"])
+  .index("by_voucherCode", ["voucherCode"])
+  .index("by_voucherCode_and_isOfficial", ["voucherCode", "isOfficial"])
+  .index("by_owesRefund", ["owesRefund"]);
+
+const paymentRefunds = defineTable({
+  paymentId: v.string(),
+  voucherCode: v.string(),
+  amountCents: v.number(),
+  status: v.union(
+    v.literal("pending_attempt"),
+    v.literal("processing"),
+    v.literal("completed"),
+    v.literal("needs_retry"),
+  ),
+  attemptCount: v.number(),
+  nextAttemptAt: v.optional(v.number()),
+  lastError: v.optional(v.string()),
+  operationId: v.optional(v.id("paymentOperations")),
+  completedAt: v.optional(v.number()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index("by_paymentId", ["paymentId"])
+  .index("by_voucherCode", ["voucherCode"])
+  .index("by_status", ["status"])
+  .index("by_status_and_nextAttemptAt", ["status", "nextAttemptAt"]);
+
+const operationalAlerts = defineTable({
+  kind: v.literal("refund_failed"),
+  voucherCode: v.string(),
+  paymentId: v.string(),
+  customerContact: v.object({
+    name: v.string(),
+    phone: v.string(),
+  }),
+  lastError: v.string(),
+  attemptCount: v.number(),
+  createdAt: v.number(),
+})
+  .index("by_kind", ["kind"])
+  .index("by_voucherCode", ["voucherCode"])
+  .index("by_paymentId", ["paymentId"]);
+
 export default defineSchema({
   vouchers,
   settings,
+  payments,
+  paymentRefunds,
+  operationalAlerts,
+  paymentOperations: defineTable({
+    request: operationRequest,
+    result: v.optional(operationResult),
+    lastError: v.optional(v.string()),
+    completedAt: v.optional(v.number()),
+  }),
 });

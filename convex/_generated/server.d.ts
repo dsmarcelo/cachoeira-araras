@@ -33,6 +33,7 @@ type Env = {
   readonly ADMIN_PASSWORD: string | undefined;
   readonly ADMIN_USERNAME: string | undefined;
   readonly AUTH_TRUSTED_ORIGINS: string | undefined;
+  readonly MERCADOPAGO_TOKEN: string | undefined;
   readonly SITE_URL: string | undefined;
 };
 

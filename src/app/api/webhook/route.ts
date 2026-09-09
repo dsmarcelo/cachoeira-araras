@@ -114,14 +114,21 @@ async function confirmVoucherPaymentViaConvex({
   code,
   paymentId,
   paymentStatus,
+  paymentAmountCents,
 }: {
   code: string;
   paymentId: string;
   paymentStatus: string | null | undefined;
+  paymentAmountCents?: number;
 }) {
   const result = await callConvexService<ConfirmPaymentResult>(
     "/webhooks/mercadopago/confirmPayment",
-    { code, paymentId, paymentStatus: paymentStatus ?? null },
+    {
+      code,
+      paymentId,
+      paymentStatus: paymentStatus ?? null,
+      paymentAmountCents,
+    },
   );
 
   if (result.outcome === "not_found") {

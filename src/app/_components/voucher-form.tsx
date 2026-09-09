@@ -17,6 +17,7 @@ import {
 } from "../lib";
 import { useSavedVouchers } from "./saved-vouchers-provider";
 import VoucherCreatedCard from "./voucher-created-card";
+import PendingPurchaseDialog from "./pending-purchase-dialog";
 import { CalendarIcon, ChevronRight, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -49,6 +50,15 @@ export default function VoucherForm({
   const [init_point, setInitPoint] = useState("");
   const [referrerURL, setReferrerURL] = useState<string | null>(null);
   const [lookupToken, setLookupToken] = useState<string | null>(null);
+  const [pendingDialogOpen, setPendingDialogOpen] = useState(false);
+  const [conflictPhone, setConflictPhone] = useState("");
+  const managementTokens = useMemo(
+    () =>
+      vouchers
+        .map((v) => v.managementToken)
+        .filter((t): t is string => Boolean(t && t.length > 0)),
+    [vouchers],
+  );
 
   // A live Convex query: a settings change made in the admin page reaches
   // this open form without a reload.
@@ -206,6 +216,7 @@ export default function VoucherForm({
           code: checkout.code,
           initPoint: checkout.initPoint,
           createdAt: authorization.voucher.createdAt,
+          managementToken: checkout.managementToken,
         });
       } catch {
         setPersistenceWarning("Não foi possível salvar seu voucher neste navegador. Anote o código antes de sair.");
@@ -217,15 +228,21 @@ export default function VoucherForm({
       }
       setIsLoading(false);
     } catch (error) {
+      const message = getErrorMessage(
+        error,
+        "Erro ao criar voucher. Tente novamente.",
+      );
+      setIsLoading(false);
+      if (message.includes("Você já tem uma compra pendente")) {
+        setConflictPhone(data.phone);
+        setPendingDialogOpen(true);
+        return;
+      }
       setCheckoutFailed(true);
       console.error(error);
-      setIsLoading(false);
       return toast({
         title: "Erro",
-        description: getErrorMessage(
-          error,
-          "Erro ao criar voucher. Tente novamente.",
-        ),
+        description: message,
       });
     }
   }
@@ -464,6 +481,12 @@ export default function VoucherForm({
             </Button>
           </div>
         )}
+        <PendingPurchaseDialog
+          open={pendingDialogOpen}
+          onOpenChange={setPendingDialogOpen}
+          phone={conflictPhone}
+          managementTokens={managementTokens}
+        />
       </div>
     </div>
   );
