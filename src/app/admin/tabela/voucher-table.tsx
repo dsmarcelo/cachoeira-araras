@@ -84,6 +84,8 @@ export function VoucherTable({
     React.useState<VisibilityState>({})
   const [selectedRow, setSelectedRow] = React.useState<Row<AdminVoucher>>()
 
+  // TanStack Table exposes mutable APIs that React Compiler cannot safely memoize.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,

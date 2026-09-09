@@ -68,6 +68,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "coverage/**",
+    "convex/_generated/**",
+    "convex/betterAuth/_generated/**",
     // E2E payment scripts are plain Node .mjs utilities executed by npm
     // scripts. They are still tested by `pnpm test:payments`; excluding them
     // keeps typed App Router linting focused on application source files.

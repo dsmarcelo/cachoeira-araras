@@ -41,7 +41,7 @@ const payerSchema = z.object({
 });
 
 // Define the main schema
-const preferenceSchema = z.object({
+export const preferenceSchema = z.object({
   auto_return: z.literal("approved"),
   back_urls: z.record(z.unknown()),
   client_id: z.number().int(),

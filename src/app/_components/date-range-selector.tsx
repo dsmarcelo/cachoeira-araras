@@ -4,8 +4,6 @@
   It uses ShadcnUI components and updates the browser URL with selected time range details.
 */
 
-/* eslint-disable react-hooks/rules-of-hooks */
-
 "use client";
 
 import React, { useState, useEffect } from "react";

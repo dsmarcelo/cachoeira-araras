@@ -323,8 +323,7 @@ export const getRefundNoticesForVouchers = query({
         .unique();
 
       if (
-        !voucher ||
-        voucher.code !== access.code ||
+        voucher?.code !== access.code ||
         voucher.deletedAt !== undefined
       ) {
         continue;

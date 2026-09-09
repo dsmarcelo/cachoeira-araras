@@ -122,7 +122,7 @@ async function sendFacebookPixelEvent(payment: Payment) {
       return false;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const result = await response.json();
     console.log('Facebook Pixel event sent successfully:', result);
 
@@ -130,7 +130,6 @@ async function sendFacebookPixelEvent(payment: Payment) {
     try {
       await sendGoogleAdsConversion(payment);
     } catch (error: unknown) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       console.error('Error sending Google Ads conversion:', error);
       // Don't fail the main function if Google Ads fails
     }
@@ -138,7 +137,6 @@ async function sendFacebookPixelEvent(payment: Payment) {
     return true;
 
   } catch (error: unknown) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     console.error('Error sending Facebook Pixel event:', error);
     return false;
   }
@@ -208,7 +206,6 @@ async function sendGoogleAdsConversion(payment: Payment) {
     return true;
 
   } catch (error: unknown) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     console.error('Error sending Google Analytics conversion:', error);
     return false;
   }

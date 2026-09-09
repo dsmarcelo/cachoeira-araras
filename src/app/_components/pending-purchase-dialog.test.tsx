@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PendingPurchaseDialog from "./pending-purchase-dialog";
 
 const mocks = vi.hoisted(() => ({
-  conflict: {} as unknown,
+  conflict: {},
   cancel: vi.fn(),
   resume: vi.fn(),
   push: vi.fn(),
