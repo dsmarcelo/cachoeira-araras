@@ -31,8 +31,8 @@ const providerId = z
   .transform(String);
 const refundResponse = z.object({
   id: providerId,
-  status: z.string().min(1),
-  amount: z.number().nonnegative(),
+  status: z.literal("approved"),
+  amount: z.number().positive(),
 });
 
 /** Omitting amount requests a full refund; retries reuse the persisted intent key. */

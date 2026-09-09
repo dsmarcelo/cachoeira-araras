@@ -49,25 +49,37 @@ describe("vouchers: cancel pending purchase", () => {
     const managementToken = crypto.randomUUID();
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("vouchers", setupPendingVoucher({ code: "AUTH01", managementToken }));
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({ code: "AUTH01", managementToken }),
+      );
     });
 
     // Unauthorized attempt with wrong token
-    const unauthorizedResult = await t.action(api.vouchers.cancelPendingPurchase, {
-      code: "AUTH01",
-      managementToken: "wrong-token",
-    });
+    const unauthorizedResult = await t.action(
+      api.vouchers.cancelPendingPurchase,
+      {
+        code: "AUTH01",
+        managementToken: "wrong-token",
+      },
+    );
     expect(unauthorizedResult.kind).toBe("unauthorized");
 
     // Authorized attempt with correct token
-    const authorizedResult = await t.action(api.vouchers.cancelPendingPurchase, {
-      code: "AUTH01",
-      managementToken,
-    });
+    const authorizedResult = await t.action(
+      api.vouchers.cancelPendingPurchase,
+      {
+        code: "AUTH01",
+        managementToken,
+      },
+    );
     expect(authorizedResult.kind).toBe("cancelled");
 
     const voucher = await t.run(async (ctx) =>
-      ctx.db.query("vouchers").withIndex("by_code", (q) => q.eq("code", "AUTH01")).unique(),
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "AUTH01"))
+        .unique(),
     );
     expect(voucher?.status).toBe("cancelled");
   });
@@ -86,11 +98,14 @@ describe("vouchers: cancel pending purchase", () => {
     });
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("vouchers", setupPendingVoucher({
-        code: "CANC02",
-        managementToken,
-        preferenceId: "pref-canc02",
-      }));
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({
+          code: "CANC02",
+          managementToken,
+          preferenceId: "pref-canc02",
+        }),
+      );
       await ctx.db.insert("payments", {
         paymentId: "pay-canc-1",
         voucherCode: "CANC02",
@@ -116,12 +131,18 @@ describe("vouchers: cancel pending purchase", () => {
 
     // Local voucher and payment records are updated to cancelled
     const voucher = await t.run(async (ctx) =>
-      ctx.db.query("vouchers").withIndex("by_code", (q) => q.eq("code", "CANC02")).unique(),
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "CANC02"))
+        .unique(),
     );
     expect(voucher?.status).toBe("cancelled");
 
     const payment = await t.run(async (ctx) =>
-      ctx.db.query("payments").withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-canc-1")).unique(),
+      ctx.db
+        .query("payments")
+        .withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-canc-1"))
+        .unique(),
     );
     expect(payment?.status).toBe("cancelled");
   });
@@ -141,10 +162,13 @@ describe("vouchers: cancel pending purchase", () => {
     });
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("vouchers", setupPendingVoucher({
-        code: "WIN01",
-        managementToken,
-      }));
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({
+          code: "WIN01",
+          managementToken,
+        }),
+      );
     });
 
     const result = await t.action(api.vouchers.cancelPendingPurchase, {
@@ -160,16 +184,59 @@ describe("vouchers: cancel pending purchase", () => {
 
     // Voucher is now valid with Official Payment
     const voucher = await t.run(async (ctx) =>
-      ctx.db.query("vouchers").withIndex("by_code", (q) => q.eq("code", "WIN01")).unique(),
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "WIN01"))
+        .unique(),
     );
     expect(voucher?.status).toBe("valid");
     expect(voucher?.paymentId).toBe("pay-appr-1");
 
     const payment = await t.run(async (ctx) =>
-      ctx.db.query("payments").withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-appr-1")).unique(),
+      ctx.db
+        .query("payments")
+        .withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-appr-1"))
+        .unique(),
     );
     expect(payment?.isOfficial).toBe(true);
     expect(payment?.status).toBe("approved");
+  });
+
+  test("an approval discovered by the provider cancellation re-read wins the race", async () => {
+    const t = createConvexTest();
+    fake = createMercadoPagoFake();
+    const managementToken = crypto.randomUUID();
+
+    fake.payments.set("pay-race-provider", {
+      id: "pay-race-provider",
+      status: "pending",
+      externalReference: "WIN02",
+      amount: 123.45,
+      refundedAmount: 0,
+    });
+    fake.approveOnCancel("pay-race-provider");
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({ code: "WIN02", managementToken }),
+      );
+    });
+
+    const result = await t.action(api.vouchers.cancelPendingPurchase, {
+      code: "WIN02",
+      managementToken,
+    });
+
+    expect(result.kind).toBe("already_approved");
+    const voucher = await t.run(async (ctx) =>
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "WIN02"))
+        .unique(),
+    );
+    expect(voucher?.status).toBe("valid");
+    expect(voucher?.paymentId).toBe("pay-race-provider");
   });
 
   test("a provider failure leaves the Voucher pending with an actionable message; retrying skips completed external steps", async () => {
@@ -178,11 +245,14 @@ describe("vouchers: cancel pending purchase", () => {
     const managementToken = crypto.randomUUID();
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("vouchers", setupPendingVoucher({
-        code: "FAIL01",
-        managementToken,
-        preferenceId: "pref-fail01",
-      }));
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({
+          code: "FAIL01",
+          managementToken,
+          preferenceId: "pref-fail01",
+        }),
+      );
     });
 
     // Make invalidation fail transiently on first attempt
@@ -200,7 +270,10 @@ describe("vouchers: cancel pending purchase", () => {
 
     // Voucher remains pending
     let voucher = await t.run(async (ctx) =>
-      ctx.db.query("vouchers").withIndex("by_code", (q) => q.eq("code", "FAIL01")).unique(),
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "FAIL01"))
+        .unique(),
     );
     expect(voucher?.status).toBe("pending");
 
@@ -213,7 +286,10 @@ describe("vouchers: cancel pending purchase", () => {
     expect(retryResult.kind).toBe("cancelled");
 
     voucher = await t.run(async (ctx) =>
-      ctx.db.query("vouchers").withIndex("by_code", (q) => q.eq("code", "FAIL01")).unique(),
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "FAIL01"))
+        .unique(),
     );
     expect(voucher?.status).toBe("cancelled");
   });
@@ -223,24 +299,27 @@ describe("vouchers: cancel pending purchase", () => {
     fake = createMercadoPagoFake();
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("vouchers", setupPendingVoucher({
-        code: "DEAD01",
-        status: "cancelled",
-        visitDate,
-      }));
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({
+          code: "DEAD01",
+          status: "cancelled",
+          visitDate,
+        }),
+      );
     });
 
     const asEmployee = await withAuth(t, "employee");
 
     // Attempt to redeem cancelled voucher throws
-    await expect(asEmployee.mutation(api.vouchers.redeemByCode, { code: "DEAD01" })).rejects.toThrow(
-      "Este voucher não está disponível para uso.",
-    );
+    await expect(
+      asEmployee.mutation(api.vouchers.redeemByCode, { code: "DEAD01" }),
+    ).rejects.toThrow("Este voucher não está disponível para uso.");
 
     // Attempt to reactivate cancelled voucher throws
-    await expect(asEmployee.mutation(api.vouchers.reactivate, { code: "DEAD01" })).rejects.toThrow(
-      "Um voucher cancelado não pode ser reativado.",
-    );
+    await expect(
+      asEmployee.mutation(api.vouchers.reactivate, { code: "DEAD01" }),
+    ).rejects.toThrow("Um voucher cancelado não pode ser reativado.");
   });
 
   test("an approval arriving after cancellation is recorded as an Excess Payment and refunded in full", async () => {
@@ -248,11 +327,14 @@ describe("vouchers: cancel pending purchase", () => {
     fake = createMercadoPagoFake();
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("vouchers", setupPendingVoucher({
-        code: "LATE01",
-        status: "cancelled",
-        priceCents: 10000,
-      }));
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({
+          code: "LATE01",
+          status: "cancelled",
+          priceCents: 10000,
+        }),
+      );
     });
 
     const result = await t.mutation(internal.vouchers.confirmPayment, {
@@ -265,20 +347,29 @@ describe("vouchers: cancel pending purchase", () => {
 
     // Voucher remains cancelled
     const voucher = await t.run(async (ctx) =>
-      ctx.db.query("vouchers").withIndex("by_code", (q) => q.eq("code", "LATE01")).unique(),
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "LATE01"))
+        .unique(),
     );
     expect(voucher?.status).toBe("cancelled");
 
     // Payment marked as Excess Payment
     const payment = await t.run(async (ctx) =>
-      ctx.db.query("payments").withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-late-canc")).unique(),
+      ctx.db
+        .query("payments")
+        .withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-late-canc"))
+        .unique(),
     );
     expect(payment?.isOfficial).toBe(false);
     expect(payment?.owesRefund).toBe(true);
 
     // PaymentRefund record created
     const refund = await t.run(async (ctx) =>
-      ctx.db.query("paymentRefunds").withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-late-canc")).unique(),
+      ctx.db
+        .query("paymentRefunds")
+        .withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-late-canc"))
+        .unique(),
     );
     expect(refund?.amountCents).toBe(10000);
     expect(refund?.status).toBe("pending_attempt");
@@ -289,12 +380,15 @@ describe("vouchers: cancel pending purchase", () => {
     fake = createMercadoPagoFake();
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("vouchers", setupPendingVoucher({
-        code: "EXP01",
-        status: "expired",
-        expiresAt: Date.now() - 10000,
-        priceCents: 8000,
-      }));
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({
+          code: "EXP01",
+          status: "expired",
+          expiresAt: Date.now() - 10000,
+          priceCents: 8000,
+        }),
+      );
     });
 
     const result = await t.mutation(internal.vouchers.confirmPayment, {
@@ -307,19 +401,28 @@ describe("vouchers: cancel pending purchase", () => {
 
     // Voucher remains expired
     const voucher = await t.run(async (ctx) =>
-      ctx.db.query("vouchers").withIndex("by_code", (q) => q.eq("code", "EXP01")).unique(),
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "EXP01"))
+        .unique(),
     );
     expect(voucher?.status).toBe("expired");
 
     // Payment marked as Excess Payment with full refund scheduled
     const payment = await t.run(async (ctx) =>
-      ctx.db.query("payments").withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-late-exp")).unique(),
+      ctx.db
+        .query("payments")
+        .withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-late-exp"))
+        .unique(),
     );
     expect(payment?.isOfficial).toBe(false);
     expect(payment?.owesRefund).toBe(true);
 
     const refund = await t.run(async (ctx) =>
-      ctx.db.query("paymentRefunds").withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-late-exp")).unique(),
+      ctx.db
+        .query("paymentRefunds")
+        .withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-late-exp"))
+        .unique(),
     );
     expect(refund?.amountCents).toBe(8000);
   });
@@ -330,17 +433,23 @@ describe("vouchers: cancel pending purchase", () => {
     const lookupToken = "e2b3c4d5-0000-4000-8000-000000000001";
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("vouchers", setupPendingVoucher({
-        code: "HIDE01",
-        status: "cancelled",
-        visitDate,
-        lookupToken,
-      }));
-      await ctx.db.insert("vouchers", setupPendingVoucher({
-        code: "SHOW01",
-        status: "valid",
-        visitDate,
-      }));
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({
+          code: "HIDE01",
+          status: "cancelled",
+          visitDate,
+          lookupToken,
+        }),
+      );
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({
+          code: "SHOW01",
+          status: "valid",
+          visitDate,
+        }),
+      );
     });
 
     const asEmployee = await withAuth(t, "employee");
@@ -351,7 +460,10 @@ describe("vouchers: cancel pending purchase", () => {
 
     // Entry image rejects cancelled voucher
     const imageData = await t.run(async (ctx) =>
-      ctx.db.query("vouchers").withIndex("by_code", (q) => q.eq("code", "HIDE01")).unique(),
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "HIDE01"))
+        .unique(),
     );
     expect(imageData?.status).toBe("cancelled");
 
@@ -369,11 +481,14 @@ describe("vouchers: cancel pending purchase", () => {
     const phone = "11988883333";
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("vouchers", setupPendingVoucher({
-        code: "FREE01",
-        phone,
-        managementToken,
-      }));
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({
+          code: "FREE01",
+          phone,
+          managementToken,
+        }),
+      );
     });
 
     // Before cancelling: phone is blocked by 1 pending purchase
@@ -405,10 +520,13 @@ describe("vouchers: cancel pending purchase", () => {
     // Ordering 1: Webhook arrives before cancellation finalizes -> Payment wins, voucher becomes valid
     const token1 = crypto.randomUUID();
     await t.run(async (ctx) => {
-      await ctx.db.insert("vouchers", setupPendingVoucher({
-        code: "RACE01",
-        managementToken: token1,
-      }));
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({
+          code: "RACE01",
+          managementToken: token1,
+        }),
+      );
     });
 
     // Start cancellation (intent recorded)
@@ -432,17 +550,23 @@ describe("vouchers: cancel pending purchase", () => {
     expect(finalize1.outcome).toBe("already_approved");
 
     const voucher1 = await t.run(async (ctx) =>
-      ctx.db.query("vouchers").withIndex("by_code", (q) => q.eq("code", "RACE01")).unique(),
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "RACE01"))
+        .unique(),
     );
     expect(voucher1?.status).toBe("valid");
 
     // Ordering 2: Cancellation finalizes first -> Voucher cancelled, late webhook treated as excess payment
     const token2 = crypto.randomUUID();
     await t.run(async (ctx) => {
-      await ctx.db.insert("vouchers", setupPendingVoucher({
-        code: "RACE02",
-        managementToken: token2,
-      }));
+      await ctx.db.insert(
+        "vouchers",
+        setupPendingVoucher({
+          code: "RACE02",
+          managementToken: token2,
+        }),
+      );
     });
 
     const finalize2 = await t.mutation(internal.vouchers.finalizeCancellation, {
@@ -459,12 +583,18 @@ describe("vouchers: cancel pending purchase", () => {
     expect(confirmResult.becameValid).toBe(false);
 
     const voucher2 = await t.run(async (ctx) =>
-      ctx.db.query("vouchers").withIndex("by_code", (q) => q.eq("code", "RACE02")).unique(),
+      ctx.db
+        .query("vouchers")
+        .withIndex("by_code", (q) => q.eq("code", "RACE02"))
+        .unique(),
     );
     expect(voucher2?.status).toBe("cancelled");
 
     const refund = await t.run(async (ctx) =>
-      ctx.db.query("paymentRefunds").withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-race-2")).unique(),
+      ctx.db
+        .query("paymentRefunds")
+        .withIndex("by_paymentId", (q) => q.eq("paymentId", "pay-race-2"))
+        .unique(),
     );
     expect(refund).toBeDefined();
     expect(refund?.status).toBe("pending_attempt");

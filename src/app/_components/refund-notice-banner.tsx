@@ -23,11 +23,17 @@ export default function RefundNoticeBanner() {
     }
   });
 
-  const voucherCodes = vouchers.map((v) => v.code);
+  const voucherAccess = vouchers.flatMap((voucher) =>
+    voucher.managementToken
+      ? [{ code: voucher.code, managementToken: voucher.managementToken }]
+      : [],
+  );
 
   const notices = useQuery(
     convexApi.refunds.getRefundNoticesForVouchers,
-    ready && voucherCodes.length > 0 ? { voucherCodes } : "skip",
+    ready && voucherAccess.length > 0
+      ? { vouchers: voucherAccess.slice(0, 50) }
+      : "skip",
   );
 
   useEffect(() => {
@@ -62,10 +68,7 @@ export default function RefundNoticeBanner() {
       const next = new Set(prev);
       next.add(refundId);
       try {
-        localStorage.setItem(
-          DISMISSED_REFUNDS_KEY,
-          JSON.stringify([...next]),
-        );
+        localStorage.setItem(DISMISSED_REFUNDS_KEY, JSON.stringify([...next]));
       } catch {
         // ignore
       }
@@ -74,7 +77,7 @@ export default function RefundNoticeBanner() {
   }
 
   return (
-    <div className="w-full max-w-5xl px-4 pt-4 space-y-3">
+    <div className="w-full max-w-5xl space-y-3 px-4 pt-4">
       {visibleNotices.map((notice) => {
         const isCompleted = notice.status === "completed";
         const isNeedsRetry = notice.status === "needs_retry";
@@ -83,24 +86,24 @@ export default function RefundNoticeBanner() {
           <div
             key={notice.refundId}
             role="alert"
-            className={`flex items-start justify-between gap-3 p-4 rounded-xl border ${
+            className={`flex items-start justify-between gap-3 rounded-xl border p-4 ${
               isCompleted
-                ? "bg-green-950/40 border-green-500/40 text-green-200"
+                ? "border-green-500/40 bg-green-950/40 text-green-200"
                 : isNeedsRetry
-                  ? "bg-amber-950/40 border-amber-500/40 text-amber-200"
-                  : "bg-blue-950/40 border-blue-500/40 text-blue-200"
+                  ? "border-amber-500/40 bg-amber-950/40 text-amber-200"
+                  : "border-blue-500/40 bg-blue-950/40 text-blue-200"
             }`}
           >
             <div className="flex items-start gap-3">
               {isCompleted ? (
-                <CheckCircle2 className="h-5 w-5 text-green-400 mt-0.5 shrink-0" />
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-400" />
               ) : isNeedsRetry ? (
-                <AlertCircle className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
               ) : (
-                <Clock className="h-5 w-5 text-blue-400 mt-0.5 shrink-0" />
+                <Clock className="mt-0.5 h-5 w-5 shrink-0 text-blue-400" />
               )}
               <div className="text-sm">
-                <span className="font-semibold text-white mr-1.5">
+                <span className="mr-1.5 font-semibold text-white">
                   Voucher {notice.voucherCode}:
                 </span>
                 <span>{notice.message}</span>
@@ -112,10 +115,10 @@ export default function RefundNoticeBanner() {
                 variant="ghost"
                 size="sm"
                 onClick={() => handleDismiss(notice.refundId)}
-                className="h-7 px-2 text-xs text-green-300 hover:text-white hover:bg-green-900/40 shrink-0"
+                className="h-7 shrink-0 px-2 text-xs text-green-300 hover:bg-green-900/40 hover:text-white"
                 aria-label="Dispensar aviso"
               >
-                <X className="h-4 w-4 mr-1" />
+                <X className="mr-1 h-4 w-4" />
                 Dispensar
               </Button>
             )}

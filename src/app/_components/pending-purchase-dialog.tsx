@@ -63,15 +63,29 @@ export default function PendingPurchaseDialog({
 }: PendingPurchaseDialogProps) {
   const router = useRouter();
   const resumePaymentMutation = useMutation(convexApi.vouchers.resumePayment);
-  const cancelPurchaseAction = useAction(convexApi.vouchers.cancelPendingPurchase);
+  const cancelPurchaseAction = useAction(
+    convexApi.vouchers.cancelPendingPurchase,
+  );
   const [resumingCode, setResumingCode] = React.useState<string | null>(null);
-  const [confirmingCancelCode, setConfirmingCancelCode] = React.useState<string | null>(null);
-  const [cancellingCode, setCancellingCode] = React.useState<string | null>(null);
+  const [confirmingCancelCode, setConfirmingCancelCode] = React.useState<
+    string | null
+  >(null);
+  const [cancellingCode, setCancellingCode] = React.useState<string | null>(
+    null,
+  );
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [queryTime, setQueryTime] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    if (!open) return;
+    setQueryTime(Date.now());
+    const interval = window.setInterval(() => setQueryTime(Date.now()), 30_000);
+    return () => window.clearInterval(interval);
+  }, [open]);
 
   const conflict = useQuery(
     convexApi.vouchers.getPendingConflict,
-    open && phone ? { phone, managementTokens } : "skip",
+    open && phone ? { phone, managementTokens, now: queryTime } : "skip",
   );
 
   async function handleResume(code: string) {
@@ -120,10 +134,10 @@ export default function PendingPurchaseDialog({
         setErrorMessage(result.message);
       }
       onResume?.(code);
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Erro ao retomar o pagamento.";
-      setErrorMessage(msg);
+    } catch {
+      setErrorMessage(
+        "Não foi possível verificar o pagamento agora. Tente novamente em instantes.",
+      );
     } finally {
       setResumingCode(null);
     }
@@ -177,10 +191,10 @@ export default function PendingPurchaseDialog({
       }
 
       setErrorMessage(result.message);
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Erro ao cancelar a compra.";
-      setErrorMessage(msg);
+    } catch {
+      setErrorMessage(
+        "Não foi possível cancelar a compra agora. Tente novamente em instantes.",
+      );
     } finally {
       setCancellingCode(null);
     }
@@ -192,7 +206,9 @@ export default function PendingPurchaseDialog({
         {conflict === undefined ? (
           <div className="flex flex-col items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary-100" />
-            <p className="mt-2 text-sm text-primary-200">Verificando compras pendentes...</p>
+            <p className="mt-2 text-sm text-primary-200">
+              Verificando compras pendentes...
+            </p>
           </div>
         ) : conflict.kind === "generic" ? (
           <div className="space-y-4">
@@ -201,18 +217,19 @@ export default function PendingPurchaseDialog({
                 Compra pendente encontrada
               </DialogTitle>
               <DialogDescription className="text-sm text-primary-200">
-                Identificamos uma compra em andamento para o telefone {formatPhone(phone)}.
+                Identificamos uma compra em andamento para o telefone{" "}
+                {formatPhone(phone)}.
               </DialogDescription>
             </DialogHeader>
 
             <div className="rounded-lg bg-black/20 p-4 text-sm leading-relaxed text-primary-100">
               <p>
-                Para sua segurança, os detalhes e ações desta compra só estão disponíveis
-                no navegador onde ela foi iniciada.
+                Para sua segurança, os detalhes e ações desta compra só estão
+                disponíveis no navegador onde ela foi iniciada.
               </p>
               <p className="mt-2">
-                Acesse o site através do dispositivo e navegador original para concluir o
-                pagamento ou cancelar o pedido pendente.
+                Acesse o site através do dispositivo e navegador original para
+                concluir o pagamento ou cancelar o pedido pendente.
               </p>
             </div>
 
@@ -235,8 +252,9 @@ export default function PendingPurchaseDialog({
                   : "Compra pendente encontrada"}
               </DialogTitle>
               <DialogDescription className="text-sm text-primary-200">
-                Você já possui {conflict.vouchers.length > 1 ? "compras" : "uma compra"} para o telefone{" "}
-                {formatPhone(phone)}. Escolha uma ação abaixo:
+                Você já possui{" "}
+                {conflict.vouchers.length > 1 ? "compras" : "uma compra"} para o
+                telefone {formatPhone(phone)}. Escolha uma ação abaixo:
               </DialogDescription>
             </DialogHeader>
 
@@ -250,11 +268,14 @@ export default function PendingPurchaseDialog({
               {conflict.vouchers.map((voucher) => (
                 <div
                   key={voucher.code}
-                  className="space-y-3 rounded-xl bg-black/30 p-4 border border-white/10"
+                  className="space-y-3 rounded-xl border border-white/10 bg-black/30 p-4"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold tracking-wide text-primary-200">
-                      Código: <span className="font-mono text-base font-bold text-white">{voucher.code}</span>
+                      Código:{" "}
+                      <span className="font-mono text-base font-bold text-white">
+                        {voucher.code}
+                      </span>
                     </span>
                     <div>{formatVoucherStatus(voucher.status)}</div>
                   </div>
@@ -262,12 +283,17 @@ export default function PendingPurchaseDialog({
                   <div className="grid grid-cols-2 gap-2 text-sm text-primary-100">
                     <div>
                       <p className="text-xs text-primary-300">Data da visita</p>
-                      <p className="font-medium text-white">{formatDate(voucher.visitDate)}</p>
+                      <p className="font-medium text-white">
+                        {formatDate(voucher.visitDate)}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs text-primary-300">Valor</p>
                       <p className="font-medium text-white">
-                        R$ {(voucher.priceCents / 100).toFixed(2).replace(".", ",")}
+                        R${" "}
+                        {(voucher.priceCents / 100)
+                          .toFixed(2)
+                          .replace(".", ",")}
                       </p>
                     </div>
                     <div className="col-span-2">
@@ -292,7 +318,9 @@ export default function PendingPurchaseDialog({
                           size="sm"
                           className="w-full bg-positive-green text-white hover:bg-positive-green/80"
                         >
-                          <Link href={`/pagamento?external_reference=${voucher.code}`}>
+                          <Link
+                            href={`/pagamento?external_reference=${voucher.code}`}
+                          >
                             Ver voucher
                           </Link>
                         </Button>
@@ -308,7 +336,8 @@ export default function PendingPurchaseDialog({
                         Deseja realmente cancelar esta compra pendente?
                       </p>
                       <p className="text-xs text-red-300">
-                        Esta ação liberará seu telefone para uma nova compra. O link de pagamento atual será desativado.
+                        Esta ação liberará seu telefone para uma nova compra. O
+                        link de pagamento atual será desativado.
                       </p>
                       <div className="flex justify-end gap-2 pt-1">
                         <Button
@@ -343,7 +372,10 @@ export default function PendingPurchaseDialog({
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={cancellingCode === voucher.code || resumingCode === voucher.code}
+                          disabled={
+                            cancellingCode === voucher.code ||
+                            resumingCode === voucher.code
+                          }
                           onClick={() => setConfirmingCancelCode(voucher.code)}
                           className="rounded-lg border-red-500/40 bg-transparent text-red-300 hover:bg-red-500/20 hover:text-red-200"
                         >
@@ -353,7 +385,10 @@ export default function PendingPurchaseDialog({
                       {voucher.actions.canResume && (
                         <Button
                           size="sm"
-                          disabled={resumingCode === voucher.code || cancellingCode === voucher.code}
+                          disabled={
+                            resumingCode === voucher.code ||
+                            cancellingCode === voucher.code
+                          }
                           onClick={() => handleResume(voucher.code)}
                           className="rounded-lg bg-positive-green text-white hover:bg-positive-green/80"
                         >

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useAction } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Copy, CreditCard, Search } from "lucide-react";
 
@@ -111,9 +111,11 @@ function formatStatus(status: string | null) {
 }
 
 function formatMethod(payment: AdminPayment) {
-  return [payment.paymentTypeId, payment.paymentMethodId]
-    .filter(Boolean)
-    .join(" / ") || "—";
+  return (
+    [payment.paymentTypeId, payment.paymentMethodId]
+      .filter(Boolean)
+      .join(" / ") || "—"
+  );
 }
 
 function getMatchLabel(matchSource: AdminPayment["matchSource"]) {
@@ -142,7 +144,9 @@ function PaymentDetails({ payment }: { payment: AdminPayment }) {
       <div className="mt-2 grid gap-1 rounded-md bg-muted/50 p-3 text-muted-foreground">
         <span>Status detalhado: {payment.statusDetail ?? "—"}</span>
         <span>Status do voucher no banco: {payment.voucherStatus ?? "—"}</span>
-        <span>Valor reembolsado: {formatToBRL(payment.refundedAmount ?? 0)}</span>
+        <span>
+          Valor reembolsado: {formatToBRL(payment.refundedAmount ?? 0)}
+        </span>
         <span>Origem do vínculo: {getMatchLabel(payment.matchSource)}</span>
       </div>
     </details>
@@ -171,7 +175,10 @@ function PaymentCard({ payment }: { payment: AdminPayment }) {
       <CardHeader className="space-y-2">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
-            <CardTitle className="truncate text-lg" title={payment.voucherCode ?? "Sem código"}>
+            <CardTitle
+              className="truncate text-lg"
+              title={payment.voucherCode ?? "Sem código"}
+            >
               {payment.voucherCode ?? "Sem código"}
             </CardTitle>
             <CardDescription className="truncate" title={payment.paymentId}>
@@ -182,25 +189,41 @@ function PaymentCard({ payment }: { payment: AdminPayment }) {
             {formatStatus(payment.status)}
           </span>
         </div>
-        <span className={`max-w-full truncate rounded-full px-2 py-1 text-xs font-medium ${getMatchClassName(payment.matchSource)}`}>
+        <span
+          className={`max-w-full truncate rounded-full px-2 py-1 text-xs font-medium ${getMatchClassName(payment.matchSource)}`}
+        >
           {getMatchLabel(payment.matchSource)}
         </span>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
           <span className="text-muted-foreground">Data</span>
-          <span className="truncate text-right" title={formatDateTime(payment.dateCreated)}>{formatDateTime(payment.dateCreated)}</span>
+          <span
+            className="truncate text-right"
+            title={formatDateTime(payment.dateCreated)}
+          >
+            {formatDateTime(payment.dateCreated)}
+          </span>
           <span className="text-muted-foreground">Valor</span>
-          <span className="truncate text-right font-medium">{formatToBRL(payment.transactionAmount ?? 0)}</span>
+          <span className="truncate text-right font-medium">
+            {formatToBRL(payment.transactionAmount ?? 0)}
+          </span>
           <span className="text-muted-foreground">Método</span>
-          <span className="truncate text-right" title={formatMethod(payment)}>{formatMethod(payment)}</span>
+          <span className="truncate text-right" title={formatMethod(payment)}>
+            {formatMethod(payment)}
+          </span>
           <span className="text-muted-foreground">Pagador</span>
-          <span className="truncate text-right" title={payment.payerName ?? payment.payerEmail ?? "—"}>
+          <span
+            className="truncate text-right"
+            title={payment.payerName ?? payment.payerEmail ?? "—"}
+          >
             {payment.payerName ?? payment.payerEmail ?? "—"}
           </span>
           <span className="text-muted-foreground">Telefone</span>
           <span className="truncate text-right">
-            {payment.voucherBuyerPhone ? formatPhone(payment.voucherBuyerPhone) : "—"}
+            {payment.voucherBuyerPhone
+              ? formatPhone(payment.voucherBuyerPhone)
+              : "—"}
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -214,6 +237,7 @@ function PaymentCard({ payment }: { payment: AdminPayment }) {
 }
 
 export default function AdminPaymentsPage() {
+  const refundAlerts = useQuery(api.refunds.listOperationalAlerts);
   const [month, setMonth] = useState(getCurrentSaoPauloMonth);
   const [status, setStatus] = useState<PaymentStatus>("approved");
   const [search, setSearch] = useState("");
@@ -299,7 +323,11 @@ export default function AdminPaymentsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setSummaryQuery((prev) => ({ ...prev, isLoading: !prev.data, isError: false }));
+    setSummaryQuery((prev) => ({
+      ...prev,
+      isLoading: !prev.data,
+      isError: false,
+    }));
 
     getAdminPaymentsMonthSummary({ month })
       .then((data) => {
@@ -338,10 +366,41 @@ export default function AdminPaymentsPage() {
         </p>
       </div>
 
+      {refundAlerts && refundAlerts.length > 0 ? (
+        <Card className="mb-6 border-red-500/50">
+          <CardHeader>
+            <CardTitle className="text-red-700 dark:text-red-300">
+              Reembolsos que precisam de acompanhamento
+            </CardTitle>
+            <CardDescription>
+              O Mercado Pago falhou repetidamente. Confirme o reembolso e entre
+              em contato com o cliente se necessário.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {refundAlerts.map((alert) => (
+              <div
+                key={alert.id}
+                role="alert"
+                className="rounded-md border border-red-500/30 p-3 text-sm"
+              >
+                <p className="font-medium">Voucher {alert.voucherCode}</p>
+                <p>
+                  {alert.customerName} · {formatPhone(alert.customerPhone)} ·{" "}
+                  {alert.attemptCount} tentativas
+                </p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="mb-6 grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aprovados no mês</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Aprovados no mês
+            </CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -361,10 +420,14 @@ export default function AdminPaymentsPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Registros encontrados</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Registros encontrados
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{paymentsQuery.data?.total ?? 0}</div>
+            <div className="text-2xl font-bold">
+              {paymentsQuery.data?.total ?? 0}
+            </div>
             <p className="text-xs text-muted-foreground">
               {paymentsQuery.data?.searchMode === "current_page"
                 ? "Busca ampla filtrando apenas a página carregada."
@@ -428,11 +491,21 @@ export default function AdminPaymentsPage() {
 
       <div className="grid gap-4 md:hidden">
         {paymentsQuery.isLoading ? (
-          <Card><CardContent className="py-8 text-center">Carregando pagamentos...</CardContent></Card>
+          <Card>
+            <CardContent className="py-8 text-center">
+              Carregando pagamentos...
+            </CardContent>
+          </Card>
         ) : payments.length === 0 ? (
-          <Card><CardContent className="py-8 text-center">Nenhum pagamento encontrado.</CardContent></Card>
+          <Card>
+            <CardContent className="py-8 text-center">
+              Nenhum pagamento encontrado.
+            </CardContent>
+          </Card>
         ) : (
-          payments.map((payment) => <PaymentCard key={payment.paymentId} payment={payment} />)
+          payments.map((payment) => (
+            <PaymentCard key={payment.paymentId} payment={payment} />
+          ))
         )}
       </div>
 
@@ -468,31 +541,57 @@ export default function AdminPaymentsPage() {
               payments.map((payment) => (
                 <TableRow key={payment.paymentId}>
                   <TableCell className="max-w-32 font-medium">
-                    <div className="truncate" title={payment.voucherCode ?? "—"}>{payment.voucherCode ?? "—"}</div>
+                    <div
+                      className="truncate"
+                      title={payment.voucherCode ?? "—"}
+                    >
+                      {payment.voucherCode ?? "—"}
+                    </div>
                     <CopyButton label="Copiar" value={payment.voucherCode} />
                   </TableCell>
                   <TableCell className="max-w-40">
-                    <div className="truncate" title={payment.paymentId}>{payment.paymentId}</div>
+                    <div className="truncate" title={payment.paymentId}>
+                      {payment.paymentId}
+                    </div>
                     <CopyButton label="Copiar" value={payment.paymentId} />
                   </TableCell>
                   <TableCell>{formatDateTime(payment.dateCreated)}</TableCell>
                   <TableCell>{formatStatus(payment.status)}</TableCell>
-                  <TableCell>{formatToBRL(payment.transactionAmount ?? 0)}</TableCell>
-                  <TableCell className="max-w-36 truncate" title={formatMethod(payment)}>{formatMethod(payment)}</TableCell>
+                  <TableCell>
+                    {formatToBRL(payment.transactionAmount ?? 0)}
+                  </TableCell>
+                  <TableCell
+                    className="max-w-36 truncate"
+                    title={formatMethod(payment)}
+                  >
+                    {formatMethod(payment)}
+                  </TableCell>
                   <TableCell className="max-w-56">
-                    <div className="truncate" title={payment.payerName ?? payment.payerEmail ?? "—"}>
+                    <div
+                      className="truncate"
+                      title={payment.payerName ?? payment.payerEmail ?? "—"}
+                    >
                       {payment.payerName ?? payment.payerEmail ?? "—"}
                     </div>
-                    <div className="truncate text-xs text-muted-foreground" title={payment.voucherBuyerPhone ?? undefined}>
-                      {payment.voucherBuyerPhone ? formatPhone(payment.voucherBuyerPhone) : "—"}
+                    <div
+                      className="truncate text-xs text-muted-foreground"
+                      title={payment.voucherBuyerPhone ?? undefined}
+                    >
+                      {payment.voucherBuyerPhone
+                        ? formatPhone(payment.voucherBuyerPhone)
+                        : "—"}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className={`rounded-full px-2 py-1 text-xs font-medium ${getMatchClassName(payment.matchSource)}`}>
+                    <span
+                      className={`rounded-full px-2 py-1 text-xs font-medium ${getMatchClassName(payment.matchSource)}`}
+                    >
                       {getMatchLabel(payment.matchSource)}
                     </span>
                   </TableCell>
-                  <TableCell><PaymentDetails payment={payment} /></TableCell>
+                  <TableCell>
+                    <PaymentDetails payment={payment} />
+                  </TableCell>
                 </TableRow>
               ))
             )}

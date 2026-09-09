@@ -19,7 +19,10 @@ function storage(initial: string | null = null) {
     store.set(VOUCHERS_KEY, initial);
   }
   return {
-    getItem: (key: string) => (key === VOUCHERS_KEY ? (value ?? store.get(key) ?? null) : store.get(key) ?? null),
+    getItem: (key: string) =>
+      key === VOUCHERS_KEY
+        ? (value ?? store.get(key) ?? null)
+        : (store.get(key) ?? null),
     setItem: (key: string, next: string) => {
       if (key === VOUCHERS_KEY) value = next;
       store.set(key, next);
@@ -60,6 +63,20 @@ describe("browser voucher history (60-day retention with financial-event extensi
     expect(saveVoucher(store, exactBoundary, now + 1)).toEqual([]);
   });
 
+  it("temporarily exposes expired capable entries so unseen refunds can be reconciled", () => {
+    const expired = {
+      ...first,
+      managementToken: "secret-capability",
+      createdAt: now - VOUCHER_RETENTION_MS - 1,
+    };
+    const store = storage(JSON.stringify([expired]));
+
+    expect(readVouchers(store, now, { retainExpiredCandidates: true })).toEqual(
+      [expired],
+    );
+    expect(readVouchers(store, now)).toEqual([]);
+  });
+
   it("restarts the 60-day retention window on the latest financial event", () => {
     const store = storage();
     // Created 80 days ago, but experienced a financial event 10 days ago
@@ -79,14 +96,10 @@ describe("browser voucher history (60-day retention with financial-event extensi
     expect(updated[0]?.lastFinancialEventAt).toBe(now);
 
     // At now + 59 days: still retained
-    expect(
-      readVouchers(store, now + 59 * 24 * 60 * 60 * 1000).length,
-    ).toBe(1);
+    expect(readVouchers(store, now + 59 * 24 * 60 * 60 * 1000).length).toBe(1);
 
     // At now + 60 days + 1ms: expires
-    expect(
-      readVouchers(store, now + VOUCHER_RETENTION_MS + 1),
-    ).toEqual([]);
+    expect(readVouchers(store, now + VOUCHER_RETENTION_MS + 1)).toEqual([]);
   });
 
   it("neither auto-expires nor allows manual removal of a voucher with open or failed refund", () => {
@@ -102,7 +115,9 @@ describe("browser voucher history (60-day retention with financial-event extensi
     // Never auto-expires past the window
     expect(readVouchers(store, now)).toEqual([pendingRefundVoucher]);
     expect(canRemoveVoucher(pendingRefundVoucher)).toBe(false);
-    expect(isVoucherRetained(pendingRefundVoucher, now + 365 * 24 * 60 * 60 * 1000)).toBe(true);
+    expect(
+      isVoucherRetained(pendingRefundVoucher, now + 365 * 24 * 60 * 60 * 1000),
+    ).toBe(true);
 
     // Cannot be removed by hand through removeVoucher
     const remaining = removeVoucher(store, first.code);

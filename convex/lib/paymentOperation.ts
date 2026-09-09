@@ -22,7 +22,11 @@ export const operationResult = v.union(
   v.object({ id: v.string(), invalidated: v.literal(true) }),
   v.array(paymentSnapshot),
   paymentSnapshot,
-  v.object({ id: v.string(), status: v.string(), amount: v.number() }),
+  v.object({
+    id: v.string(),
+    status: v.literal("approved"),
+    amount: v.number(),
+  }),
 );
 export type OperationResult = Infer<typeof operationResult>;
 export type OperationRequest = Infer<typeof operationRequest>;

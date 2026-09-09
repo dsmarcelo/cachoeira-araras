@@ -120,12 +120,7 @@ const vouchers = defineTable({
 // so a surprising value can be traced to who changed it and when.
 const settings = defineTable({
   key: v.string(),
-  value: v.union(
-    v.number(),
-    v.string(),
-    v.boolean(),
-    v.array(v.string()),
-  ),
+  value: v.union(v.number(), v.string(), v.boolean(), v.array(v.string())),
   updatedBy: v.optional(v.string()),
   updatedAt: v.optional(v.number()),
 }).index("by_key", ["key"]);
@@ -184,6 +179,7 @@ const operationalAlerts = defineTable({
   attemptCount: v.number(),
   createdAt: v.number(),
 })
+  .index("by_kind", ["kind"])
   .index("by_voucherCode", ["voucherCode"])
   .index("by_paymentId", ["paymentId"]);
 

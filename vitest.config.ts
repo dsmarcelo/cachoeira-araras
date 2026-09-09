@@ -11,7 +11,11 @@ export default defineConfig({
     environment: "edge-runtime",
     server: { deps: { inline: ["convex-test"] } },
     // Server node:test suites run separately via `node --test`.
-    include: ["convex/**/*.test.ts", "src/lib/**/*.test.ts"],
+    include: [
+      "convex/**/*.test.ts",
+      "src/lib/**/*.test.ts",
+      "src/app/**/*.test.tsx",
+    ],
     testTimeout: 15000,
   },
 });

@@ -2,10 +2,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useConvex, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useSavedVouchers } from "../../_components/saved-vouchers-provider";
-import DeleteVoucherCookieBtn from "../../_components/delete-voucher-cookie-btn";
+import VoucherRemovalControl from "../../_components/voucher-removal-control";
 import type { SavedVoucher } from "@/lib/voucher/browser-storage";
 import { Button } from "@/components/ui/button";
 import { formatQuantity } from "@/lib/voucher";
@@ -35,8 +35,12 @@ function formatVisitDate(visitDate: string) {
 function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
   const { touchEvent } = useSavedVouchers();
   const convex = useConvex();
-  const [lookupToken, setLookupToken] = useState<string | null>(() =>
-    getCachedLookupToken(entry.code) ?? null,
+  const resumePayment = useMutation(api.vouchers.resumePayment);
+  const router = useRouter();
+  const [isResuming, setIsResuming] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const [lookupToken, setLookupToken] = useState<string | null>(
+    () => getCachedLookupToken(entry.code) ?? null,
   );
   const [lookupFailure, setLookupFailure] = useState<
     "not_found" | "rate_limited" | null
@@ -58,9 +62,12 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
     let active = true;
     async function authorize() {
       try {
-        const authorization = await convex.mutation(api.vouchers.authorizeLookup, {
-          code: entry.code,
-        });
+        const authorization = await convex.mutation(
+          api.vouchers.authorizeLookup,
+          {
+            code: entry.code,
+          },
+        );
         if (!active) return;
         if (authorization.kind === "authorized") {
           setCachedLookupToken(entry.code, authorization.lookupToken);
@@ -83,9 +90,16 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convex, entry.code]);
 
-  const refundNotices = useQuery(api.refunds.getRefundNoticesForVouchers, {
-    voucherCodes: [entry.code],
-  });
+  const refundNotices = useQuery(
+    api.refunds.getRefundNoticesForVouchers,
+    entry.managementToken
+      ? {
+          vouchers: [
+            { code: entry.code, managementToken: entry.managementToken },
+          ],
+        }
+      : "skip",
+  );
 
   const hasIncompleteRefund =
     (entry.hasPendingRefund ?? false) ||
@@ -97,8 +111,6 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
     let eventAt: number | undefined;
     if (refundNotices && refundNotices.length > 0) {
       eventAt = Math.max(...refundNotices.map((n) => n.updatedAt));
-    } else if (voucher && voucher.status !== "pending") {
-      eventAt = Date.now();
     }
 
     const hasPending =
@@ -110,6 +122,37 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
     });
   }, [voucher, refundNotices, entry.code, touchEvent]);
 
+  async function handleResumePayment() {
+    if (!entry.managementToken) {
+      setResumeError(
+        "A autorização desta compra não está disponível neste navegador.",
+      );
+      return;
+    }
+    try {
+      setIsResuming(true);
+      setResumeError(null);
+      const result = await resumePayment({
+        code: entry.code,
+        managementToken: entry.managementToken,
+        savedInitPoint: entry.initPoint,
+      });
+      if (result.kind === "resumed") {
+        window.location.assign(result.checkoutUrl);
+      } else if (result.kind === "already_paid") {
+        router.push(result.redirectUrl);
+      } else {
+        setResumeError(result.message);
+      }
+    } catch {
+      setResumeError(
+        "Não foi possível verificar o pagamento agora. Tente novamente em instantes.",
+      );
+    } finally {
+      setIsResuming(false);
+    }
+  }
+
   return (
     <li className="flex flex-col gap-4 rounded-xl bg-dark-blue p-6">
       <h2 className="text-2xl font-bold">Voucher {entry.code}</h2>
@@ -117,7 +160,10 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
         <p>Consultando pagamento...</p>
       )}
       {lookupFailure === "rate_limited" && (
-        <p>Muitas tentativas de consulta. Aguarde um instante e recarregue a página.</p>
+        <p>
+          Muitas tentativas de consulta. Aguarde um instante e recarregue a
+          página.
+        </p>
       )}
       {(voucher === null || lookupFailure === "not_found") && (
         <p>Voucher não encontrado</p>
@@ -148,12 +194,12 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
               <div
                 key={notice.refundId}
                 role="status"
-                className={`p-3 rounded-lg border text-sm ${
+                className={`rounded-lg border p-3 text-sm ${
                   isCompleted
-                    ? "bg-green-950/40 border-green-500/40 text-green-200"
+                    ? "border-green-500/40 bg-green-950/40 text-green-200"
                     : isNeedsRetry
-                      ? "bg-amber-950/40 border-amber-500/40 text-amber-200"
-                      : "bg-blue-950/40 border-blue-500/40 text-blue-200"
+                      ? "border-amber-500/40 bg-amber-950/40 text-amber-200"
+                      : "border-blue-500/40 bg-blue-950/40 text-blue-200"
                 }`}
               >
                 {notice.message}
@@ -163,32 +209,35 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
         </div>
       )}
       {voucher?.status === "pending" && entry.initPoint && (
-        <Button asChild className="bg-positive-green">
-          <a href={entry.initPoint}>Finalizar pagamento</a>
+        <Button
+          className="bg-positive-green"
+          disabled={isResuming}
+          onClick={() => void handleResumePayment()}
+        >
+          {isResuming ? "Verificando..." : "Finalizar pagamento"}
         </Button>
       )}
-      {voucher && (voucher.status === "valid" || voucher.status === "redeemed") && (
-        <div className="flex flex-col gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element -- server-generated, non-optimizable OG image */}
-          <img
-            src={imageUrl}
-            alt={`Voucher ${entry.code}`}
-            className="w-full rounded-lg"
-          />
-          <Button asChild variant="outline">
-            <a href={imageUrl} download={`voucher-${entry.code}.png`}>
-              Baixar imagem
-            </a>
-          </Button>
-        </div>
-      )}
-      {hasIncompleteRefund ? (
-        <p className="text-xs text-amber-300">
-          Reembolso em processamento não pode ser removido deste navegador.
-        </p>
-      ) : (
-        <DeleteVoucherCookieBtn code={entry.code} />
-      )}
+      {resumeError && <p role="alert">{resumeError}</p>}
+      {voucher &&
+        (voucher.status === "valid" || voucher.status === "redeemed") && (
+          <div className="flex flex-col gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element -- server-generated, non-optimizable OG image */}
+            <img
+              src={imageUrl}
+              alt={`Voucher ${entry.code}`}
+              className="w-full rounded-lg"
+            />
+            <Button asChild variant="outline">
+              <a href={imageUrl} download={`voucher-${entry.code}.png`}>
+                Baixar imagem
+              </a>
+            </Button>
+          </div>
+        )}
+      <VoucherRemovalControl
+        code={entry.code}
+        hasIncompleteRefund={hasIncompleteRefund}
+      />
     </li>
   );
 }

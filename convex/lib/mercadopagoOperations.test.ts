@@ -61,6 +61,12 @@ test("full refund retry sends no partial amount and preserves provider idempoten
   }
 });
 
+test("does not accept a pending refund response as confirmation", async () => {
+  replies = [{ id: 9, status: "pending", amount: 50 }];
+
+  await expect(refundPayment("123", intent)).rejects.toThrow();
+});
+
 test("preference invalidation expires the window and a retry recognizes the expired preference", async () => {
   const expired = {
     id: "pref-1",

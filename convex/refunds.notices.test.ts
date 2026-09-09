@@ -5,7 +5,10 @@ import { createConvexTest } from "./test.setup";
 import { formatRefundMessage } from "../src/lib/voucher";
 
 describe("refund notices (Issue 99)", () => {
-  function setupVoucher(code: string, status: "cancelled" | "valid" | "redeemed" | "expired") {
+  function setupVoucher(
+    code: string,
+    status: "cancelled" | "valid" | "redeemed" | "expired",
+  ) {
     return {
       code,
       name: "Cliente Teste",
@@ -19,8 +22,16 @@ describe("refund notices (Issue 99)", () => {
       visitDate: "2026-09-10",
       expiresAt: Date.now() + 1000 * 60 * 60 * 24,
       preferenceId: `pref-${code}`,
+      managementToken: `token-${code}`,
       isTest: false,
     };
+  }
+
+  function voucherAccess(...codes: string[]) {
+    return codes.map((code) => ({
+      code,
+      managementToken: `token-${code}`,
+    }));
   }
 
   test("processing, confirmed and not-yet-confirmed refunds each show their specified wording", async () => {
@@ -66,7 +77,7 @@ describe("refund notices (Issue 99)", () => {
     });
 
     const notices = await t.query(api.refunds.getRefundNoticesForVouchers, {
-      voucherCodes: ["CANC_PROC", "CANC_CONF", "CANC_FAIL"],
+      vouchers: voucherAccess("CANC_PROC", "CANC_CONF", "CANC_FAIL"),
     });
 
     const procNotice = notices.find((n) => n.voucherCode === "CANC_PROC");
@@ -119,7 +130,7 @@ describe("refund notices (Issue 99)", () => {
     });
 
     const notices = await t.query(api.refunds.getRefundNoticesForVouchers, {
-      voucherCodes: ["DUP_PROC", "DUP_CONF"],
+      vouchers: voucherAccess("DUP_PROC", "DUP_CONF"),
     });
 
     const dupProcNotice = notices.find((n) => n.voucherCode === "DUP_PROC");
@@ -129,8 +140,31 @@ describe("refund notices (Issue 99)", () => {
     expect(dupProcNotice?.isPostCancellation).toBe(false);
 
     const dupConfNotice = notices.find((n) => n.voucherCode === "DUP_CONF");
-    expect(dupConfNotice?.message).toBe("O pagamento duplicado foi reembolsado.");
+    expect(dupConfNotice?.message).toBe(
+      "O pagamento duplicado foi reembolsado.",
+    );
     expect(dupConfNotice?.isPostCancellation).toBe(false);
+  });
+
+  test("voucher codes alone or a mismatched capability reveal no refund data", async () => {
+    const t = createConvexTest();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("vouchers", setupVoucher("PRIVATE", "cancelled"));
+      await ctx.db.insert("paymentRefunds", {
+        paymentId: "private-payment-id",
+        voucherCode: "PRIVATE",
+        amountCents: 10000,
+        status: "processing",
+        attemptCount: 1,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    const notices = await t.query(api.refunds.getRefundNoticesForVouchers, {
+      vouchers: [{ code: "PRIVATE", managementToken: "wrong-token" }],
+    });
+    expect(notices).toEqual([]);
   });
 
   test("no completion message appears before the provider confirms the refund", async () => {
@@ -150,7 +184,7 @@ describe("refund notices (Issue 99)", () => {
     });
 
     const notices = await t.query(api.refunds.getRefundNoticesForVouchers, {
-      voucherCodes: ["IN_PROG"],
+      vouchers: voucherAccess("IN_PROG"),
     });
 
     const notice = notices[0];
@@ -188,7 +222,7 @@ describe("refund notices (Issue 99)", () => {
     });
 
     const notices = await t.query(api.refunds.getRefundNoticesForVouchers, {
-      voucherCodes: ["DISM_TEST"],
+      vouchers: voucherAccess("DISM_TEST"),
     });
 
     const completedNotice = notices.find((n) => n.status === "completed");
@@ -201,7 +235,9 @@ describe("refund notices (Issue 99)", () => {
   test("formatRefundMessage helper unit tests cover all cases", () => {
     expect(
       formatRefundMessage({ status: "processing", isPostCancellation: true }),
-    ).toBe("Recebemos um pagamento após o cancelamento. O reembolso integral está sendo processado.");
+    ).toBe(
+      "Recebemos um pagamento após o cancelamento. O reembolso integral está sendo processado.",
+    );
 
     expect(
       formatRefundMessage({ status: "completed", isPostCancellation: true }),
@@ -209,7 +245,9 @@ describe("refund notices (Issue 99)", () => {
 
     expect(
       formatRefundMessage({ status: "processing", isPostCancellation: false }),
-    ).toBe("Identificamos um pagamento duplicado. O reembolso integral está sendo processado.");
+    ).toBe(
+      "Identificamos um pagamento duplicado. O reembolso integral está sendo processado.",
+    );
 
     expect(
       formatRefundMessage({ status: "completed", isPostCancellation: false }),
@@ -217,10 +255,14 @@ describe("refund notices (Issue 99)", () => {
 
     expect(
       formatRefundMessage({ status: "needs_retry", isPostCancellation: true }),
-    ).toBe("O reembolso ainda não foi concluído. Continuaremos tentando automaticamente.");
+    ).toBe(
+      "O reembolso ainda não foi concluído. Continuaremos tentando automaticamente.",
+    );
 
     expect(
       formatRefundMessage({ status: "needs_retry", isPostCancellation: false }),
-    ).toBe("O reembolso ainda não foi concluído. Continuaremos tentando automaticamente.");
+    ).toBe(
+      "O reembolso ainda não foi concluído. Continuaremos tentando automaticamente.",
+    );
   });
 });

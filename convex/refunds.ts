@@ -7,6 +7,11 @@ import {
   query,
 } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import type { OperationResult } from "./lib/paymentOperation";
+import { requireRole } from "./lib/auth";
+
+const MAX_PUBLIC_REFUND_LOOKUPS = 50;
+const REFUND_SWEEP_BATCH_SIZE = 100;
 
 /**
  * Persists and tracks full Payment Refunds for Excess Payments.
@@ -62,6 +67,7 @@ export const prepareAttempt = internalMutation({
   returns: v.object({
     canAttempt: v.boolean(),
     operationId: v.optional(v.id("paymentOperations")),
+    amountCents: v.optional(v.number()),
   }),
   handler: async (ctx, { id }) => {
     const refund = await ctx.db.get("paymentRefunds", id);
@@ -80,7 +86,7 @@ export const prepareAttempt = internalMutation({
       updatedAt: Date.now(),
     });
 
-    return { canAttempt: true, operationId };
+    return { canAttempt: true, operationId, amountCents: refund.amountCents };
   },
 });
 
@@ -146,7 +152,12 @@ export const recordFailure = internalMutation({
         .withIndex("by_paymentId", (q) => q.eq("paymentId", refund.paymentId))
         .first();
 
-      if (!existingAlert) {
+      if (existingAlert) {
+        await ctx.db.patch(existingAlert._id, {
+          lastError: error.slice(0, 500),
+          attemptCount,
+        });
+      } else {
         const voucher = await ctx.db
           .query("vouchers")
           .withIndex("by_code", (q) => q.eq("code", refund.voucherCode))
@@ -188,9 +199,21 @@ export const attemptRefund = internalAction({
     }
 
     try {
-      await ctx.runAction(internal.paymentOperations.execute, {
-        id: prep.operationId,
-      });
+      const result: OperationResult = await ctx.runAction(
+        internal.paymentOperations.execute,
+        {
+          id: prep.operationId,
+        },
+      );
+
+      if (
+        !("status" in result) ||
+        !("amount" in result) ||
+        result.status !== "approved" ||
+        Math.round(result.amount * 100) !== prep.amountCents
+      ) {
+        throw new Error("Integral refund was not confirmed by provider");
+      }
 
       await ctx.runMutation(internal.refunds.markCompleted, {
         id: refundId,
@@ -202,6 +225,10 @@ export const attemptRefund = internalAction({
       await ctx.runMutation(internal.refunds.recordFailure, {
         id: refundId,
         error: message,
+      });
+      console.error("Mercado Pago refund attempt failed", {
+        refundId,
+        message,
       });
     }
 
@@ -219,17 +246,28 @@ export const sweepOverdueRefunds = internalMutation({
     const now = Date.now();
     const needsRetry = await ctx.db
       .query("paymentRefunds")
-      .withIndex("by_status", (q) => q.eq("status", "needs_retry"))
-      .collect();
+      .withIndex("by_status_and_nextAttemptAt", (q) =>
+        q.eq("status", "needs_retry").lte("nextAttemptAt", now),
+      )
+      .take(REFUND_SWEEP_BATCH_SIZE);
 
     const pendingAttempt = await ctx.db
       .query("paymentRefunds")
-      .withIndex("by_status", (q) => q.eq("status", "pending_attempt"))
-      .collect();
+      .withIndex("by_status_and_nextAttemptAt", (q) =>
+        q.eq("status", "pending_attempt").lte("nextAttemptAt", now),
+      )
+      .take(REFUND_SWEEP_BATCH_SIZE - needsRetry.length);
 
-    const overdue = [...needsRetry, ...pendingAttempt].filter(
-      (r) => (r.nextAttemptAt ?? 0) <= now,
-    );
+    const processing = await ctx.db
+      .query("paymentRefunds")
+      .withIndex("by_status_and_nextAttemptAt", (q) =>
+        q.eq("status", "processing").lte("nextAttemptAt", now),
+      )
+      .take(
+        REFUND_SWEEP_BATCH_SIZE - needsRetry.length - pendingAttempt.length,
+      );
+
+    const overdue = [...needsRetry, ...pendingAttempt, ...processing];
 
     for (const refund of overdue) {
       await ctx.scheduler.runAfter(0, internal.refunds.attemptRefund, {
@@ -243,14 +281,17 @@ export const sweepOverdueRefunds = internalMutation({
 
 export const getRefundNoticesForVouchers = query({
   args: {
-    voucherCodes: v.array(v.string()),
+    vouchers: v.array(
+      v.object({
+        code: v.string(),
+        managementToken: v.string(),
+      }),
+    ),
   },
   returns: v.array(
     v.object({
       refundId: v.id("paymentRefunds"),
-      paymentId: v.string(),
       voucherCode: v.string(),
-      amountCents: v.number(),
       status: v.union(
         v.literal("pending_attempt"),
         v.literal("processing"),
@@ -265,25 +306,34 @@ export const getRefundNoticesForVouchers = query({
     }),
   ),
   handler: async (ctx, args) => {
-    if (args.voucherCodes.length === 0) {
+    if (args.vouchers.length === 0) {
       return [];
+    }
+    if (args.vouchers.length > MAX_PUBLIC_REFUND_LOOKUPS) {
+      throw new Error("Muitos vouchers consultados de uma só vez.");
     }
 
     const results = [];
-    for (const code of args.voucherCodes) {
+    for (const access of args.vouchers) {
       const voucher = await ctx.db
         .query("vouchers")
-        .withIndex("by_code", (q) => q.eq("code", code))
+        .withIndex("by_managementToken", (q) =>
+          q.eq("managementToken", access.managementToken),
+        )
         .unique();
 
-      if (!voucher || voucher.deletedAt !== undefined) {
+      if (
+        !voucher ||
+        voucher.code !== access.code ||
+        voucher.deletedAt !== undefined
+      ) {
         continue;
       }
 
       const refunds = await ctx.db
         .query("paymentRefunds")
-        .withIndex("by_voucherCode", (q) => q.eq("voucherCode", code))
-        .collect();
+        .withIndex("by_voucherCode", (q) => q.eq("voucherCode", voucher.code))
+        .take(100);
 
       for (const refund of refunds) {
         const isPostCancellation = voucher.status === "cancelled";
@@ -310,9 +360,7 @@ export const getRefundNoticesForVouchers = query({
 
         results.push({
           refundId: refund._id,
-          paymentId: refund.paymentId,
           voucherCode: refund.voucherCode,
-          amountCents: refund.amountCents,
           status: refund.status,
           isPostCancellation,
           message,
@@ -324,5 +372,37 @@ export const getRefundNoticesForVouchers = query({
     }
 
     return results;
+  },
+});
+
+/** Recent repeated refund failures that require staff follow-up. */
+export const listOperationalAlerts = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      id: v.id("operationalAlerts"),
+      voucherCode: v.string(),
+      customerName: v.string(),
+      customerPhone: v.string(),
+      attemptCount: v.number(),
+      createdAt: v.number(),
+    }),
+  ),
+  handler: async (ctx) => {
+    await requireRole(ctx, "admin");
+    const alerts = await ctx.db
+      .query("operationalAlerts")
+      .withIndex("by_kind", (q) => q.eq("kind", "refund_failed"))
+      .order("desc")
+      .take(100);
+
+    return alerts.map((alert) => ({
+      id: alert._id,
+      voucherCode: alert.voucherCode,
+      customerName: alert.customerContact.name,
+      customerPhone: alert.customerContact.phone,
+      attemptCount: alert.attemptCount,
+      createdAt: alert.createdAt,
+    }));
   },
 });

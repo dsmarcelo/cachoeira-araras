@@ -70,7 +70,6 @@ export function isLivePendingVoucher(
   );
 }
 
-
 const publicVoucherValidator = v.object({
   code: v.string(),
   createdAt: v.number(),
@@ -176,9 +175,7 @@ export const getAuthorized = query({
 
     const voucher = await ctx.db
       .query("vouchers")
-      .withIndex("by_lookupToken", (q) =>
-        q.eq("lookupToken", args.lookupToken),
-      )
+      .withIndex("by_lookupToken", (q) => q.eq("lookupToken", args.lookupToken))
       .unique();
 
     if (!voucher || voucher.deletedAt !== undefined) {
@@ -217,6 +214,7 @@ export const getPendingConflict = query({
   args: {
     phone: v.string(),
     managementTokens: v.array(v.string()),
+    now: v.optional(v.number()),
   },
   returns: v.union(
     v.object({
@@ -232,7 +230,7 @@ export const getPendingConflict = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const now = Date.now();
+    const now = args.now ?? Date.now();
     const vouchersForPhone = await ctx.db
       .query("vouchers")
       .withIndex("by_phone", (q) => q.eq("phone", args.phone))
@@ -679,10 +677,10 @@ export const cancelPendingPurchase = action({
     }),
   ),
   handler: async (ctx, args) => {
-    const prep = await ctx.runMutation(
-      internal.vouchers.prepareCancellation,
-      { code: args.code, managementToken: args.managementToken },
-    );
+    const prep = await ctx.runMutation(internal.vouchers.prepareCancellation, {
+      code: args.code,
+      managementToken: args.managementToken,
+    });
 
     if (!prep.ok) {
       if (prep.reason === "unauthorized") {
@@ -720,9 +718,7 @@ export const cancelPendingPurchase = action({
         { id: prep.searchOpId },
       )) as PaymentSnapshot[];
 
-      const approvedPayment = searchResult.find(
-        (p) => p.status === "approved",
-      );
+      const approvedPayment = searchResult.find((p) => p.status === "approved");
 
       if (approvedPayment) {
         await ctx.runMutation(internal.vouchers.confirmPayment, {
@@ -757,9 +753,30 @@ export const cancelPendingPurchase = action({
           internal.vouchers.recordCancelPaymentOperation,
           { paymentId: p.id },
         );
-        await ctx.runAction(internal.paymentOperations.execute, {
-          id: cancelOpId,
-        });
+        const cancelledPayment = (await ctx.runAction(
+          internal.paymentOperations.execute,
+          {
+            id: cancelOpId,
+          },
+        )) as PaymentSnapshot;
+
+        if (cancelledPayment.status === "approved") {
+          await ctx.runMutation(internal.vouchers.confirmPayment, {
+            code: args.code,
+            paymentId: cancelledPayment.id,
+            paymentStatus: "approved",
+            paymentAmountCents: Math.round(cancelledPayment.amount * 100),
+          });
+          await ctx.runMutation(internal.vouchers.clearCancellationIntent, {
+            code: args.code,
+          });
+          return {
+            kind: "already_approved" as const,
+            redirectUrl: `/pagamento?external_reference=${args.code}`,
+            message:
+              "O pagamento desta compra já foi aprovado. O cancelamento não foi realizado.",
+          };
+        }
       }
 
       const finalized = await ctx.runMutation(
@@ -792,7 +809,6 @@ export const cancelPendingPurchase = action({
     }
   },
 });
-
 
 /**
  * Staff-only reactive lookup for the gate. Authentication, rather than the
@@ -1093,9 +1109,8 @@ export const countUnexpiredPendingByPhone = internalQuery({
       .withIndex("by_phone", (q) => q.eq("phone", args.phone))
       .collect();
 
-    return vouchers.filter((voucher) =>
-      isLivePendingVoucher(voucher, args.now),
-    ).length;
+    return vouchers.filter((voucher) => isLivePendingVoucher(voucher, args.now))
+      .length;
   },
 });
 
@@ -1339,6 +1354,7 @@ export const confirmPayment = internalMutation({
     code: v.string(),
     paymentId: v.string(),
     paymentStatus: v.union(v.string(), v.null()),
+    paymentAmountCents: v.optional(v.number()),
   },
   returns: v.union(
     v.object({
@@ -1624,7 +1640,7 @@ export const confirmPayment = internalMutation({
         const refundId = await ctx.db.insert("paymentRefunds", {
           paymentId: args.paymentId,
           voucherCode: voucher.code,
-          amountCents: voucher.priceCents,
+          amountCents: args.paymentAmountCents ?? voucher.priceCents,
           status: "pending_attempt",
           attemptCount: 0,
           nextAttemptAt: now,
@@ -1765,9 +1781,7 @@ const gateVoucherAdminValidator = v.object({
   // The staff-visible warning set when a payment is reversed after the
   // Voucher was already redeemed (see `confirmPayment`). Undefined for
   // every Voucher this never happened to.
-  reversal: v.optional(
-    v.object({ reason: v.string(), notedAt: v.number() }),
-  ),
+  reversal: v.optional(v.object({ reason: v.string(), notedAt: v.number() })),
 });
 
 function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
@@ -1905,7 +1919,10 @@ export const listAdmin = query({
 
     return vouchers
       .filter(countsAsRealVoucher)
-      .filter((voucher) => args.status === undefined || voucher.status === args.status)
+      .filter(
+        (voucher) =>
+          args.status === undefined || voucher.status === args.status,
+      )
       .filter(
         (voucher) =>
           args.createdAfter === undefined ||
@@ -1972,6 +1989,11 @@ export const updateStatus = mutation({
     await requireRole(ctx, "admin");
 
     const voucher = await requireVoucherByCode(ctx, args.code);
+    if (voucher.status === "cancelled" && args.status !== "cancelled") {
+      throw new ConvexError(
+        "Um voucher cancelado é terminal e não pode ter o status alterado.",
+      );
+    }
     await ctx.db.patch(voucher._id, { status: args.status });
     return null;
   },
@@ -2035,10 +2057,10 @@ function currentSaoPauloMonthRange(): { fromKey: string; toKey: string } {
  * bound), and an explicit `null` on either side — a caller asking for an
  * unbounded range on purpose — is refused too.
  */
-function resolveDateRange(args: {
-  from?: string | null;
-  to?: string | null;
-}): { fromKey: string; toKey: string } {
+function resolveDateRange(args: { from?: string | null; to?: string | null }): {
+  fromKey: string;
+  toKey: string;
+} {
   const { from, to } = args;
 
   if (from === undefined && to === undefined) {
@@ -2212,7 +2234,10 @@ export const dailyBreakdown = query({
         date,
         ...bucket,
         visitorCount:
-          bucket.adults + bucket.elderly + bucket.adultsPool + bucket.elderlyPool,
+          bucket.adults +
+          bucket.elderly +
+          bucket.adultsPool +
+          bucket.elderlyPool,
       }));
   },
 });

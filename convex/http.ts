@@ -34,14 +34,20 @@ http.route({
     if (typeof body !== "object" || body === null) {
       return new Response("Bad Request", { status: 400 });
     }
-    const { code, paymentId, paymentStatus } = body as Record<
-      string,
-      unknown
-    >;
+    const { code, paymentId, paymentStatus, paymentAmountCents } =
+      body as Record<string, unknown>;
     if (typeof code !== "string" || typeof paymentId !== "string") {
       return new Response("Bad Request", { status: 400 });
     }
     if (paymentStatus !== null && typeof paymentStatus !== "string") {
+      return new Response("Bad Request", { status: 400 });
+    }
+    if (
+      paymentAmountCents !== undefined &&
+      (typeof paymentAmountCents !== "number" ||
+        !Number.isFinite(paymentAmountCents) ||
+        paymentAmountCents < 0)
+    ) {
       return new Response("Bad Request", { status: 400 });
     }
 
@@ -49,6 +55,7 @@ http.route({
       code,
       paymentId,
       paymentStatus,
+      ...(typeof paymentAmountCents === "number" ? { paymentAmountCents } : {}),
     });
 
     return new Response(JSON.stringify(result), {

@@ -20,9 +20,10 @@ export function createMercadoPagoFake() {
   const invalidatedPreferences = new Set<string>();
   const refunds = new Map<
     string,
-    { id: string; status: string; amount: number }
+    { id: string; status: "approved"; amount: number }
   >();
   const attempts: Array<{ kind: Kind; key: string }> = [];
+  const approveWhenCancelled = new Set<string>();
   async function perform<T>(
     kind: Kind,
     intent: ProviderIntent,
@@ -57,6 +58,7 @@ export function createMercadoPagoFake() {
     cancelPayment: (id: string, intent: ProviderIntent) =>
       perform("cancel", intent, () => {
         const p = payment(id);
+        if (approveWhenCancelled.delete(id)) p.status = "approved";
         if (["pending", "in_process", "authorized"].includes(p.status))
           p.status = "cancelled";
         return p;
@@ -69,7 +71,7 @@ export function createMercadoPagoFake() {
         if (p.status !== "approved") throw new Error("Payment not approved");
         const refund = {
           id: `refund-${refunds.size + 1}`,
-          status: "approved",
+          status: "approved" as const,
           amount: p.amount,
         };
         p.status = "refunded";
@@ -90,6 +92,7 @@ export function createMercadoPagoFake() {
     refunds,
     invalidatedPreferences,
     attempts,
+    approveOnCancel: (paymentId: string) => approveWhenCancelled.add(paymentId),
     respondWith: (kind: Kind, ...responses: Mode[]) => {
       modes.set(kind, responses);
     },

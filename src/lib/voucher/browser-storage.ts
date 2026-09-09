@@ -58,7 +58,10 @@ export function isVoucherRemoved(
   }
 }
 
-export function markVoucherRemoved(storage: VoucherStorage, code: string): void {
+export function markVoucherRemoved(
+  storage: VoucherStorage,
+  code: string,
+): void {
   try {
     const raw = storage.getItem(REMOVED_VOUCHERS_KEY);
     let parsed: unknown;
@@ -78,6 +81,7 @@ export function markVoucherRemoved(storage: VoucherStorage, code: string): void 
 export function readVouchers(
   storage: VoucherStorage,
   now = Date.now(),
+  options?: { retainExpiredCandidates?: boolean },
 ): SavedVoucher[] {
   const raw = storage.getItem(VOUCHERS_KEY);
   let parsed: unknown;
@@ -117,13 +121,20 @@ export function readVouchers(
       }
     }
 
-    if (isVoucherRetained(data, now)) {
+    if (
+      isVoucherRetained(data, now) ||
+      (options?.retainExpiredCandidates && data.managementToken)
+    ) {
       vouchers.set(data.code, data);
     }
   }
 
   const result = [...vouchers.values()];
-  if (raw !== null && raw !== JSON.stringify(result)) {
+  if (
+    !options?.retainExpiredCandidates &&
+    raw !== null &&
+    raw !== JSON.stringify(result)
+  ) {
     storage.setItem(VOUCHERS_KEY, JSON.stringify(result));
   }
   return result;
@@ -204,7 +215,9 @@ export function touchFinancialEvent(
   },
   now = Date.now(),
 ): SavedVoucher[] {
-  const entries = readVouchers(storage, now);
+  const entries = readVouchers(storage, now, {
+    retainExpiredCandidates: true,
+  });
   const target = entries.find((entry) => entry.code === code);
   if (!target) {
     return entries;
