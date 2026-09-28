@@ -22,6 +22,7 @@ import type * as lib_rateLimiter from "../lib/rateLimiter.js";
 import type * as lib_refundFailure from "../lib/refundFailure.js";
 import type * as lib_serviceAuth from "../lib/serviceAuth.js";
 import type * as lib_settings from "../lib/settings.js";
+import type * as lib_siteUrl from "../lib/siteUrl.js";
 import type * as lib_voucherCode from "../lib/voucherCode.js";
 import type * as lib_voucherPurchase from "../lib/voucherPurchase.js";
 import type * as maintenance from "../maintenance.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   "lib/refundFailure": typeof lib_refundFailure;
   "lib/serviceAuth": typeof lib_serviceAuth;
   "lib/settings": typeof lib_settings;
+  "lib/siteUrl": typeof lib_siteUrl;
   "lib/voucherCode": typeof lib_voucherCode;
   "lib/voucherPurchase": typeof lib_voucherPurchase;
   maintenance: typeof maintenance;

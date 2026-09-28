@@ -31,24 +31,20 @@ Crie um arquivo `.env` na raiz do projeto usando `.env.example` como base. O sch
 
 | Key | Uso |
 | --- | --- |
-| `DATABASE_URL` | Conexao somente com o PostgreSQL legado, mantida para a importacao ao Convex e o teste E2E de pagamentos; veja o [runbook de corte](./docs/operations/postgres-to-convex-cutover.md). |
-| `URL` | Origem publica/base **unica** (`src/env.js`): app inteiro, **incluindo `back_urls` do Checkout Pro** (retorno apos pagamento) e links. Somente protocolo e dominio, sem path/query/hash — usada assim tambem como base do webhook quando `WEBHOOK_URL` nao e definida. Este valor vem sempre do `.env` (sem fallback automatico da Vercel). |
 | `MERCADOPAGO_TOKEN` | Access token do Mercado Pago usado para criar preferencias e consultar pagamentos. |
-| `CRON_SECRET` | Segredo usado no header `Authorization: Bearer <CRON_SECRET>` da rota `/api/cron`. |
 | `NEXT_PUBLIC_CONVEX_URL` | URL `.convex.cloud` do deployment remoto de desenvolvimento. |
 | `NEXT_PUBLIC_CONVEX_SITE_URL` | URL `.convex.site` do mesmo deployment, usada pelo proxy do Better Auth. |
-| `NEXT_PUBLIC_SITE_URL` | Origem do frontend. Localmente, `http://localhost:3000`. |
+| `MERCADOPAGO_WEBHOOK_SERVICE_SECRET` | Segredo compartilhado com o deployment Convex para confirmar pagamentos pelo webhook. |
 
-**Producao vs tunel local (mesma chave `URL`):** defina explicitamente no `.env` a origem publica correta em cada ambiente. Para testar checkout com tunel (ngrok, Cloudflare Tunnel, etc.), no `.env` **local** use a origem HTTPS do tunel em `URL`, rode `pnpm dev` e crie a preferencia por esse backend — o Mercado Pago passa a redirecionar e enviar webhooks para o tunel. Nao e necessario definir `WEBHOOK_URL` quando a base publica for a mesma.
+A origem publica do app (`SITE_URL`) fica no deployment Convex, nao no `.env`; veja [Autenticacao do admin](#autenticacao-do-admin).
 
-Em qualquer deploy (incluindo Vercel), `URL` deve ser definida explicitamente no `.env` com a origem publica correta do app.
+`DATABASE_URL` e opcional: conexao somente com o PostgreSQL legado, usada pela importacao ao Convex e pelo teste E2E de pagamentos; veja o [runbook de corte](./docs/operations/postgres-to-convex-cutover.md).
 
 ### Pagamentos e webhooks
 
 | Key | Uso |
 | --- | --- |
 | `WEBHOOK_SECRET` | Segredo usado para validar a assinatura do webhook do Mercado Pago. Configure em producao para nao usar o fallback local. |
-| `WEBHOOK_URL` | Opcional. Origem publica alternativa para o webhook — **somente protocolo e dominio, sem path, query ou hash** (ex.: `https://exemplo.com`). Se ausente, o app usa `URL`. Um valor com path falha a criacao da preferencia com uma mensagem explicita, em vez de descartar o path silenciosamente. |
 
 As preferencias do Mercado Pago sao criadas com `/api/webhook?source_news=webhooks`, forçando Webhooks assinados. IPN legado (`topic`/`id`) nao e aceito pelo handler.
 
@@ -100,11 +96,9 @@ Para realizar testes manuais de compra no Checkout do Mercado Pago em ambiente s
 
 | Key | Padrao | Uso |
 | --- | --- | --- |
-| `NEXT_PUBLIC_MAX_INTENDED_DAYS` | `30` | Limite de dias para datas pretendidas de voucher. |
 | `NEXT_PUBLIC_VOUCHER_PRICE` | `70` | Preco base do voucher adulto. |
 | `NEXT_PUBLIC_POOL_VOUCHER_PRICE` | `70` | Preco base do voucher com piscina. |
-| `NEXT_PUBLIC_ALERT_MESSAGE` | Nao definido | Mensagem publica opcional de alerta no app. |
-| `NEXT_PUBLIC_ENABLE_ANALYTICS` | `false` | Liga ou desliga o Vercel Analytics no layout. |
+| `NEXT_PUBLIC_ENABLE_ANALYTICS` | `false` | `"true"` liga o Vercel Analytics no layout; qualquer outro valor desliga. |
 | `NEXT_PUBLIC_VERCEL_URL` | Nao definido | URL publica de preview do Vercel usada como fallback para imagens/links. Normalmente preenchida pela plataforma. |
 | `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL` | Nao definido | URL publica de producao do projeto no Vercel usada como fallback para imagens/links. Normalmente preenchida pela plataforma. |
 
@@ -128,18 +122,17 @@ O acesso em `/admin` usa Better Auth com usuario e senha. Os dados e sessoes fic
 Configure o deployment Convex selecionado uma vez. Os dois comandos de admin solicitam o valor interativamente para nao grava-lo no historico do shell:
 
 ```bash
-pnpm exec convex env set SITE_URL http://localhost:3000
+pnpm exec convex env set SITE_URL "https://seu-dominio-ou-tunel"
 pnpm exec convex env set AUTH_TRUSTED_ORIGINS "http://localhost:3000"
 pnpm exec convex env set BETTER_AUTH_SECRET "<segredo-aleatorio-de-32-bytes>"
 pnpm exec convex env set ADMIN_USERNAME
 pnpm exec convex env set ADMIN_PASSWORD
 pnpm exec convex env set MERCADOPAGO_TOKEN "<access-token-do-mercadopago>"
 pnpm exec convex env set MERCADOPAGO_WEBHOOK_SERVICE_SECRET "<segredo-de-servico-webhook>"
-pnpm exec convex env set URL "https://seu-dominio-ou-tunel"
 pnpm exec convex dev --once
 ```
 
-Esses valores pertencem ao deployment Convex, nao ao `.env`/`.env.local` do Next.js. `SITE_URL` e a origem principal e `AUTH_TRUSTED_ORIGINS` aceita origens adicionais separadas por virgula, como `http://localhost:3000` para desenvolvimento local. Sem flag, os comandos usam o deployment de desenvolvimento selecionado. Configure outros deployments separadamente com `--prod`, `--deployment local` ou `--deployment <nome>`.
+Esses valores pertencem ao deployment Convex, nao ao `.env`/`.env.local` do Next.js. `SITE_URL` e a origem publica unica do app — somente protocolo e dominio, sem path — usada pelo Better Auth, pelos `back_urls` do Checkout Pro e pelo webhook do Mercado Pago (`/api/webhook?source_news=webhooks`). Para receber webhooks localmente, use a origem HTTPS de um tunel (ngrok, Cloudflare Tunnel etc.). `AUTH_TRUSTED_ORIGINS` aceita origens adicionais separadas por virgula, como `http://localhost:3000` para desenvolvimento local. Sem flag, os comandos usam o deployment de desenvolvimento selecionado. Configure outros deployments separadamente com `--prod`, `--deployment local` ou `--deployment <nome>`.
 
 Crie o primeiro admin pela funcao interna. Ela le `ADMIN_USERNAME` e `ADMIN_PASSWORD` do deployment e recusa a operacao quando ja existe qualquer usuario:
 

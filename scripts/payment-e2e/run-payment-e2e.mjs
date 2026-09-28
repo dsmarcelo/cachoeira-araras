@@ -7,15 +7,11 @@ import { VoucherTestDao } from "./voucher-test-dao.mjs";
 loadDotEnv();
 
 const accessToken = requireEnv("MERCADOPAGO_TOKEN");
-const baseUrl = optionalUrl("URL");
-const webhookUrl = optionalUrl("WEBHOOK_URL");
+// SITE_URL serves both the back_urls and the webhook, as in the app.
+const baseUrl = optionalUrl("SITE_URL");
 
 if (!baseUrl) {
-  throw new Error("Set URL before running payment E2E.");
-}
-
-if (!webhookUrl) {
-  throw new Error("Set WEBHOOK_URL before running payment E2E.");
+  throw new Error("Set SITE_URL before running payment E2E.");
 }
 
 const testData = {
@@ -36,7 +32,7 @@ const createdCodes = new Set([testData.code]);
 try {
   console.log("Starting Mercado Pago payment E2E test...");
   console.log(`Base URL: ${baseUrl}`);
-  console.log(`Webhook URL: ${webhookUrl}/api/webhook`);
+  console.log(`Webhook URL: ${baseUrl}/api/webhook`);
   console.log(`Voucher code: ${testData.code}`);
 
   await dao.deleteVoucherByCode(testData.code);
@@ -49,7 +45,7 @@ try {
   const preference = await createPreference({
     accessToken,
     baseUrl,
-    webhookUrl,
+    webhookUrl: baseUrl,
     code: testData.code,
     name: testData.name,
     phone: testData.phone,

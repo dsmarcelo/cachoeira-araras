@@ -31,21 +31,6 @@ export function assertOriginOnlyUrl(value: string, envVarName: string): string {
   return normalizePublicBaseUrl(value);
 }
 
-export function resolveWebhookBaseForCheckout({
-  siteBaseUrl,
-  webhookUrl,
-}: {
-  siteBaseUrl: string;
-  webhookUrl?: string;
-}): string {
-  const explicitWebhookUrl = webhookUrl?.trim();
-  if (explicitWebhookUrl) {
-    return assertOriginOnlyUrl(explicitWebhookUrl, "WEBHOOK_URL");
-  }
-
-  return assertOriginOnlyUrl(siteBaseUrl, "URL");
-}
-
 export function buildMercadoPagoWebhookUrl(webhookBase: string): string {
   const url = new URL(webhookPath, `${normalizePublicBaseUrl(webhookBase)}/`);
   url.searchParams.set("source_news", "webhooks");

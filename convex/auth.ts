@@ -9,8 +9,8 @@ import type { DataModel } from "./_generated/dataModel";
 import { env, query } from "./_generated/server";
 import authConfig from "./auth.config";
 import authSchema from "./betterAuth/schema";
+import { siteUrl } from "./lib/siteUrl";
 
-const siteUrl = env.SITE_URL ?? "http://localhost:3000";
 const trustedOrigins = [
   ...new Set(
     [siteUrl, ...(env.AUTH_TRUSTED_ORIGINS?.split(",") ?? [])].map((origin) =>

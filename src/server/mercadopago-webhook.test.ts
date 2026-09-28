@@ -11,8 +11,8 @@ import {
   verifyMercadoPagoWebhookSignature,
 } from "./mercadopago-webhook.ts";
 import {
+  assertOriginOnlyUrl,
   buildMercadoPagoWebhookUrl,
-  resolveWebhookBaseForCheckout,
 } from "./mercadopago-checkout.ts";
 
 const secret = "test-webhook-secret";
@@ -418,21 +418,9 @@ await test("plural webhook route reexports the singular handler", async () => {
   assert.match(routeFile, /export \{ POST \} from "\.\.\/webhook\/route";/);
 });
 
-await test("explicit webhook URL takes priority over site URL", () => {
+await test("site URL trailing slashes are stripped", () => {
   assert.equal(
-    resolveWebhookBaseForCheckout({
-      siteBaseUrl: "https://site.example.com",
-      webhookUrl: "https://webhook.example.com/",
-    }),
-    "https://webhook.example.com",
-  );
-});
-
-await test("site URL is used as webhook fallback", () => {
-  assert.equal(
-    resolveWebhookBaseForCheckout({
-      siteBaseUrl: "https://tough-totally-honeybee.ngrok-free.app/",
-    }),
+    assertOriginOnlyUrl("https://tough-totally-honeybee.ngrok-free.app/", "SITE_URL"),
     "https://tough-totally-honeybee.ngrok-free.app",
   );
 });
@@ -446,34 +434,16 @@ await test("Mercado Pago webhook URL forces signed Webhooks", () => {
   );
 });
 
-await test("webhook URL with a path is rejected instead of silently discarded", () => {
+await test("site URL with a path is rejected instead of silently discarded", () => {
   assert.throws(
-    () =>
-      resolveWebhookBaseForCheckout({
-        siteBaseUrl: "https://site.example.com",
-        webhookUrl: "https://webhook.example.com/some-path",
-      }),
-    /WEBHOOK_URL/,
+    () => assertOriginOnlyUrl("https://site.example.com/app", "SITE_URL"),
+    /SITE_URL/,
   );
 });
 
-await test("site URL with a path is rejected when used as the webhook fallback", () => {
+await test("invalid site URL fails with a clear message", () => {
   assert.throws(
-    () =>
-      resolveWebhookBaseForCheckout({
-        siteBaseUrl: "https://site.example.com/app",
-      }),
-    /URL/,
-  );
-});
-
-await test("invalid webhook URL fails with a clear message", () => {
-  assert.throws(
-    () =>
-      resolveWebhookBaseForCheckout({
-        siteBaseUrl: "https://site.example.com",
-        webhookUrl: "not-a-url",
-      }),
+    () => assertOriginOnlyUrl("not-a-url", "SITE_URL"),
     /não é uma URL absoluta válida/,
   );
 });

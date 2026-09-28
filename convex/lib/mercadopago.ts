@@ -1,9 +1,8 @@
 import {
   assertOriginOnlyUrl,
   buildMercadoPagoWebhookUrl,
-  normalizePublicBaseUrl,
-  resolveWebhookBaseForCheckout,
 } from "../../src/server/mercadopago-checkout";
+import { siteUrl } from "./siteUrl";
 
 /**
  * Mercado Pago checkout preference creation and payment search, isolated in
@@ -81,25 +80,6 @@ export type MercadoPagoRawPayment = {
   refunded_amount?: number | null;
 };
 
-/**
- * Public origin for Mercado Pago `back_urls`, read from the Convex
- * deployment's own env (set via `npx convex env set`), independent of the
- * Next.js app's Vercel env.
- */
-function resolveSiteBaseForCheckout(): string {
-  const primary = (process.env.URL ?? "").trim();
-  if (primary) return assertOriginOnlyUrl(primary, "URL");
-
-  const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL?.trim();
-  if (vercelUrl) return normalizePublicBaseUrl(`https://${vercelUrl}`);
-
-  const productionUrl =
-    process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL?.trim();
-  if (productionUrl) return normalizePublicBaseUrl(`https://${productionUrl}`);
-
-  return "http://localhost:3000";
-}
-
 function formatMercadoPagoPhone(phone: string) {
   return {
     area_code: phone.substring(0, 2),
@@ -115,11 +95,7 @@ export async function createCheckoutPreference(
     throw new Error("MERCADOPAGO_TOKEN não está configurado.");
   }
 
-  const siteBase = resolveSiteBaseForCheckout();
-  const webhookBase = resolveWebhookBaseForCheckout({
-    siteBaseUrl: siteBase,
-    webhookUrl: process.env.WEBHOOK_URL,
-  });
+  const siteBase = assertOriginOnlyUrl(siteUrl, "SITE_URL");
 
   const response = await fetch(`${mercadoPagoApiBase}/checkout/preferences`, {
     method: "POST",
@@ -166,7 +142,7 @@ export async function createCheckoutPreference(
         excluded_payment_methods: [{ id: "bolbradesco" }, { id: "pec" }],
       },
       statement_descriptor: "Cachoeira das Araras",
-      notification_url: buildMercadoPagoWebhookUrl(webhookBase),
+      notification_url: buildMercadoPagoWebhookUrl(siteBase),
     }),
   });
 

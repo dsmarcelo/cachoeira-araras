@@ -1,34 +1,6 @@
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
-/** @param {string} base */
-function normalizePublicBaseUrl(base) {
-  return base.replace(/\/+$/, "");
-}
-
-/** @param {unknown} value */
-function resolvePublicBaseUrl(value) {
-  if (typeof value === "string") {
-    return normalizePublicBaseUrl(value.trim());
-  }
-
-  return value;
-}
-
-/** @param {unknown} value */
-function resolveOptionalPublicBaseUrl(value) {
-  if (typeof value === "string") {
-    const trimmedValue = value.trim();
-    if (!trimmedValue) {
-      return undefined;
-    }
-
-    return normalizePublicBaseUrl(trimmedValue);
-  }
-
-  return value;
-}
-
 export const env = createEnv({
   /**
    * Specify your server-side environment variables schema here. This way you can ensure the app
@@ -41,13 +13,7 @@ export const env = createEnv({
   },
 
   server: {
-    URL: z.preprocess(resolvePublicBaseUrl, z.string().url()),
-    DATABASE_URL: z.string(),
     MERCADOPAGO_TOKEN: z.string(),
-    WEBHOOK_URL: z.preprocess(
-      resolveOptionalPublicBaseUrl,
-      z.string().url().optional(),
-    ),
     WEBHOOK_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string()
@@ -63,8 +29,6 @@ export const env = createEnv({
     SENTRY_DSN: z.string().url().optional(),
     SENTRY_ENVIRONMENT: z.string().optional(),
     SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).optional(),
-    VERCEL_URL: z.string().optional(),
-    PORT: z.string().optional(),
   },
 
   /**
@@ -76,7 +40,6 @@ export const env = createEnv({
     // NEXT_PUBLIC_CLIENTVAR: z.string(),
     NEXT_PUBLIC_CONVEX_URL: z.string().url(),
     NEXT_PUBLIC_CONVEX_SITE_URL: z.string().url(),
-    NEXT_PUBLIC_SITE_URL: z.string().url(),
     NEXT_PUBLIC_VOUCHER_PRICE: z.preprocess(
       (value) => typeof value === "string" ? value.replace(",", ".") : value,
       z.coerce.number().positive().default(70),
@@ -86,9 +49,12 @@ export const env = createEnv({
       z.coerce.number().positive().default(70),
     ),
     NEXT_PUBLIC_FACEBOOK_PIXEL_ID: z.string().optional(),
-    NEXT_PUBLIC_ALERT_MESSAGE: z.string().optional(),
-    // Toggle Vercel Analytics on/off at runtime (off reduces /_vercel/insights requests)
-    NEXT_PUBLIC_ENABLE_ANALYTICS: z.coerce.boolean().default(false),
+    // Toggle Vercel Analytics on/off at runtime (off reduces /_vercel/insights requests).
+    // Only the literal "true" enables it; z.coerce.boolean() would treat "false" as true.
+    NEXT_PUBLIC_ENABLE_ANALYTICS: z
+      .enum(["true", "false", ""])
+      .default("false")
+      .transform((value) => value === "true"),
     NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
     NEXT_PUBLIC_SENTRY_ENVIRONMENT: z.string().optional(),
     NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: z.coerce
@@ -126,10 +92,7 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
-    DATABASE_URL: process.env.DATABASE_URL,
-    URL: process.env.URL,
     MERCADOPAGO_TOKEN: process.env.MERCADOPAGO_TOKEN,
-    WEBHOOK_URL: process.env.WEBHOOK_URL,
     WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
     MERCADOPAGO_WEBHOOK_SERVICE_SECRET:
       process.env.MERCADOPAGO_WEBHOOK_SERVICE_SECRET,
@@ -141,12 +104,9 @@ export const env = createEnv({
     SENTRY_DSN: process.env.SENTRY_DSN,
     SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT,
     SENTRY_TRACES_SAMPLE_RATE: process.env.SENTRY_TRACES_SAMPLE_RATE,
-    VERCEL_URL: process.env.VERCEL_URL,
-    PORT: process.env.PORT,
     NEXT_PUBLIC_VOUCHER_PRICE: process.env.NEXT_PUBLIC_VOUCHER_PRICE,
     NEXT_PUBLIC_POOL_VOUCHER_PRICE: process.env.NEXT_PUBLIC_POOL_VOUCHER_PRICE,
     NEXT_PUBLIC_FACEBOOK_PIXEL_ID: process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID,
-    NEXT_PUBLIC_ALERT_MESSAGE: process.env.NEXT_PUBLIC_ALERT_MESSAGE,
     NEXT_PUBLIC_ENABLE_ANALYTICS: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
@@ -188,7 +148,6 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_INFO_REDEIRO_IMAGE,
     NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
     NEXT_PUBLIC_CONVEX_SITE_URL: process.env.NEXT_PUBLIC_CONVEX_SITE_URL,
-    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
     NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL:
       process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL,
