@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useSavedVouchers } from "../../_components/saved-vouchers-provider";
-import VoucherRemovalControl from "../../_components/voucher-removal-control";
 import type { SavedVoucher } from "@/lib/voucher/browser-storage";
 import { Button } from "@/components/ui/button";
 import { formatQuantity } from "@/lib/voucher";
@@ -121,9 +120,6 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
       : "skip",
   );
 
-  const hasIncompleteRefund =
-    (entry.hasPendingRefund ?? false) ||
-    Boolean(refundNotices?.some((notice) => notice.status !== "completed"));
   const completedRefundNotices = refundNotices?.filter(
     (notice) => notice.status === "completed",
   );
@@ -250,10 +246,6 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
             </Button>
           </div>
         )}
-      <VoucherRemovalControl
-        code={entry.code}
-        hasIncompleteRefund={hasIncompleteRefund}
-      />
     </li>
   );
 }
@@ -273,7 +265,7 @@ export default function MyVouchersPage() {
       <div className="mx-auto flex max-w-3xl flex-col gap-6">
         <h1 className="text-3xl font-bold">Meus Vouchers</h1>
         <p>
-          Compras iniciadas neste navegador ficam salvas por 60 dias após a
+          Compras iniciadas neste navegador ficam salvas por 2 anos após a
           criação. Limpar os dados do navegador remove este histórico.
         </p>
         {warning && <p role="alert">{warning}</p>}

@@ -62,13 +62,6 @@ export async function getCookieVoucher(): Promise<{
   return { code, initPoint };
 }
 
-export async function deleteCookieVoucher(code: string) {
-  const cookieStore = await cookies();
-  if (cookieStore.get("voucher")?.value !== code) return;
-  cookieStore.delete("voucher");
-  cookieStore.delete("voucher_init_point");
-}
-
 export async function getReferrer() {
   // Resolve the async cookie store before reading the marketing attribution
   // cookie; synchronous access was removed in Next.js 16.

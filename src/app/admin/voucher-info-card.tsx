@@ -41,7 +41,7 @@ const statusOptions = [
 
 interface props {
   data: AdminVoucher
-  /** Whether `data` came from the soft-deleted view — swaps "Excluir" for "Restaurar". */
+  /** Whether `data` came from the soft-deleted view — shows "Restaurar". */
   isDeleted: boolean
   onClose: () => void
   open: boolean
@@ -52,11 +52,11 @@ interface props {
  * by Convex. Distinct from `GateVoucherInfoCard` (today-only gate list) and
  * `EmployeeVoucherInfoCard` (employee session, no payment details): this one
  * is admin-only, shows referrer attribution, and is the one place a status
- * can be corrected or a voucher soft-deleted/restored.
+ * can be corrected or a soft-deleted voucher restored. Vouchers are never
+ * deleted from here: every record stays in the system.
  */
 export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
   const updateStatus = useMutation(api.vouchers.updateStatus)
-  const softDelete = useMutation(api.vouchers.softDelete)
   const restore = useMutation(api.vouchers.restore)
   const [pendingStatus, setPendingStatus] = React.useState(data.status)
 
@@ -87,19 +87,6 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
     } catch (error) {
       toast({
         title: getErrorMessage(error, "Erro ao atualizar status"),
-        variant: "destructive",
-      })
-    }
-  }
-
-  async function handleSoftDelete() {
-    try {
-      await softDelete({ code: data.code })
-      toast({ title: "Voucher excluído com sucesso" })
-      onClose()
-    } catch (error) {
-      toast({
-        title: getErrorMessage(error, "Erro ao excluir voucher"),
         variant: "destructive",
       })
     }
@@ -192,10 +179,8 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
           <DrawerClose asChild>
             <Button variant="outline" onClick={onClose}>Fechar</Button>
           </DrawerClose>
-          {isDeleted ? (
+          {isDeleted && (
             <Button variant="outline" onClick={handleRestore}>Restaurar voucher</Button>
-          ) : (
-            <Button variant="outline" className="text-red-500" onClick={handleSoftDelete}>Excluir voucher</Button>
           )}
         </DrawerFooter>
       </DrawerContent>

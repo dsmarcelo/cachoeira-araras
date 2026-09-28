@@ -10,12 +10,9 @@ import {
 import { useConvex } from "convex/react";
 import Link from "next/link";
 import { api } from "../../../convex/_generated/api";
-import { deleteCookieVoucher, getCookieVoucher } from "../lib";
+import { getCookieVoucher } from "../lib";
 import {
-  canRemoveVoucher,
-  isVoucherRemoved,
   readVouchers,
-  removeVoucher,
   saveVoucher,
   touchFinancialEvent,
   VOUCHERS_KEY,
@@ -28,7 +25,6 @@ const SavedVouchersContext = createContext<{
   ready: boolean;
   warning: string;
   save: (voucher: SavedVoucher) => boolean;
-  remove: (code: string) => Promise<void>;
   touchEvent: (
     code: string,
     options?: { eventAt?: number; hasPendingRefund?: boolean },
@@ -130,10 +126,6 @@ export function SavedVouchersProvider({
 
         const cookie = await getCookieVoucher();
         if (cookie) {
-          if (isVoucherRemoved(window.localStorage, cookie.code)) {
-            await deleteCookieVoucher(cookie.code);
-            return;
-          }
           const authorization = await convex.mutation(
             api.vouchers.authorizeLookup,
             { code: cookie.code },
@@ -172,29 +164,9 @@ export function SavedVouchersProvider({
     };
   }, [convex, save]);
 
-  async function remove(code: string) {
-    try {
-      const current = readVouchers(window.localStorage);
-      const target = current.find((entry) => entry.code === code);
-      if (target && !canRemoveVoucher(target)) {
-        setWarning(
-          "Este voucher possui um reembolso em andamento e não pode ser removido.",
-        );
-        return;
-      }
-      // Clear only the matching pointer, before removal, so migration cannot restore it.
-      await deleteCookieVoucher(code);
-      setVouchers(removeVoucher(window.localStorage, code));
-    } catch {
-      setWarning(
-        "Não foi possível remover o voucher deste navegador. Tente novamente.",
-      );
-    }
-  }
-
   return (
     <SavedVouchersContext.Provider
-      value={{ vouchers, ready, warning, save, remove, touchEvent }}
+      value={{ vouchers, ready, warning, save, touchEvent }}
     >
       {children}
     </SavedVouchersContext.Provider>

@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  canRemoveVoucher,
-  isVoucherRemoved,
   isVoucherRetained,
-  LEGACY_VOUCHER_RETENTION_MS,
   readVouchers,
-  removeVoucher,
   saveVoucher,
   touchFinancialEvent,
   VOUCHER_RETENTION_MS,
@@ -39,22 +35,21 @@ const first = {
 };
 const second = { ...first, code: "efgh" };
 
-describe("browser voucher history (60-day retention with financial-event extension)", () => {
-  it("uses 60 days as default retention and 90 days as legacy retention", () => {
-    expect(VOUCHER_RETENTION_MS).toBe(60 * 24 * 60 * 60 * 1000);
-    expect(LEGACY_VOUCHER_RETENTION_MS).toBe(90 * 24 * 60 * 60 * 1000);
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+describe("browser voucher history (2-year retention with financial-event extension)", () => {
+  it("uses two years as retention", () => {
+    expect(VOUCHER_RETENTION_MS).toBe(2 * 365 * DAY_MS);
   });
 
-  it("preserves two purchases across reads and removes only the selected entry", () => {
+  it("preserves every purchase across reads", () => {
     const store = storage();
     saveVoucher(store, first, now);
     saveVoucher(store, second, now);
     expect(readVouchers(store, now)).toEqual([first, second]);
-    expect(removeVoucher(store, first.code)).toEqual([second]);
-    expect(readVouchers(store, now)).toEqual([second]);
   });
 
-  it("retains vouchers for 60 days from creation and drops them after 60 days", () => {
+  it("retains vouchers for two years from creation and drops them afterwards", () => {
     const store = storage();
     const exactBoundary = { ...first, createdAt: now - VOUCHER_RETENTION_MS };
     saveVoucher(store, exactBoundary, now);
@@ -77,110 +72,60 @@ describe("browser voucher history (60-day retention with financial-event extensi
     expect(readVouchers(store, now)).toEqual([]);
   });
 
-  it("restarts the 60-day retention window on the latest financial event", () => {
+  it("restarts the retention window on the latest financial event", () => {
     const store = storage();
-    // Created 80 days ago, but experienced a financial event 10 days ago
-    const eventTime = now - 10 * 24 * 60 * 60 * 1000;
+    // Created past the window, but experienced a financial event 10 days ago
     const withEvent = {
       ...first,
-      createdAt: now - 80 * 24 * 60 * 60 * 1000,
-      lastFinancialEventAt: eventTime,
+      createdAt: now - VOUCHER_RETENTION_MS - 20 * DAY_MS,
+      lastFinancialEventAt: now - 10 * DAY_MS,
     };
     saveVoucher(store, withEvent, now);
-    // Retained because now - lastFinancialEventAt = 10 days <= 60 days
     expect(readVouchers(store, now)).toEqual([withEvent]);
 
-    // Touching financial event extends retention for another 60 days
+    // Touching a financial event extends retention for another full window
     touchFinancialEvent(store, first.code, { eventAt: now }, now);
     const updated = readVouchers(store, now);
     expect(updated[0]?.lastFinancialEventAt).toBe(now);
 
-    // At now + 59 days: still retained
-    expect(readVouchers(store, now + 59 * 24 * 60 * 60 * 1000).length).toBe(1);
-
-    // At now + 60 days + 1ms: expires
+    expect(readVouchers(store, now + VOUCHER_RETENTION_MS).length).toBe(1);
     expect(readVouchers(store, now + VOUCHER_RETENTION_MS + 1)).toEqual([]);
   });
 
-  it("neither auto-expires nor allows manual removal of a voucher with open or failed refund", () => {
+  it("never auto-expires a voucher with an open or failed refund", () => {
     const store = storage();
-    // Voucher created 200 days ago with a pending refund
     const pendingRefundVoucher = {
       ...first,
-      createdAt: now - 200 * 24 * 60 * 60 * 1000,
+      createdAt: now - VOUCHER_RETENTION_MS - DAY_MS,
       hasPendingRefund: true,
     };
     saveVoucher(store, pendingRefundVoucher, now);
 
-    // Never auto-expires past the window
     expect(readVouchers(store, now)).toEqual([pendingRefundVoucher]);
-    expect(canRemoveVoucher(pendingRefundVoucher)).toBe(false);
     expect(
-      isVoucherRetained(pendingRefundVoucher, now + 365 * 24 * 60 * 60 * 1000),
+      isVoucherRetained(pendingRefundVoucher, now + VOUCHER_RETENTION_MS * 2),
     ).toBe(true);
-
-    // Cannot be removed by hand through removeVoucher
-    const remaining = removeVoucher(store, first.code);
-    expect(remaining).toEqual([pendingRefundVoucher]);
-    expect(readVouchers(store, now)).toEqual([pendingRefundVoucher]);
   });
 
-  it("allows removing local reference after clean cancellation or confirmed refund", () => {
-    const store = storage();
-    const confirmedRefundVoucher = {
-      ...first,
-      hasPendingRefund: false,
-    };
-    saveVoucher(store, confirmedRefundVoucher, now);
-    expect(canRemoveVoucher(confirmedRefundVoucher)).toBe(true);
-
-    const afterRemove = removeVoucher(store, first.code);
-    expect(afterRemove).toEqual([]);
-    expect(readVouchers(store, now)).toEqual([]);
-  });
-
-  it("ensures removal persists across subsequent visits in that browser", () => {
-    const store = storage();
-    saveVoucher(store, first, now);
-    removeVoucher(store, first.code);
-
-    expect(isVoucherRemoved(store, first.code)).toBe(true);
-
-    // On next visit, readVouchers still returns empty
-    expect(readVouchers(store, now)).toEqual([]);
-
-    // Stale background save (e.g. from cookie migration) will not resurrect the removed voucher
-    saveVoucher(store, first, now);
-    expect(readVouchers(store, now)).toEqual([]);
-  });
-
-  it("migrates existing stored entries from 90-day rules without loss", () => {
-    // Legacy storage entry: no schemaVersion, created 75 days ago (valid under old 90-day rule)
-    const legacyCreatedAt = now - 75 * 24 * 60 * 60 * 1000;
+  it("migrates entries stored before schema versioning under the same retention", () => {
     const store = storage(
       JSON.stringify([
         {
-          code: "legacy-75",
+          code: "legacy-recent",
           initPoint: "https://www.mercadopago.com.br/checkout",
-          createdAt: legacyCreatedAt,
+          createdAt: now - 400 * DAY_MS,
         },
         {
-          code: "legacy-95",
+          code: "legacy-old",
           initPoint: "https://www.mercadopago.com.br/checkout",
-          createdAt: now - 95 * 24 * 60 * 60 * 1000,
+          createdAt: now - VOUCHER_RETENTION_MS - DAY_MS,
         },
       ]),
     );
 
     const migrated = readVouchers(store, now);
-    // legacy-75 is migrated without loss (retained with schemaVersion: 2 and extended)
-    expect(migrated.length).toBe(1);
-    expect(migrated[0]?.code).toBe("legacy-75");
+    expect(migrated.map((v) => v.code)).toEqual(["legacy-recent"]);
     expect(migrated[0]?.schemaVersion).toBe(2);
-    expect(migrated[0]?.lastFinancialEventAt).toBe(now);
-
-    // legacy-95 was older than 90 days, so dropped
-    expect(migrated.find((v) => v.code === "legacy-95")).toBeUndefined();
   });
 
   it("prunes expired entries on write and preserves other tabs' purchases", () => {

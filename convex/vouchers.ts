@@ -1980,7 +1980,7 @@ async function requireVoucherByCode(
  * Corrects a voucher's status when something needs fixing. Admin-only,
  * unlike `redeemByCode`/`reactivate` which employees can also reach — this
  * is a direct override rather than an operational action, so it stays
- * restricted to the role that can also soft-delete and restore.
+ * restricted to the role that can also restore.
  */
 export const updateStatus = mutation({
   args: { code: v.string(), status: voucherStatusValidator },
@@ -1995,23 +1995,6 @@ export const updateStatus = mutation({
       );
     }
     await ctx.db.patch(voucher._id, { status: args.status });
-    return null;
-  },
-});
-
-/**
- * Soft-deletes a voucher: reversible, and removes it from `listAdmin` (via
- * `countsAsRealVoucher`) while keeping it visible in `listDeleted`.
- * Admin-only.
- */
-export const softDelete = mutation({
-  args: { code: v.string() },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await requireRole(ctx, "admin");
-
-    const voucher = await requireVoucherByCode(ctx, args.code);
-    await ctx.db.patch(voucher._id, { deletedAt: Date.now() });
     return null;
   },
 });

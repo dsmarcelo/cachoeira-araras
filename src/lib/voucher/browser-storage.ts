@@ -1,9 +1,8 @@
 import { z } from "zod";
 
-export const VOUCHER_RETENTION_MS = 60 * 24 * 60 * 60 * 1000;
-export const LEGACY_VOUCHER_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+/** Every voucher stays in the browser history for two years; customers cannot remove it. */
+export const VOUCHER_RETENTION_MS = 2 * 365 * 24 * 60 * 60 * 1000;
 export const VOUCHERS_KEY = "vouchers";
-export const REMOVED_VOUCHERS_KEY = "removed_vouchers";
 
 export const savedVoucherSchema = z.object({
   code: z.string().min(1),
@@ -39,45 +38,6 @@ export function isVoucherRetained(
   return now - effectiveTime <= VOUCHER_RETENTION_MS;
 }
 
-export function canRemoveVoucher(voucher: SavedVoucher): boolean {
-  // A voucher with an open or failed refund cannot be removed through the interface.
-  return !voucher.hasPendingRefund;
-}
-
-export function isVoucherRemoved(
-  storage: VoucherStorage,
-  code: string,
-): boolean {
-  try {
-    const raw = storage.getItem(REMOVED_VOUCHERS_KEY);
-    if (!raw) return false;
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.includes(code);
-  } catch {
-    return false;
-  }
-}
-
-export function markVoucherRemoved(
-  storage: VoucherStorage,
-  code: string,
-): void {
-  try {
-    const raw = storage.getItem(REMOVED_VOUCHERS_KEY);
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw ?? "[]");
-    } catch {
-      parsed = [];
-    }
-    const set = new Set<string>(Array.isArray(parsed) ? parsed : []);
-    set.add(code);
-    storage.setItem(REMOVED_VOUCHERS_KEY, JSON.stringify([...set]));
-  } catch {
-    // ignore
-  }
-}
-
 export function readVouchers(
   storage: VoucherStorage,
   now = Date.now(),
@@ -97,29 +57,8 @@ export function readVouchers(
     const result = savedVoucherSchema.safeParse(entry);
     if (!result.success) continue;
 
-    let data = result.data;
-
-    // Check if code was marked as removed
-    if (isVoucherRemoved(storage, data.code)) {
-      continue;
-    }
-
-    // Migrate entries stored under old rules rather than dropping them
-    if (data.schemaVersion === undefined) {
-      if (now - data.createdAt <= LEGACY_VOUCHER_RETENTION_MS) {
-        data = {
-          ...data,
-          schemaVersion: 2,
-          lastFinancialEventAt:
-            now - data.createdAt > VOUCHER_RETENTION_MS
-              ? now
-              : data.lastFinancialEventAt,
-        };
-      } else {
-        // Expired even under old 90-day rules
-        continue;
-      }
-    }
+    // Entries stored before schema versioning fall under the same retention.
+    const data = { ...result.data, schemaVersion: 2 };
 
     if (
       isVoucherRetained(data, now) ||
@@ -151,10 +90,6 @@ export function saveVoucher(
     schemaVersion: 2,
     ...voucher,
   });
-
-  if (isVoucherRemoved(storage, validated.code)) {
-    return entries;
-  }
 
   const existingIndex = entries.findIndex(
     (entry) => entry.code === validated.code,
@@ -189,21 +124,6 @@ export function saveVoucher(
 
   storage.setItem(VOUCHERS_KEY, JSON.stringify(entries));
   return entries;
-}
-
-export function removeVoucher(
-  storage: VoucherStorage,
-  code: string,
-): SavedVoucher[] {
-  const entries = readVouchers(storage);
-  const target = entries.find((entry) => entry.code === code);
-  if (target && !canRemoveVoucher(target)) {
-    return entries;
-  }
-  const remaining = entries.filter((entry) => entry.code !== code);
-  storage.setItem(VOUCHERS_KEY, JSON.stringify(remaining));
-  markVoucherRemoved(storage, code);
-  return remaining;
 }
 
 export function touchFinancialEvent(

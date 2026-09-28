@@ -107,9 +107,6 @@ test("an employee identity is rejected by every admin voucher function, includin
     }),
   ).rejects.toThrow();
   await expect(
-    asEmployee.mutation(api.vouchers.softDelete, { code: "a1b2", ...forged }),
-  ).rejects.toThrow();
-  await expect(
     asEmployee.mutation(api.vouchers.restore, { code: "a1b2", ...forged }),
   ).rejects.toThrow();
 });
@@ -122,9 +119,6 @@ test("a public caller is rejected by every admin voucher function", async () => 
   await expect(t.query(api.vouchers.listDeleted, {})).rejects.toThrow();
   await expect(
     t.mutation(api.vouchers.updateStatus, { code: "a1b2", status: "expired" }),
-  ).rejects.toThrow();
-  await expect(
-    t.mutation(api.vouchers.softDelete, { code: "a1b2" }),
   ).rejects.toThrow();
   await expect(
     t.mutation(api.vouchers.restore, { code: "a1b2" }),
@@ -158,12 +152,12 @@ test("an admin cannot move a cancelled voucher back into circulation", async () 
   ).rejects.toThrow("terminal");
 });
 
-test("soft-deleting removes a voucher from the main list and surfaces it in the deleted view; restoring reverses both", async () => {
+test("a soft-deleted voucher surfaces only in the deleted view until restored", async () => {
   const t = createConvexTest();
-  await insertVoucher(t, { code: "a1b2" });
+  await t.run(async (ctx) =>
+    ctx.db.insert("vouchers", { ...defaults(), code: "a1b2", deletedAt: Date.now() }),
+  );
   const asAdmin = await withAuth(t, "admin");
-
-  await asAdmin.mutation(api.vouchers.softDelete, { code: "a1b2" });
 
   expect(await asAdmin.query(api.vouchers.listAdmin, {})).toEqual([]);
   const deletedList = await asAdmin.query(api.vouchers.listDeleted, {});
