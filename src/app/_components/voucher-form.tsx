@@ -8,6 +8,7 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/ui/field-error";
 import { useRouter } from "next/navigation";
 import { createVoucherFormSchema } from "@/lib/voucher/types";
 import { cn, formatPhone, getErrorMessage } from "@/lib/utils";
@@ -248,8 +249,8 @@ export default function VoucherForm({
 
   if (!restored) {
     return (
-      <div className="mx-auto w-full bg-dark-blue">
-        <div className="border-none bg-dark-blue p-4 text-center text-primary-50">
+      <div className="mx-auto w-full bg-surface">
+        <div className="border-none bg-surface p-4 text-center text-fg">
           Carregando...
         </div>
       </div>
@@ -271,10 +272,10 @@ export default function VoucherForm({
   // The public form now exposes only the standard voucher purchase option.
   if (!enableVoucherBuy) {
     return (
-      <div className="mx-auto w-full bg-dark-blue">
-        <div className="border-none bg-dark-blue p-4 text-primary-50">
+      <div className="mx-auto w-full bg-surface">
+        <div className="border-none bg-surface p-4 text-fg">
           <div className="flex flex-col items-center justify-center gap-4 py-12">
-            <p className="text-center text-lg font-bold text-orange-100">
+            <p className="text-center text-lg font-bold text-warning-text">
               Compra de voucher temporariamente indisponível pelo site
             </p>
           </div>
@@ -284,37 +285,33 @@ export default function VoucherForm({
   }
 
   return (
-    <div className="mx-auto w-full bg-dark-blue">
-      <div className="border-none bg-dark-blue p-4 text-primary-50">
-        {warning && <p role="alert" className="mb-4 text-orange-100">{warning}</p>}
+    <div className="mx-auto w-full bg-surface">
+      <div className="border-none bg-surface p-4 text-fg">
+        {warning && <p role="alert" className="mb-4 text-warning-text">{warning}</p>}
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-base [&_label]:leading-none"
+          className="grid gap-4 [&_input]:h-12 [&_input]:bg-field [&_label]:text-base [&_label]:leading-none"
         >
           {formMessage && (
-            <div className="flex flex-col gap-2 rounded-xl bg-orange-600 p-2">
-              <h3 className="text-center text-sm font-bold uppercase text-white">
+            <div className="flex flex-col gap-2 rounded-xl bg-warning p-2">
+              <h3 className="text-center text-sm font-bold uppercase text-on-solid">
                 {formMessage}
               </h3>
             </div>
           )}
-          <h3 className="text-center text-sm font-medium uppercase leading-none text-primary-100">
+          <h3 className="text-center text-sm font-medium uppercase leading-none text-fg-muted">
             Entrada permitida entre 08h e 17h
           </h3>
           <div className="grid gap-2">
             <Label htmlFor="name">Nome</Label>
             <Input
-              className="rounded-xl text-bg-blue"
+              className="rounded-xl text-field-fg"
               id="name"
               placeholder="Seu nome completo"
               maxLength={40}
               {...register("name", { required: "Nome é obrigatório" })}
             />
-            {errors.name && (
-              <p className="text-base font-medium text-red-400">
-                {errors.name?.message}
-              </p>
-            )}
+            <FieldError>{errors.name?.message}</FieldError>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="phone">Telefone</Label>
@@ -324,7 +321,7 @@ export default function VoucherForm({
               render={({ field }) => (
                 <Input
                   {...field}
-                  className="rounded-xl text-bg-blue"
+                  className="rounded-xl text-field-fg"
                   id="phone"
                   type="tel"
                   placeholder="(XX) 99999-9999"
@@ -336,19 +333,15 @@ export default function VoucherForm({
                 />
               )}
             />
-            {errors.phone && (
-              <p className="text-base font-medium text-red-400">
-                {errors.phone?.message}
-              </p>
-            )}
+            <FieldError>{errors.phone?.message}</FieldError>
           </div>
 
           <div className="pt-4">
-            <p className="text-center text-sm font-bold text-primary-100">
+            <p className="text-center text-sm font-bold text-fg-muted">
               Selecione a quantidade de pessoas
             </p>
 
-            <div className="flex flex-col divide-y divide-primary-100">
+            <div className="flex flex-col divide-y divide-line">
               {enableVoucherBuy && (
                 <>
                   <div className="flex items-center justify-between gap-2 py-4">
@@ -374,11 +367,7 @@ export default function VoucherForm({
                         )}
                       />
                     </div>
-                    {errors.adults && (
-                      <p className="text-base font-medium text-red-400">
-                        {errors.adults?.message}
-                      </p>
-                    )}
+                    <FieldError>{errors.adults?.message}</FieldError>
                   </div>
 
                 </>
@@ -388,7 +377,7 @@ export default function VoucherForm({
 
           <div className="grid gap-2">
             <Label htmlFor="date" className="flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-primary-50" />
+              <CalendarIcon className="h-4 w-4 text-fg" />
               Selecione a data que pretende ir
             </Label>
             <Popover>
@@ -401,16 +390,16 @@ export default function VoucherForm({
                       <Button
                         variant={"outline"}
                         className={cn(
-                          "h-12 w-full justify-start rounded-xl bg-primary-50 text-left font-normal text-dark",
+                          "h-12 w-full justify-start rounded-xl bg-field text-left font-normal text-field-fg",
                           !field.value && "text-muted-foreground",
                         )}
                       >
                         {field.value ? (
                           format(field.value, "PPP", { locale: ptBR })
                         ) : (
-                          <span className="text-dark">Selecione uma data</span>
+                          <span className="text-field-fg">Selecione uma data</span>
                         )}
-                        <CalendarIcon className="ml-auto h-4 w-4 text-dark opacity-50" />
+                        <CalendarIcon className="ml-auto h-4 w-4 text-field-fg opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
@@ -445,11 +434,7 @@ export default function VoucherForm({
                 )}
               />
             </Popover>
-            {errors.intendedDate && (
-              <p className="text-base font-medium text-red-400">
-                {errors.intendedDate?.message}
-              </p>
-            )}
+            <FieldError>{errors.intendedDate?.message}</FieldError>
           </div>
 
           <h1 className="font-bold">{`Valor: R$${totalPrice.toFixed(2).replace(".", ",")}`}</h1>
@@ -457,7 +442,9 @@ export default function VoucherForm({
           <Button
             disabled={isSubmitting}
             type="submit"
-            className="h-16 w-full rounded-xl bg-positive-green px-6 text-xl hover:bg-positive-green/80"
+            variant="cta"
+            size="xl"
+            className="w-full"
           >
             {isLoading ? (
               <div className="flex flex-row items-center justify-center">
@@ -473,7 +460,7 @@ export default function VoucherForm({
           </Button>
         </form>
         {checkoutFailed && (
-          <div className="my-4 flex flex-col justify-center space-y-2 text-lg font-medium text-red-500">
+          <div className="my-4 flex flex-col justify-center space-y-2 text-lg font-medium text-danger-text">
             <p>Erro ao criar o voucher, tente novamente!</p>
             <Button onClick={() => location.reload()} className="h-20">
               Recarregar página

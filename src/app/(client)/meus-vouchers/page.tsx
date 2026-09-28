@@ -7,6 +7,7 @@ import { api } from "../../../../convex/_generated/api";
 import { useSavedVouchers } from "../../_components/saved-vouchers-provider";
 import type { SavedVoucher } from "@/lib/voucher/browser-storage";
 import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
 import { formatQuantity } from "@/lib/voucher";
 import { formatToBRL } from "@/lib/utils";
 import {
@@ -173,7 +174,7 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
   }
 
   return (
-    <li className="flex flex-col gap-4 rounded-xl bg-dark-blue p-6">
+    <li className="flex flex-col gap-4 rounded-xl bg-surface p-6">
       <h2 className="text-2xl font-bold">Voucher {entry.code}</h2>
       {voucher === undefined && lookupFailure === null && (
         <p>Consultando pagamento...</p>
@@ -188,8 +189,8 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
         <p>Voucher não encontrado</p>
       )}
       {voucher && (
-        <div className="flex flex-col gap-1 text-sm text-primary-200">
-          <p className="text-base text-primary-100">
+        <div className="flex flex-col gap-1 text-sm text-fg-subtle">
+          <p className="text-base text-fg-muted">
             {statuses[voucher.status]}
           </p>
           <p>Visita: {formatVisitDate(voucher.visitDate)}</p>
@@ -207,19 +208,15 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
       {completedRefundNotices && completedRefundNotices.length > 0 && (
         <div className="space-y-2">
           {completedRefundNotices.map((notice) => (
-            <div
-              key={notice.refundId}
-              role="status"
-              className="rounded-lg border border-green-500/40 bg-green-950/40 p-3 text-sm text-green-200"
-            >
+            <Notice key={notice.refundId} role="status" tone="success">
               {notice.message}
-            </div>
+            </Notice>
           ))}
         </div>
       )}
       {voucher?.status === "pending" && entry.initPoint && (
         <Button
-          className="bg-positive-green"
+          variant="cta"
           disabled={isResuming}
           onClick={() => void handleResumePayment()}
         >
@@ -258,10 +255,10 @@ export default function MyVouchersPage() {
   }, [ready, vouchers.length, router]);
   if (!ready || vouchers.length === 0)
     return (
-      <main className="bg-bg-blue p-6 text-primary-100">Carregando...</main>
+      <main className="bg-page p-6 text-fg-muted">Carregando...</main>
     );
   return (
-    <main className="bg-bg-blue px-4 py-8 text-primary-100">
+    <main className="bg-page px-4 py-8 text-fg-muted">
       <div className="mx-auto flex max-w-3xl flex-col gap-6">
         <h1 className="text-3xl font-bold">Meus Vouchers</h1>
         <p>
@@ -269,7 +266,7 @@ export default function MyVouchersPage() {
           criação. Limpar os dados do navegador remove este histórico.
         </p>
         {warning && <p role="alert">{warning}</p>}
-        <Button asChild>
+        <Button asChild variant="brand">
           <Link href="/">Comprar outro voucher</Link>
         </Button>
         <ul className="grid gap-4">

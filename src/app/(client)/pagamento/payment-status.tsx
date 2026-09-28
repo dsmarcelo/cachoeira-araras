@@ -7,6 +7,7 @@ import { useConvex, useQuery } from "convex/react";
 import { Button } from "@/components/ui/button";
 import { getCookieVoucher } from "@/app/lib";
 import { useSavedVouchers } from "@/app/_components/saved-vouchers-provider";
+import { StatusScreen } from "@/app/_components/status-screen";
 import { api as convexApi } from "../../../../convex/_generated/api";
 import {
   getCachedLookupToken,
@@ -163,10 +164,7 @@ export default function PaymentStatus({
       >
         <div className="flex flex-col sm:flex-row gap-3 items-center mt-2">
           {canRetry && cookieVoucher ? (
-            <Button
-              asChild
-              className="bg-positive-green hover:bg-positive-green/90 text-primary-50 font-medium"
-            >
+            <Button asChild variant="cta">
               <a href={cookieVoucher.initPoint} rel="noopener noreferrer">
                 Tentar novamente o pagamento
               </a>
@@ -181,20 +179,20 @@ export default function PaymentStatus({
   if (voucher.status === "valid" || voucher.status === "redeemed") {
     return (
       <StatusScreen title="Pagamento aprovado" tone="success">
-        <p className="text-primary-100">
+        <p className="text-fg-muted">
           Guarde o código do seu voucher, ele será solicitado na portaria:
         </p>
-        <h2 className="text-center text-6xl font-bold text-primary-50">
+        <h2 className="text-center text-6xl font-bold text-fg">
           {voucher.code}
         </h2>
         {savedReady && hasLocalEntry && (
-          <Button asChild>
+          <Button asChild variant="brand">
             <Link href="/meus-vouchers">Ver em Meus Vouchers</Link>
           </Button>
         )}
         {savedReady && !hasLocalEntry && persistFailed && (
           <div className="flex w-full max-w-md flex-col gap-3">
-            <p role="alert" className="text-orange-100">
+            <p role="alert" className="text-warning-text">
               Não foi possível salvar este voucher neste navegador. Anote o
               código antes de sair — a imagem abaixo fica disponível apenas
               nesta página.
@@ -215,7 +213,7 @@ export default function PaymentStatus({
   if (voucher.status === "refunded") {
     return (
       <StatusScreen title="Pagamento estornado">
-        <p className="text-primary-100">
+        <p className="text-fg-muted">
           O pagamento deste voucher foi estornado, cancelado ou contestado.
           Entre em contato para mais informações.
         </p>
@@ -227,7 +225,7 @@ export default function PaymentStatus({
   // status === "expired"
   return (
     <StatusScreen title="Voucher expirado">
-      <p className="text-primary-100">
+      <p className="text-fg-muted">
         Este voucher não é mais válido. Entre em contato para mais
         informações.
       </p>
@@ -238,38 +236,8 @@ export default function PaymentStatus({
 
 function BackHomeButton() {
   return (
-    <Link href="/">
-      <Button>Voltar para a página inicial</Button>
-    </Link>
-  );
-}
-
-function StatusScreen({
-  title,
-  description,
-  tone = "neutral",
-  children,
-}: {
-  title: string;
-  description?: string;
-  tone?: "neutral" | "success";
-  children?: React.ReactNode;
-}) {
-  return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 bg-bg-blue px-4 py-8 text-center md:min-h-[calc(100vh-6rem)]">
-      <div
-        className={
-          tone === "success"
-            ? "text-3xl font-bold text-green-500"
-            : "text-3xl"
-        }
-      >
-        {title}
-      </div>
-      {description ? (
-        <p className="max-w-md text-primary-300">{description}</p>
-      ) : null}
-      {children}
-    </div>
+    <Button asChild variant="brand">
+      <Link href="/">Voltar para a página inicial</Link>
+    </Button>
   );
 }

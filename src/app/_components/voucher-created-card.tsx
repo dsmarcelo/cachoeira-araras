@@ -16,22 +16,24 @@ export default function VoucherCreatedCard({
   warning: string;
 }) {
   return (
-    <div className="flex flex-col gap-6 p-4 text-primary-100">
+    <div className="flex flex-col gap-6 p-4 text-fg-muted">
       {warning && (
-        <p role="alert" className="text-orange-100">
+        <p role="alert" className="text-warning-text">
           {warning}
         </p>
       )}
       <p>Voucher criado! Anote o código para consultar seu pagamento.</p>
-      <h2 className="text-center text-7xl font-bold text-primary-50">{code}</h2>
+      <h2 className="text-center text-7xl font-bold text-fg">{code}</h2>
       {payment_success_url ? (
-        <Button asChild className="h-14 bg-positive-green text-xl">
+        <Button asChild variant="cta" size="xl" className="h-14">
           <Link href={payment_success_url}>Visualizar voucher</Link>
         </Button>
       ) : (
         <Button
+          variant="cta"
+          size="xl"
           onClick={redirectToPayment}
-          className="h-14 bg-positive-green text-xl"
+          className="h-14"
         >
           Finalizar pagamento
         </Button>

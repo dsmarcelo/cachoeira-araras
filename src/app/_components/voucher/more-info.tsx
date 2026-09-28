@@ -7,7 +7,7 @@ export default function MoreVoucherFormInfo() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="bg-custom-secondary w-full overflow-hidden">
+    <div className="bg-surface-alt w-full overflow-hidden">
       <motion.header
         className="flex cursor-pointer items-center justify-center gap-2 p-4"
         onClick={() => setOpen(!open)}
@@ -58,7 +58,7 @@ export default function MoreVoucherFormInfo() {
                   entrar
                 </li>
               </ol>
-              <div className="h-[2px] w-full rounded-full bg-primary-700"></div>
+              <div className="h-[2px] w-full rounded-full bg-line-soft"></div>
               <div className="space-y-2">
                 <p>
                   O voucher só poderá ser utilizado até o dia selecionado. Após

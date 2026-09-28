@@ -75,6 +75,39 @@ const config = {
           "900": "#0c5553",
           "950": "#003334",
         },
+        // Semantic tokens for the public (client) site, a dark-blue theme.
+        // Components should use these instead of raw palette colors; every
+        // token supports opacity modifiers (e.g. `bg-cta/80`).
+        page: "#00182D",
+        surface: { DEFAULT: "#00516D", alt: "#00435D" },
+        footer: { DEFAULT: "#1e293b", hover: "#334155" },
+        // Text ladder on dark surfaces, strongest first.
+        fg: {
+          DEFAULT: "#ecf7fa",
+          muted: "#c3e5ee",
+          subtle: "#a6d8e6",
+          faint: "#7dc6db",
+        },
+        // Text on saturated fills (cta, danger, warning) and on image overlays.
+        "on-solid": "#ffffff",
+        // Dark tint for image gradients and inset panels.
+        scrim: "#000000",
+        // Dividers and outlines on dark surfaces.
+        line: { DEFAULT: "#c3e5ee", soft: "#2b798f" },
+        // Light form inputs sitting on dark surfaces.
+        field: { DEFAULT: "#ecf7fa", fg: "#00182D" },
+        // Main accent (secondary actions, links-as-buttons).
+        brand: { DEFAULT: "#3daac9", hover: "#389bb7", fg: "#00182D" },
+        // Primary call to action (buy / pay).
+        cta: { DEFAULT: "#14AE5C", fg: "#00182D" },
+        success: { DEFAULT: "#22c55e", text: "#86efac", soft: "#14532d" },
+        warning: { DEFAULT: "#c2410c", text: "#ffedd5" },
+        danger: {
+          DEFAULT: "#dc2626",
+          hover: "#b91c1c",
+          text: "#f87171",
+          soft: "#7f1d1d",
+        },
         alert: "rgb(255 111 0)",
         "alert-light": "rgba(255, 193, 7, .2)",
         "dark-blue": "#00516D",

@@ -12,7 +12,7 @@ export default function VoucherBuyTest() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       viewport={{ once: true, margin: "-50px 0px -100px 0px" }}
-      className="mx-auto flex h-fit w-full max-w-2xl flex-col justify-between overflow-hidden rounded-xl bg-dark-blue"
+      className="mx-auto flex h-fit w-full max-w-2xl flex-col justify-between overflow-hidden rounded-xl bg-surface"
     >
       <motion.div>
         <PriceTable />

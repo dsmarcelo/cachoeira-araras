@@ -2,12 +2,31 @@
 
 import { useEffect, useState } from "react";
 import { FaApple, FaGoogle, FaWaze } from "react-icons/fa";
+import { Button } from "@/components/ui/button";
 
 const LAT = -15.733303493238164;
 const LNG = -49.03570865266417;
 
-const buttonClass =
-  "h-12 flex justify-center items-center gap-2 rounded-full font-medium bg-primary-500 text-bg-blue hover:bg-primary-600";
+/** One deep-link pill button; `children` is the icon plus the app name. */
+function MapLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      asChild
+      variant="brand"
+      className="h-12 gap-2 rounded-full text-base"
+    >
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    </Button>
+  );
+}
 
 /**
  * Deep-links to the three map apps for the same pinned location.
@@ -22,35 +41,20 @@ export function MapAppButtons() {
 
   return (
     <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-3 w-full max-w-[500px]">
-      <a
-        className={buttonClass}
-        href={`https://www.google.com/maps/dir/?api=1&destination=${LAT},${LNG}`}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
+      <MapLink href={`https://www.google.com/maps/dir/?api=1&destination=${LAT},${LNG}`}>
         <FaGoogle />
         Google Maps
-      </a>
+      </MapLink>
       {isIOS && (
-        <a
-          className={buttonClass}
-          href={`https://maps.apple.com/?daddr=${LAT},${LNG}`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <MapLink href={`https://maps.apple.com/?daddr=${LAT},${LNG}`}>
           <FaApple />
           Apple Maps
-        </a>
+        </MapLink>
       )}
-      <a
-        className={buttonClass}
-        href={`https://waze.com/ul?ll=${LAT},${LNG}&navigate=yes`}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
+      <MapLink href={`https://waze.com/ul?ll=${LAT},${LNG}&navigate=yes`}>
         <FaWaze />
         Waze
-      </a>
+      </MapLink>
     </div>
   );
 }
