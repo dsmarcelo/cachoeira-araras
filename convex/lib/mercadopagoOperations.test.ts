@@ -67,6 +67,25 @@ test("does not accept a pending refund response as confirmation", async () => {
   await expect(refundPayment("123", intent)).rejects.toThrow();
 });
 
+test("preserves the provider's 401 details without exposing the response body", async () => {
+  replies = [
+    Response.json(
+      {
+        error: "invalid_token",
+        message: "Invalid access token",
+        secret: "do-not-log",
+      },
+      { status: 401 },
+    ),
+  ];
+
+  await expect(refundPayment("123", intent)).rejects.toMatchObject({
+    status: 401,
+    providerCode: "invalid_token",
+    providerMessage: "Invalid access token",
+  });
+});
+
 test("preference invalidation expires the window and a retry recognizes the expired preference", async () => {
   const expired = {
     id: "pref-1",

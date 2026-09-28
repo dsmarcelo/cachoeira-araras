@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { env } from "../_generated/server";
 import type { ProviderIntent } from "./paymentOperation";
+import { MercadoPagoApiError } from "./mercadopagoError";
+
+function safeProviderDetail(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value !== "string") return undefined;
+  return value.replace(/[\r\n\x00-\x1f]/g, " ").slice(0, 200);
+}
 
 // Unlike the admin listing, financial operations must never interpret an HTTP
 // error or malformed response as absence of payments or successful completion.
@@ -21,8 +28,18 @@ async function request(
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  if (!response.ok)
-    throw new Error(`Mercado Pago API failed with ${response.status}`);
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null);
+    const details =
+      body && typeof body === "object" && !Array.isArray(body)
+        ? (body as Record<string, unknown>)
+        : null;
+    throw new MercadoPagoApiError(
+      response.status,
+      safeProviderDetail(details?.error),
+      safeProviderDetail(details?.message),
+    );
+  }
   return await response.json();
 }
 

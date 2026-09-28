@@ -80,7 +80,9 @@ export default function RefundNoticeBanner() {
     <div className="w-full max-w-5xl space-y-3 px-4 pt-4">
       {visibleNotices.map((notice) => {
         const isCompleted = notice.status === "completed";
-        const isNeedsRetry = notice.status === "needs_retry";
+        const isNeedsRetry =
+          notice.status === "needs_retry" ||
+          notice.status === "needs_attention";
 
         return (
           <div

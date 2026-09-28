@@ -74,10 +74,26 @@ describe("refund notices (Issue 99)", () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
+
+      await ctx.db.insert("vouchers", setupVoucher("CANC_HOLD", "cancelled"));
+      await ctx.db.insert("paymentRefunds", {
+        paymentId: "pay-canc-hold",
+        voucherCode: "CANC_HOLD",
+        amountCents: 10000,
+        status: "needs_attention",
+        attemptCount: 5,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
     });
 
     const notices = await t.query(api.refunds.getRefundNoticesForVouchers, {
-      vouchers: voucherAccess("CANC_PROC", "CANC_CONF", "CANC_FAIL"),
+      vouchers: voucherAccess(
+        "CANC_PROC",
+        "CANC_CONF",
+        "CANC_FAIL",
+        "CANC_HOLD",
+      ),
     });
 
     const procNotice = notices.find((n) => n.voucherCode === "CANC_PROC");
@@ -97,6 +113,11 @@ describe("refund notices (Issue 99)", () => {
       "O reembolso ainda não foi concluído. Continuaremos tentando automaticamente.",
     );
     expect(failNotice?.isDismissible).toBe(false);
+    const heldNotice = notices.find((n) => n.voucherCode === "CANC_HOLD");
+    expect(heldNotice?.message).toBe(
+      "O reembolso ainda não foi concluído. Nossa equipe foi avisada e está verificando o caso.",
+    );
+    expect(heldNotice?.isDismissible).toBe(false);
   });
 
   test("a duplicate charge is described as a duplicate payment rather than a post-cancellation payment", async () => {

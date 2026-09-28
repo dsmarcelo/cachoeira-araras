@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
-import { internal } from "./_generated/api";
-import { createConvexTest } from "./test.setup";
+import { api, internal } from "./_generated/api";
+import { createConvexTest, withAuth } from "./test.setup";
 import { createMercadoPagoFake } from "./testing/mercadopagoFake";
 
 let fake: ReturnType<typeof createMercadoPagoFake>;
@@ -177,6 +177,132 @@ describe("payment refunds", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test("a 401 requires attention and never schedules another provider call", async () => {
+    const t = createConvexTest();
+    fake = createMercadoPagoFake();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("vouchers", setupVoucherDefaults());
+    });
+    fake.respondWith("refund", "unauthorized");
+    const refundId = await t.mutation(internal.refunds.requestRefund, {
+      paymentId: "pay-unauthorized",
+      voucherCode: "REF001",
+      amountCents: 15000,
+    });
+
+    await t.action(internal.refunds.attemptRefund, { refundId });
+    const refund = await t.run(async (ctx) =>
+      ctx.db.get("paymentRefunds", refundId),
+    );
+    expect(refund?.status).toBe("needs_attention");
+    expect(refund?.attemptCount).toBe(1);
+    expect(refund?.nextAttemptAt).toBeUndefined();
+    const alerts = await t.run(async (ctx) =>
+      ctx.db.query("operationalAlerts").collect(),
+    );
+    expect(alerts).toHaveLength(1);
+    const admin = await withAuth(t, "admin");
+    expect(await admin.query(api.refunds.listOperationalAlerts, {})).toMatchObject([
+      { needsAttention: true },
+    ]);
+    expect(await t.mutation(internal.refunds.sweepOverdueRefunds, {})).toBe(0);
+    await t.action(internal.refunds.attemptRefund, { refundId });
+    expect(
+      fake.attempts.filter((attempt) => attempt.kind === "refund"),
+    ).toHaveLength(1);
+  });
+
+  test("old excessive retries stop before another provider call", async () => {
+    const t = createConvexTest();
+    fake = createMercadoPagoFake();
+    const refundId = await t.run(async (ctx) =>
+      ctx.db.insert("paymentRefunds", {
+        paymentId: "pay-old-failure",
+        voucherCode: "REF001",
+        amountCents: 15000,
+        status: "needs_retry",
+        attemptCount: 55_000,
+        nextAttemptAt: Date.now() - 1,
+        createdAt: Date.now() - 60_000,
+        updatedAt: Date.now() - 60_000,
+      }),
+    );
+
+    await t.action(internal.refunds.attemptRefund, { refundId });
+    const refund = await t.run(async (ctx) =>
+      ctx.db.get("paymentRefunds", refundId),
+    );
+    expect(refund?.status).toBe("needs_attention");
+    expect(fake.attempts).toHaveLength(0);
+  });
+
+  test("transient failures stop after five attempts", async () => {
+    const t = createConvexTest();
+    fake = createMercadoPagoFake();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("vouchers", setupVoucherDefaults());
+    });
+    fake.respondWith(
+      "refund",
+      ...Array.from({ length: 5 }, () => "transientFailure" as const),
+    );
+    const refundId = await t.mutation(internal.refunds.requestRefund, {
+      paymentId: "pay-five-failures",
+      voucherCode: "REF001",
+      amountCents: 15000,
+    });
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await t.action(internal.refunds.attemptRefund, { refundId });
+    }
+    const refund = await t.run(async (ctx) =>
+      ctx.db.get("paymentRefunds", refundId),
+    );
+    expect(refund?.status).toBe("needs_attention");
+    expect(refund?.attemptCount).toBe(5);
+    expect(await t.mutation(internal.refunds.sweepOverdueRefunds, {})).toBe(0);
+    await t.action(internal.refunds.attemptRefund, { refundId });
+    expect(fake.attempts).toHaveLength(5);
+  });
+
+  test("manual resume keeps the original operation and idempotency key", async () => {
+    const t = createConvexTest();
+    fake = createMercadoPagoFake();
+    fake.payments.set("pay-resume", {
+      id: "pay-resume",
+      status: "approved",
+      externalReference: "REF001",
+      amount: 150,
+      refundedAmount: 0,
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("vouchers", setupVoucherDefaults());
+    });
+    fake.respondWith("refund", "unauthorized", "success");
+    const refundId = await t.mutation(internal.refunds.requestRefund, {
+      paymentId: "pay-resume",
+      voucherCode: "REF001",
+      amountCents: 15000,
+    });
+    await t.action(internal.refunds.attemptRefund, { refundId });
+    const operationId = (
+      await t.run(async (ctx) => ctx.db.get("paymentRefunds", refundId))
+    )?.operationId;
+
+    await t.mutation(internal.refunds.resumeRefund, { id: refundId });
+    await t.action(internal.refunds.attemptRefund, { refundId });
+
+    const refund = await t.run(async (ctx) =>
+      ctx.db.get("paymentRefunds", refundId),
+    );
+    expect(refund?.status).toBe("completed");
+    expect(refund?.operationId).toBe(operationId);
+    expect(new Set(fake.attempts.map((attempt) => attempt.key)).size).toBe(1);
+    expect(
+      await t.run(async (ctx) => ctx.db.query("operationalAlerts").collect()),
+    ).toHaveLength(0);
   });
 
   test("a sweep recovers overdue refunds that lost their scheduled attempt", async () => {

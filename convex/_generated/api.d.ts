@@ -15,6 +15,7 @@ import type * as http from "../http.js";
 import type * as import_ from "../import.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_mercadopago from "../lib/mercadopago.js";
+import type * as lib_mercadopagoError from "../lib/mercadopagoError.js";
 import type * as lib_mercadopagoOperations from "../lib/mercadopagoOperations.js";
 import type * as lib_paymentOperation from "../lib/paymentOperation.js";
 import type * as lib_rateLimiter from "../lib/rateLimiter.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   import: typeof import_;
   "lib/auth": typeof lib_auth;
   "lib/mercadopago": typeof lib_mercadopago;
+  "lib/mercadopagoError": typeof lib_mercadopagoError;
   "lib/mercadopagoOperations": typeof lib_mercadopagoOperations;
   "lib/paymentOperation": typeof lib_paymentOperation;
   "lib/rateLimiter": typeof lib_rateLimiter;

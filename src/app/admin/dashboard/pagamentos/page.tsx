@@ -389,6 +389,12 @@ export default function AdminPaymentsPage() {
                   {alert.customerName} · {formatPhone(alert.customerPhone)} ·{" "}
                   {alert.attemptCount} tentativas
                 </p>
+                {alert.needsAttention ? (
+                  <p className="mt-1 font-medium text-red-700">
+                    Tentativas pausadas. Confira a autorização no Mercado Pago e o
+                    estado do reembolso antes de retomar.
+                  </p>
+                ) : null}
               </div>
             ))}
           </CardContent>

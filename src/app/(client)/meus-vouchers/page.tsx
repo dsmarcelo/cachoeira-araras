@@ -189,7 +189,9 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
         <div className="space-y-2">
           {refundNotices.map((notice) => {
             const isCompleted = notice.status === "completed";
-            const isNeedsRetry = notice.status === "needs_retry";
+            const isNeedsRetry =
+              notice.status === "needs_retry" ||
+              notice.status === "needs_attention";
             return (
               <div
                 key={notice.refundId}

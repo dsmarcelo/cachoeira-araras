@@ -20,3 +20,8 @@ cancellation can return an approved payment when approval won the race.
 Payment discovery has no date or status restriction, reads up to 1,000 payments,
 and fails instead of returning a partial result when the scan is incomplete.
 Provider errors are never interpreted as an empty payment history.
+
+Refund authorization failures stop automatic attempts and require staff review.
+Other failures stop after five attempts per retry cycle; resuming a held refund
+reuses its original payment operation and idempotency key. Staff must check the
+provider's refund state before resuming, since a response may have been lost.

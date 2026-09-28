@@ -9,9 +9,12 @@ import {
 import type { Id } from "./_generated/dataModel";
 import type { OperationResult } from "./lib/paymentOperation";
 import { requireRole } from "./lib/auth";
+import schema from "./schema";
 
 const MAX_PUBLIC_REFUND_LOOKUPS = 50;
 const REFUND_SWEEP_BATCH_SIZE = 100;
+const MAX_REFUND_ATTEMPTS_PER_CYCLE = 5;
+const PROCESSING_LEASE_MS = 5 * 60_000;
 
 /**
  * Persists and tracks full Payment Refunds for Excess Payments.
@@ -42,6 +45,7 @@ export const requestRefund = internalMutation({
       amountCents: args.amountCents,
       status: "pending_attempt",
       attemptCount: 0,
+      retryCycleCount: 0,
       nextAttemptAt: now,
       createdAt: now,
       updatedAt: now,
@@ -57,6 +61,7 @@ export const requestRefund = internalMutation({
 
 export const getRefund = internalQuery({
   args: { id: v.id("paymentRefunds") },
+  returns: v.union(schema.doc("paymentRefunds"), v.null()),
   handler: async (ctx, { id }) => {
     return await ctx.db.get("paymentRefunds", id);
   },
@@ -71,7 +76,30 @@ export const prepareAttempt = internalMutation({
   }),
   handler: async (ctx, { id }) => {
     const refund = await ctx.db.get("paymentRefunds", id);
-    if (!refund || refund.status === "completed") {
+    if (
+      !refund ||
+      refund.status === "completed" ||
+      refund.status === "needs_attention"
+    ) {
+      return { canAttempt: false };
+    }
+
+    if (
+      (refund.retryCycleCount ?? refund.attemptCount) >=
+      MAX_REFUND_ATTEMPTS_PER_CYCLE
+    ) {
+      await ctx.db.patch(id, {
+        status: "needs_attention",
+        nextAttemptAt: undefined,
+        updatedAt: Date.now(),
+      });
+      return { canAttempt: false };
+    }
+
+    if (
+      refund.status === "processing" &&
+      (refund.nextAttemptAt ?? 0) > Date.now()
+    ) {
       return { canAttempt: false };
     }
 
@@ -83,6 +111,7 @@ export const prepareAttempt = internalMutation({
     await ctx.db.patch(id, {
       operationId,
       status: "processing",
+      nextAttemptAt: Date.now() + PROCESSING_LEASE_MS,
       updatedAt: Date.now(),
     });
 
@@ -118,6 +147,12 @@ export const markCompleted = internalMutation({
       });
     }
 
+    const alert = await ctx.db
+      .query("operationalAlerts")
+      .withIndex("by_paymentId", (q) => q.eq("paymentId", refund.paymentId))
+      .first();
+    if (alert) await ctx.db.delete(alert._id);
+
     return null;
   },
 });
@@ -126,27 +161,39 @@ export const recordFailure = internalMutation({
   args: {
     id: v.id("paymentRefunds"),
     error: v.string(),
+    httpStatus: v.optional(v.number()),
   },
   returns: v.null(),
-  handler: async (ctx, { id, error }) => {
+  handler: async (ctx, { id, error, httpStatus }) => {
     const refund = await ctx.db.get("paymentRefunds", id);
-    if (!refund || refund.status === "completed") return null;
+    if (
+      !refund ||
+      refund.status === "completed" ||
+      refund.status === "needs_attention"
+    )
+      return null;
 
     const attemptCount = refund.attemptCount + 1;
-    const delayMs = Math.min(1000 * Math.pow(2, attemptCount - 1), 60000);
+    const retryCycleCount = (refund.retryCycleCount ?? refund.attemptCount) + 1;
+    const needsAttention =
+      httpStatus === 401 ||
+      httpStatus === 403 ||
+      retryCycleCount >= MAX_REFUND_ATTEMPTS_PER_CYCLE;
+    const delayMs = Math.min(1000 * Math.pow(2, retryCycleCount - 1), 60000);
     const nextAttemptAt = Date.now() + delayMs;
 
     await ctx.db.patch(id, {
-      status: "needs_retry",
+      status: needsAttention ? "needs_attention" : "needs_retry",
       attemptCount,
-      nextAttemptAt,
+      retryCycleCount,
+      nextAttemptAt: needsAttention ? undefined : nextAttemptAt,
       lastError: error.slice(0, 500),
       updatedAt: Date.now(),
     });
 
     // Technical monitoring handles first failure; repeated failures (>=2)
     // raise an operational alert for staff follow-up with customer contact.
-    if (attemptCount >= 2) {
+    if (attemptCount >= 2 || needsAttention) {
       const existingAlert = await ctx.db
         .query("operationalAlerts")
         .withIndex("by_paymentId", (q) => q.eq("paymentId", refund.paymentId))
@@ -178,10 +225,35 @@ export const recordFailure = internalMutation({
       }
     }
 
-    await ctx.scheduler.runAfter(delayMs, internal.refunds.attemptRefund, {
+    if (!needsAttention) {
+      await ctx.scheduler.runAfter(delayMs, internal.refunds.attemptRefund, {
+        refundId: id,
+      });
+    }
+
+    return null;
+  },
+});
+
+/** Resume a held refund after provider access and refund state are checked. */
+export const resumeRefund = internalMutation({
+  args: { id: v.id("paymentRefunds") },
+  returns: v.null(),
+  handler: async (ctx, { id }) => {
+    const refund = await ctx.db.get("paymentRefunds", id);
+    if (refund?.status !== "needs_attention") {
+      throw new Error("Reembolso não está aguardando intervenção.");
+    }
+    const now = Date.now();
+    await ctx.db.patch(id, {
+      status: "pending_attempt",
+      retryCycleCount: 0,
+      nextAttemptAt: now,
+      updatedAt: now,
+    });
+    await ctx.scheduler.runAfter(0, internal.refunds.attemptRefund, {
       refundId: id,
     });
-
     return null;
   },
 });
@@ -219,16 +291,24 @@ export const attemptRefund = internalAction({
         id: refundId,
       });
     } catch (err) {
+      const operation = await ctx.runQuery(internal.paymentOperations.get, {
+        id: prep.operationId,
+      });
       const message =
-        err instanceof Error ? err.message : "Provider request failed";
+        operation.lastError ??
+        (err instanceof Error ? err.message : "Provider request failed");
 
       await ctx.runMutation(internal.refunds.recordFailure, {
         id: refundId,
         error: message,
+        httpStatus: operation.lastHttpStatus,
       });
       console.error("Mercado Pago refund attempt failed", {
         refundId,
         message,
+        httpStatus: operation.lastHttpStatus,
+        providerCode: operation.lastProviderCode,
+        providerMessage: operation.lastProviderMessage,
       });
     }
 
@@ -297,6 +377,7 @@ export const getRefundNoticesForVouchers = query({
         v.literal("processing"),
         v.literal("completed"),
         v.literal("needs_retry"),
+        v.literal("needs_attention"),
       ),
       isPostCancellation: v.boolean(),
       message: v.string(),
@@ -322,10 +403,7 @@ export const getRefundNoticesForVouchers = query({
         )
         .unique();
 
-      if (
-        voucher?.code !== access.code ||
-        voucher.deletedAt !== undefined
-      ) {
+      if (voucher?.code !== access.code || voucher.deletedAt !== undefined) {
         continue;
       }
 
@@ -347,6 +425,10 @@ export const getRefundNoticesForVouchers = query({
           case "needs_retry":
             message =
               "O reembolso ainda não foi concluído. Continuaremos tentando automaticamente.";
+            break;
+          case "needs_attention":
+            message =
+              "O reembolso ainda não foi concluído. Nossa equipe foi avisada e está verificando o caso.";
             break;
           case "pending_attempt":
           case "processing":
@@ -384,6 +466,7 @@ export const listOperationalAlerts = query({
       customerName: v.string(),
       customerPhone: v.string(),
       attemptCount: v.number(),
+      needsAttention: v.boolean(),
       createdAt: v.number(),
     }),
   ),
@@ -395,13 +478,22 @@ export const listOperationalAlerts = query({
       .order("desc")
       .take(100);
 
-    return alerts.map((alert) => ({
-      id: alert._id,
-      voucherCode: alert.voucherCode,
-      customerName: alert.customerContact.name,
-      customerPhone: alert.customerContact.phone,
-      attemptCount: alert.attemptCount,
-      createdAt: alert.createdAt,
-    }));
+    return await Promise.all(
+      alerts.map(async (alert) => {
+        const refund = await ctx.db
+          .query("paymentRefunds")
+          .withIndex("by_paymentId", (q) => q.eq("paymentId", alert.paymentId))
+          .first();
+        return {
+          id: alert._id,
+          voucherCode: alert.voucherCode,
+          customerName: alert.customerContact.name,
+          customerPhone: alert.customerContact.phone,
+          attemptCount: alert.attemptCount,
+          needsAttention: refund?.status === "needs_attention",
+          createdAt: alert.createdAt,
+        };
+      }),
+    );
   },
 });

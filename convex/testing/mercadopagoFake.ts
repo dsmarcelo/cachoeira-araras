@@ -1,7 +1,8 @@
 import type { OperationRequest, ProviderIntent } from "../lib/paymentOperation";
 import type * as adapter from "../lib/mercadopagoOperations";
+import { MercadoPagoApiError } from "../lib/mercadopagoError";
 
-type Mode = "success" | "transientFailure" | "lostResponse";
+type Mode = "success" | "transientFailure" | "lostResponse" | "unauthorized";
 type Kind = OperationRequest["kind"];
 
 /** Only the provider is fake: state survives a lost response and subsequent retries. */
@@ -33,6 +34,12 @@ export function createMercadoPagoFake() {
     const mode = modes.get(kind)?.shift() ?? "success";
     if (mode === "transientFailure")
       throw new Error("Transient provider failure");
+    if (mode === "unauthorized")
+      throw new MercadoPagoApiError(
+        401,
+        "invalid_token",
+        "Invalid access token",
+      );
     const result = effect();
     if (mode === "lostResponse") throw new Error("Provider response lost");
     return structuredClone(result);

@@ -17,6 +17,7 @@ import {
   findPaymentsByExternalReference,
   cancelPayment,
 } from "./lib/mercadopagoOperations";
+import { MercadoPagoApiError } from "./lib/mercadopagoError";
 
 // Call from the owning transaction and retain the returned id for every retry.
 export const record = internalMutation({
@@ -50,9 +51,15 @@ export const reconcile = internalMutation({
     id: v.id("paymentOperations"),
     result: v.optional(operationResult),
     error: v.optional(v.string()),
+    httpStatus: v.optional(v.number()),
+    providerCode: v.optional(v.string()),
+    providerMessage: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, { id, result, error }) => {
+  handler: async (
+    ctx,
+    { id, result, error, httpStatus, providerCode, providerMessage },
+  ) => {
     const intent = await ctx.db.get("paymentOperations", id);
     if (!intent) throw new Error("Payment operation not found");
     // A concurrent failed attempt must never overwrite a successful result.
@@ -61,8 +68,20 @@ export const reconcile = internalMutation({
       "paymentOperations",
       id,
       result !== undefined
-        ? { result, completedAt: Date.now(), lastError: undefined }
-        : { lastError: error },
+        ? {
+            result,
+            completedAt: Date.now(),
+            lastError: undefined,
+            lastHttpStatus: undefined,
+            lastProviderCode: undefined,
+            lastProviderMessage: undefined,
+          }
+        : {
+            lastError: error,
+            lastHttpStatus: httpStatus,
+            lastProviderCode: providerCode,
+            lastProviderMessage: providerMessage,
+          },
     );
     return null;
   },
@@ -114,6 +133,13 @@ export const execute = internalAction({
           ? error.message
           : "Provider request failed"
         ).slice(0, 500),
+        ...(error instanceof MercadoPagoApiError
+          ? {
+              httpStatus: error.status,
+              providerCode: error.providerCode,
+              providerMessage: error.providerMessage,
+            }
+          : {}),
       });
       throw error;
     }
@@ -144,4 +170,3 @@ export const executeWithRetry = internalAction({
     }
   },
 });
-

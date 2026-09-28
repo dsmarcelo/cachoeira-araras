@@ -41,7 +41,7 @@ export function formatVoucherStatusWithoutBg(status: string, expiration_date: st
   }
 }
 
-export type RefundStatus = "pending_attempt" | "processing" | "completed" | "needs_retry";
+export type RefundStatus = "pending_attempt" | "processing" | "completed" | "needs_retry" | "needs_attention";
 
 export function formatRefundMessage({
   status,
@@ -57,6 +57,8 @@ export function formatRefundMessage({
         : "O pagamento duplicado foi reembolsado.";
     case "needs_retry":
       return "O reembolso ainda não foi concluído. Continuaremos tentando automaticamente.";
+    case "needs_attention":
+      return "O reembolso ainda não foi concluído. Nossa equipe foi avisada e está verificando o caso.";
     case "pending_attempt":
     case "processing":
     default:
