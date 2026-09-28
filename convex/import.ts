@@ -5,14 +5,14 @@ import { referrerValidator, voucherStatusValidator } from "./vouchers";
 
 /**
  * Internal write side of the Postgres-to-Convex import
- * (scripts/import-postgres-to-convex). These are never reachable from a
+ * (scripts/import-postgres-to-convex). This is never reachable from a
  * client: the standalone script is the only caller, invoked via
  * `npx convex run import:importVouchers` against a chosen deployment.
  *
- * Idempotent by design: a row whose natural key (Voucher Code / setting
- * key) already exists is left untouched and reported "unchanged", so
- * re-running the script never produces duplicates or overwrites data a
- * live app may have already written for that key.
+ * Idempotent by design: a row whose natural key (Voucher Code) already
+ * exists is left untouched and reported "unchanged", so re-running the
+ * script never produces duplicates or overwrites data a live app may have
+ * already written for that code.
  */
 
 const importOutcome = v.union(v.literal("inserted"), v.literal("unchanged"));
@@ -60,46 +60,6 @@ export const importVouchers = internalMutation({
 
       await ctx.db.insert("vouchers", { ...row, isTest: false });
       results.push({ code: row.code, outcome: "inserted" });
-    }
-
-    return results;
-  },
-});
-
-const settingValueValidator = v.union(
-  v.number(),
-  v.string(),
-  v.boolean(),
-  v.array(v.string()),
-);
-
-const settingImportValidator = v.object({
-  key: v.string(),
-  value: settingValueValidator,
-  updatedBy: v.optional(v.string()),
-  updatedAt: v.optional(v.number()),
-});
-
-/** Imports a batch of already-typed Site Settings, preserving their audit fields. */
-export const importSettings = internalMutation({
-  args: { rows: v.array(settingImportValidator) },
-  returns: v.array(v.object({ key: v.string(), outcome: importOutcome })),
-  handler: async (ctx, args) => {
-    const results: { key: string; outcome: "inserted" | "unchanged" }[] = [];
-
-    for (const row of args.rows) {
-      const existing = await ctx.db
-        .query("settings")
-        .withIndex("by_key", (q) => q.eq("key", row.key))
-        .unique();
-
-      if (existing) {
-        results.push({ key: row.key, outcome: "unchanged" });
-        continue;
-      }
-
-      await ctx.db.insert("settings", row);
-      results.push({ key: row.key, outcome: "inserted" });
     }
 
     return results;

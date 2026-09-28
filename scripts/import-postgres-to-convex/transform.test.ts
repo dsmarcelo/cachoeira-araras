@@ -1,13 +1,11 @@
-import type { Referrer, SiteSetting, Voucher } from "@prisma/client";
+import type { Referrer, Voucher } from "@prisma/client";
 import { describe, expect, test } from "vitest";
 
 import {
-  buildSettingImportRow,
   buildVoucherImportRow,
   foldReferrer,
   normalizeVoucherStatus,
   reaisToCents,
-  SettingImportError,
   splitExpiresAt,
 } from "./transform";
 
@@ -30,21 +28,6 @@ function baseVoucher(overrides: Partial<Voucher> = {}): Voucher {
     createdAt: new Date("2026-08-02T19:00:00.000Z"),
     updatedAt: new Date("2026-08-02T19:00:00.000Z"),
     deletedAt: null,
-    ...overrides,
-  };
-}
-
-function baseSetting(overrides: Partial<SiteSetting> = {}): SiteSetting {
-  return {
-    id: 1,
-    key: "voucher.price",
-    type: "number",
-    stringValue: null,
-    numberValue: null,
-    boolValue: null,
-    jsonValue: null,
-    updatedAt: new Date("2026-06-02T04:12:16.314Z"),
-    updatedBy: null,
     ...overrides,
   };
 }
@@ -164,84 +147,5 @@ describe("buildVoucherImportRow", () => {
     expect(() =>
       buildVoucherImportRow(baseVoucher({ expires_at: null }), undefined),
     ).toThrow(/no expires_at/);
-  });
-});
-
-describe("buildSettingImportRow", () => {
-  test("converts a price setting from reais to exact integer cents", () => {
-    const row = buildSettingImportRow(
-      baseSetting({ key: "voucher.price", type: "number", numberValue: 70 }),
-    );
-    expect(row.value).toBe(7000);
-  });
-
-  test("leaves a non-price number setting unconverted", () => {
-    const row = buildSettingImportRow(
-      baseSetting({
-        key: "max.intended.days",
-        type: "number",
-        numberValue: 60,
-      }),
-    );
-    expect(row.value).toBe(60);
-  });
-
-  test("reads a string setting from stringValue", () => {
-    const row = buildSettingImportRow(
-      baseSetting({ key: "form.message", type: "string", stringValue: "" }),
-    );
-    expect(row.value).toBe("");
-  });
-
-  test("reads a boolean setting from boolValue", () => {
-    const row = buildSettingImportRow(
-      baseSetting({
-        key: "enable.voucher.buy",
-        type: "boolean",
-        boolValue: true,
-      }),
-    );
-    expect(row.value).toBe(true);
-  });
-
-  test("reads a string[] setting from jsonValue", () => {
-    const row = buildSettingImportRow(
-      baseSetting({
-        key: "disabled.days",
-        type: "json",
-        jsonValue: ["2025-10-02", "2025-09-30"],
-      }),
-    );
-    expect(row.value).toEqual(["2025-10-02", "2025-09-30"]);
-  });
-
-  test("preserves updatedBy and updatedAt", () => {
-    const updatedAt = new Date("2026-06-02T04:12:16.314Z");
-    const row = buildSettingImportRow(
-      baseSetting({
-        key: "voucher.price",
-        numberValue: 70,
-        updatedBy: "admin-1",
-        updatedAt,
-      }),
-    );
-    expect(row.updatedBy).toBe("admin-1");
-    expect(row.updatedAt).toBe(updatedAt.getTime());
-  });
-
-  test("fails visibly on an unknown key instead of silently dropping it", () => {
-    expect(() =>
-      buildSettingImportRow(
-        baseSetting({ key: "enalbe.voucher.buy", boolValue: true }),
-      ),
-    ).toThrow(SettingImportError);
-  });
-
-  test("fails visibly when the declared-type column doesn't match, instead of defaulting", () => {
-    expect(() =>
-      buildSettingImportRow(
-        baseSetting({ key: "voucher.price", type: "number", numberValue: null }),
-      ),
-    ).toThrow(SettingImportError);
   });
 });
