@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { ConvexError } from "convex/values";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { api } from "./_generated/api";
 import type * as voucherCodeModule from "./lib/voucherCode";
@@ -79,6 +79,8 @@ beforeEach(() => {
   });
 });
 
+afterEach(() => vi.unstubAllEnvs());
+
 const visitDateMs = new Date("2026-09-10T12:00:00-03:00").getTime();
 
 function validArgs(overrides: Record<string, unknown> = {}) {
@@ -94,20 +96,40 @@ function validArgs(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test("charges the server-derived price regardless of what a client sends", async () => {
+test("charges the environment price even when an old database price exists", async () => {
+  vi.stubEnv("NEXT_PUBLIC_VOUCHER_PRICE", "80");
   const t = createConvexTest();
-  const asAdmin = await withAuth(t, "admin");
-  await asAdmin.mutation(api.settings.set, {
-    key: "voucher.price",
-    value: 5000,
+  await t.run(async (ctx) => {
+    await ctx.db.insert("settings", {
+      key: "voucher.price",
+      value: 5000,
+    });
   });
 
-  const result = await t.action(api.vouchers.startCheckout, validArgs());
-
-  expect(result.priceCents).toBe(10000);
-  expect(createCheckoutPreference).toHaveBeenCalledWith(
-    expect.objectContaining({ priceCents: 10000 }),
+  const result = await t.action(
+    api.vouchers.startCheckout,
+    validArgs({ visitDateMs: Date.now() + 7 * 24 * 60 * 60 * 1000 }),
   );
+
+  expect(result.priceCents).toBe(16000);
+  expect(createCheckoutPreference).toHaveBeenCalledWith(
+    expect.objectContaining({ priceCents: 16000 }),
+  );
+});
+
+test("publishes environment prices and prevents editing them as settings", async () => {
+  vi.stubEnv("NEXT_PUBLIC_VOUCHER_PRICE", "72.50");
+  const t = createConvexTest();
+  const asAdmin = await withAuth(t, "admin");
+
+  expect((await t.query(api.settings.getAll, {}))["voucher.price"]).toBe(7250);
+  expect(await t.query(api.settings.get, { key: "voucher.price" })).toEqual({
+    key: "voucher.price",
+    value: 7250,
+  });
+  await expect(
+    asAdmin.mutation(api.settings.set, { key: "voucher.price", value: 5000 }),
+  ).rejects.toThrow(/ambiente do servidor/);
 });
 
 test("a past visit date is refused with an actionable reason", async () => {
@@ -552,4 +574,3 @@ test("when losing preference invalidation encounters a transient provider failur
     ),
   ).toBe(true);
 });
-

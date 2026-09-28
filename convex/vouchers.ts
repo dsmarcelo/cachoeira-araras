@@ -914,7 +914,7 @@ function buildReferrer(
 }
 
 /**
- * A voucher purchase: derive the price from current Site Settings (never
+ * A voucher purchase: derive the price from the server environment (never
  * from client input), generate a short unique code, create the Mercado Pago
  * checkout preference, then hand off to `insertPendingVoucher` — which
  * re-checks code uniqueness and inserts in one transaction. A collision

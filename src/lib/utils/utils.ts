@@ -24,7 +24,6 @@ export function randomCode(): string {
 
 /**
  * Get the current voucher price from environment variables.
- * This function will be updated later to fetch from database.
  * @returns The current voucher price for adults
  */
 export function getVoucherPrice(): number {

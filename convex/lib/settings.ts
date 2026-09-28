@@ -8,8 +8,8 @@
  * convex/schema.ts); this module just says which keys are meaningful and
  * what to assume when a key has never been written.
  *
- * Prices are stored in cents, matching `vouchers.priceCents`. Admin inputs
- * accept reais and convert to cents at the UI boundary.
+ * Prices are read from the Convex deployment environment in reais and
+ * converted to cents, matching `vouchers.priceCents`.
  */
 export type SettingKey =
   | "voucher.price"
@@ -45,7 +45,7 @@ export interface SettingValueMap {
 }
 
 export const DEFAULT_SETTINGS: SettingValueMap = {
-  "voucher.price": 5000,
+  "voucher.price": 7000,
   "voucher.pool.price": 7000,
   "voucher.max.quantity.adults": 20,
   "voucher.max.quantity.elderly": 20,
@@ -63,14 +63,53 @@ export const DEFAULT_SETTINGS: SettingValueMap = {
 
 export const SETTING_KEYS = Object.keys(DEFAULT_SETTINGS) as SettingKey[];
 
+const PRICE_ENV_KEYS = {
+  "voucher.price": "NEXT_PUBLIC_VOUCHER_PRICE",
+  "voucher.pool.price": "NEXT_PUBLIC_POOL_VOUCHER_PRICE",
+} as const;
+
+export function isPriceSetting(key: string): key is keyof typeof PRICE_ENV_KEYS {
+  return Object.hasOwn(PRICE_ENV_KEYS, key);
+}
+
+function priceFromEnv(key: keyof typeof PRICE_ENV_KEYS): number {
+  const raw = process.env[PRICE_ENV_KEYS[key]]?.trim();
+  if (!raw) return DEFAULT_SETTINGS[key];
+
+  const match = /^(\d+)(?:[.,](\d+))?$/.exec(raw);
+  const fraction = match?.[2] ?? "";
+  const cents = match
+    ? Math.max(
+        1,
+        Number(match[1]) * 100 +
+          Number(fraction.slice(0, 2).padEnd(2, "0")) +
+          (Number(fraction[2] ?? "0") >= 5 ? 1 : 0),
+      )
+    : NaN;
+  if (
+    !Number.isSafeInteger(cents) ||
+    !match ||
+    (Number(match[1]) === 0 && !/[1-9]/.test(fraction))
+  ) {
+    throw new Error(`${PRICE_ENV_KEYS[key]} deve ser um valor positivo em reais.`);
+  }
+  return cents;
+}
+
+export function getVoucherPrices() {
+  return {
+    "voucher.price": priceFromEnv("voucher.price"),
+    "voucher.pool.price": priceFromEnv("voucher.pool.price"),
+  };
+}
+
 function isSettingKey(key: string): key is SettingKey {
   return (SETTING_KEYS as string[]).includes(key);
 }
 
 /**
- * Merges stored `settings` documents onto `DEFAULT_SETTINGS`, so a key that
- * was never written (or was written with a shape that no longer matches
- * this map) falls back to its default rather than surfacing as `undefined`.
+ * Merges stored settings with defaults. Prices always come from the
+ * deployment environment, even when older price rows remain in the database.
  */
 export function mergeSettings(
   rows: Array<{ key: string; value: SettingValueMap[SettingKey] }>,
@@ -78,12 +117,12 @@ export function mergeSettings(
   const merged = { ...DEFAULT_SETTINGS };
 
   for (const row of rows) {
-    if (isSettingKey(row.key)) {
+    if (isSettingKey(row.key) && !isPriceSetting(row.key)) {
       // Each key's stored value shape matches its map entry by construction
       // (settings.set is the only writer, and admin inputs are typed per key).
       (merged as Record<SettingKey, unknown>)[row.key] = row.value;
     }
   }
 
-  return merged;
+  return { ...merged, ...getVoucherPrices() };
 }

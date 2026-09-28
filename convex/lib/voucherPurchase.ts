@@ -13,7 +13,7 @@ import type { SettingValueMap } from "./settings";
  * a scenario that needs a Mercado Pago stub to reach.
  *
  * The Convex action (`convex/vouchers.ts` `startCheckout`) is the only
- * caller; it supplies settings fetched from the database and the price this
+ * caller; it supplies settings with prices from the environment and the price this
  * function returns is what actually gets charged, never a client-sent price.
  */
 export interface VoucherPurchaseInput {

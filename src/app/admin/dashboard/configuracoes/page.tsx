@@ -11,25 +11,8 @@ import {
 } from "./_components/setting-form";
 import { Toaster } from "@/components/ui/toaster";
 
-// Display metadata and defaults for each setting key. Prices are entered by
-// the admin in reais but stored (and defaulted here) in cents, matching
-// vouchers.priceCents; the form components handle the reais<->cents
-// conversion at the boundary.
+// Display metadata and defaults for settings managed in this panel.
 const SETTING_CONFIG = {
-  "voucher.price": {
-    label: "Preço do Voucher",
-    description: "Preço base para vouchers normais",
-    type: "number" as const,
-    isCurrency: true,
-    defaultValue: 5000,
-  },
-  "voucher.pool.price": {
-    label: "Preço do Voucher Piscina",
-    description: "Preço base para vouchers com acesso à piscina",
-    type: "number" as const,
-    isCurrency: true,
-    defaultValue: 7000,
-  },
   "voucher.max.quantity.adults": {
     label: "Máximo de Adultos - Voucher Normal",
     description: "Número máximo de adultos permitidos em vouchers normais",
@@ -173,7 +156,6 @@ export default function ConfiguracoesPage() {
                   value={(stored?.value as number) ?? config.defaultValue}
                   label={config.label}
                   description={config.description}
-                  isCurrency={"isCurrency" in config && config.isCurrency}
                   onSave={async (value) => {
                     await setSetting({ key, value });
                   }}

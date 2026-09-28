@@ -101,12 +101,15 @@ Para realizar testes manuais de compra no Checkout do Mercado Pago em ambiente s
 | Key | Padrao | Uso |
 | --- | --- | --- |
 | `NEXT_PUBLIC_MAX_INTENDED_DAYS` | `30` | Limite de dias para datas pretendidas de voucher. |
-| `NEXT_PUBLIC_VOUCHER_PRICE` | `50` | Preco base do voucher adulto. |
+| `NEXT_PUBLIC_VOUCHER_PRICE` | `70` | Preco base do voucher adulto. |
 | `NEXT_PUBLIC_POOL_VOUCHER_PRICE` | `70` | Preco base do voucher com piscina. |
 | `NEXT_PUBLIC_ALERT_MESSAGE` | Nao definido | Mensagem publica opcional de alerta no app. |
 | `NEXT_PUBLIC_ENABLE_ANALYTICS` | `false` | Liga ou desliga o Vercel Analytics no layout. |
 | `NEXT_PUBLIC_VERCEL_URL` | Nao definido | URL publica de preview do Vercel usada como fallback para imagens/links. Normalmente preenchida pela plataforma. |
 | `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL` | Nao definido | URL publica de producao do projeto no Vercel usada como fallback para imagens/links. Normalmente preenchida pela plataforma. |
+
+Os precos cobrados e exibidos vem das variaveis do deployment Convex (em reais), nao das configuracoes no banco. Configure `NEXT_PUBLIC_VOUCHER_PRICE` e `NEXT_PUBLIC_POOL_VOUCHER_PRICE` no ambiente Convex com os mesmos valores do `.env` da aplicacao (`pnpm exec convex env set NOME VALOR`). Se omitidas no Convex, ambas usam R$ 70,00.
+Os valores aceitam ponto ou virgula decimal e sao arredondados para centavos. Um valor positivo menor que R$ 0,01, como `0,0001`, cobra R$ 0,01.
 
 ### Marketing e notificacoes opcionais
 

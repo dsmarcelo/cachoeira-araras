@@ -1,8 +1,8 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import { requireRole } from "./lib/auth";
-import { mergeSettings } from "./lib/settings";
+import { getVoucherPrices, isPriceSetting, mergeSettings } from "./lib/settings";
 
 /**
  * Role comes only from the verified identity (ticket 04), never from a
@@ -29,6 +29,9 @@ export const get = query({
     v.null(),
   ),
   handler: async (ctx, args) => {
+    if (isPriceSetting(args.key)) {
+      return { key: args.key, value: getVoucherPrices()[args.key] };
+    }
     const setting = await ctx.db
       .query("settings")
       .withIndex("by_key", (q) => q.eq("key", args.key))
@@ -39,12 +42,10 @@ export const get = query({
 });
 
 /**
- * Every setting a visitor-facing page needs, merged onto the settings
- * vocabulary's defaults so a key nobody has ever written still resolves to
- * something usable. Public and unauthenticated: prices, quantity limits and
- * banner messages are shown before anyone signs in. Being an ordinary
- * reactive query is what makes a settings change reach an open visitor page
- * without a reload.
+ * Every setting a visitor-facing page needs, merged onto defaults and
+ * environment prices. Public and unauthenticated: prices, quantity limits
+ * and banner messages are shown before anyone signs in. Stored setting
+ * changes reach an open visitor page without a reload.
  */
 export const getAll = query({
   args: {},
@@ -85,7 +86,7 @@ export const list = query({
     // convex/lib/settings.ts, currently ~14 entries) rather than
     // user-generated data, so a full table scan here never grows unboundedly.
     const settings = await ctx.db.query("settings").collect();
-    return settings.map((setting) => ({
+    return settings.filter((setting) => !isPriceSetting(setting.key)).map((setting) => ({
       key: setting.key,
       value: setting.value,
       updatedBy: setting.updatedBy,
@@ -102,6 +103,9 @@ export const set = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const identity = await requireIdentityForAudit(ctx);
+    if (isPriceSetting(args.key)) {
+      throw new ConvexError("O preço do voucher é configurado no ambiente do servidor.");
+    }
 
     const existing = await ctx.db
       .query("settings")

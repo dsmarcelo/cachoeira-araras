@@ -30,6 +30,7 @@ import type * as paymentOperations from "../paymentOperations.js";
 import type * as refunds from "../refunds.js";
 import type * as settings from "../settings.js";
 import type * as testing_mercadopagoFake from "../testing/mercadopagoFake.js";
+import type * as voucherReconciliation from "../voucherReconciliation.js";
 import type * as vouchers from "../vouchers.js";
 
 import type {
@@ -61,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   refunds: typeof refunds;
   settings: typeof settings;
   "testing/mercadopagoFake": typeof testing_mercadopagoFake;
+  voucherReconciliation: typeof voucherReconciliation;
   vouchers: typeof vouchers;
 }>;
 

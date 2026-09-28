@@ -31,8 +31,7 @@ function PriceSummary({ label, priceCents, description }: PriceSummaryProps) {
 }
 
 export default function PriceTable() {
-  // A live Convex query: a price change made in the admin settings page
-  // reaches this open tab without a reload.
+  // The public settings query includes prices from the Convex environment.
   const settings = useQuery(api.settings.getAll);
 
   if (!settings) {

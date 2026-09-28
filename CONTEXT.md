@@ -56,7 +56,7 @@ record and terminal; any payment approved later is automatically refunded.
 **Voucher Purchase Intake**:
 The server-side flow that starts a customer voucher purchase. It owns the initial
 purchase rules: validating quantities and Visit Date, deriving the authoritative
-price from Site Settings, generating the Voucher Code, creating the Mercado Pago
+price from the server environment, generating the Voucher Code, creating the Mercado Pago
 checkout preference, persisting the Pending Voucher, and recording optional
 Referrer attribution. Callers never supply server-owned state such as price or
 status.

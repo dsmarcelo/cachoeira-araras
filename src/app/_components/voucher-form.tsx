@@ -60,8 +60,7 @@ export default function VoucherForm({
     [vouchers],
   );
 
-  // A live Convex query: a settings change made in the admin page reaches
-  // this open form without a reload.
+  // The public settings query includes prices from the Convex environment.
   const settings = useQuery(convexApi.settings.getAll);
   const startCheckout = useAction(convexApi.vouchers.startCheckout);
 
@@ -104,7 +103,7 @@ export default function VoucherForm({
     "disabled.days": disabledDays = [],
     "max.intended.days": maxIntendedDays = 60,
     "form.message": formMessage = "",
-    "voucher.price": voucherPriceCents = 5000,
+    "voucher.price": voucherPriceCents = 7000,
     "voucher.max.quantity.adults": maxAdults = 20,
     "enable.voucher.buy": enableVoucherBuy = true,
   } = settings ?? {};

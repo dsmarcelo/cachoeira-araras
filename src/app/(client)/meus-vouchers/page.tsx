@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useConvex, useMutation, useQuery } from "convex/react";
+import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useSavedVouchers } from "../../_components/saved-vouchers-provider";
 import VoucherRemovalControl from "../../_components/voucher-removal-control";
@@ -36,9 +36,12 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
   const { touchEvent } = useSavedVouchers();
   const convex = useConvex();
   const resumePayment = useMutation(api.vouchers.resumePayment);
+  const reconcilePayment = useAction(api.voucherReconciliation.reconcileMine);
   const router = useRouter();
   const [isResuming, setIsResuming] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
+  const [reconciliationError, setReconciliationError] = useState<string | null>(null);
+  const reconciliationAttempted = useRef(false);
   const [lookupToken, setLookupToken] = useState<string | null>(
     () => getCachedLookupToken(entry.code) ?? null,
   );
@@ -49,6 +52,23 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
     api.vouchers.getAuthorized,
     lookupToken ? { lookupToken } : "skip",
   );
+
+  useEffect(() => {
+    if (
+      voucher?.status !== "pending" ||
+      !entry.managementToken ||
+      reconciliationAttempted.current
+    ) return;
+    reconciliationAttempted.current = true;
+    void reconcilePayment({
+      code: entry.code,
+      managementToken: entry.managementToken,
+    }).catch(() => {
+      setReconciliationError(
+        "Não foi possível conferir o pagamento agora. Tente novamente em instantes.",
+      );
+    });
+  }, [voucher?.status, entry.code, entry.managementToken, reconcilePayment]);
   const imageUrl = `/api/og?code=${encodeURIComponent(entry.code)}&lookupToken=${encodeURIComponent(lookupToken ?? "")}`;
 
   // Each saved voucher's own anonymous lookup, spending shared rate-limiter
@@ -211,6 +231,9 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
         </Button>
       )}
       {resumeError && <p role="alert">{resumeError}</p>}
+      {reconciliationError && voucher?.status === "pending" && (
+        <p role="alert">{reconciliationError}</p>
+      )}
       {voucher &&
         (voucher.status === "valid" || voucher.status === "redeemed") && (
           <div className="flex flex-col gap-3">

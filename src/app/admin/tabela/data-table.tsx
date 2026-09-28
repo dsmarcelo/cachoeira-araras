@@ -1,6 +1,6 @@
 'use client'
 import * as React from "react"
-import { useQuery } from "convex/react"
+import { useAction, useQuery } from "convex/react"
 
 import { VoucherTable, type VoucherView } from "./voucher-table"
 import { columns } from "./columns"
@@ -32,6 +32,9 @@ export default function DataTable() {
   const [view, setView] = React.useState<VoucherView>('active')
   const [dateFrom, setDateFrom] = React.useState('')
   const [dateTo, setDateTo] = React.useState('')
+  const [reconciliationError, setReconciliationError] = React.useState('')
+  const checkedCodes = React.useRef(new Set<string>())
+  const reconcilePayments = useAction(api.voucherReconciliation.reconcileAdmin)
 
   const activeVouchers = useQuery(
     api.vouchers.listAdmin,
@@ -47,6 +50,29 @@ export default function DataTable() {
     api.vouchers.listDeleted,
     view === 'deleted' ? {} : 'skip',
   )
+
+  React.useEffect(() => {
+    if (!activeVouchers) return
+    const codes = activeVouchers
+      .filter((voucher) => voucher.status === 'pending' && !checkedCodes.current.has(voucher.code))
+      .map((voucher) => voucher.code)
+    if (codes.length === 0) return
+    codes.forEach((code) => checkedCodes.current.add(code))
+
+    async function checkPayments() {
+      for (let i = 0; i < codes.length; i += 50) {
+        try {
+          const result = await reconcilePayments({ codes: codes.slice(i, i + 50) })
+          if (result.failed > 0) {
+            setReconciliationError('Não foi possível conferir todos os pagamentos. Recarregue a página em instantes.')
+          }
+        } catch {
+          setReconciliationError('Não foi possível conferir os pagamentos. Recarregue a página em instantes.')
+        }
+      }
+    }
+    void checkPayments()
+  }, [activeVouchers, reconcilePayments])
 
   const allRows = view === 'active' ? activeVouchers : deletedVouchers
   const isLoading = allRows === undefined
@@ -69,6 +95,7 @@ export default function DataTable() {
 
   return (
     <div className='w-full'>
+      {reconciliationError && <p role='alert' className='mb-4 text-destructive'>{reconciliationError}</p>}
       <VoucherTable
         columns={columns}
         data={pageRows}

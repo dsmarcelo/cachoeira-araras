@@ -83,6 +83,10 @@ const vouchers = defineTable({
   // Checkout address (Mercado Pago init_point) stored for server-verified resume.
   initPoint: v.optional(v.string()),
 
+  // Limits payment-provider reads triggered by page visits.
+  paymentReconciliationCheckedAt: v.optional(v.number()),
+  paymentReconciliationOpId: v.optional(v.id("paymentOperations")),
+
   // Internal cancellation coordination: timestamp when cancellation begins,
   // preventing concurrent payment resumption.
   cancellationStartedAt: v.optional(v.number()),

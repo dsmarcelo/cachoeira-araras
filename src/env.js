@@ -77,8 +77,14 @@ export const env = createEnv({
     NEXT_PUBLIC_CONVEX_URL: z.string().url(),
     NEXT_PUBLIC_CONVEX_SITE_URL: z.string().url(),
     NEXT_PUBLIC_SITE_URL: z.string().url(),
-    NEXT_PUBLIC_VOUCHER_PRICE: z.coerce.number().default(50),
-    NEXT_PUBLIC_POOL_VOUCHER_PRICE: z.coerce.number().default(70),
+    NEXT_PUBLIC_VOUCHER_PRICE: z.preprocess(
+      (value) => typeof value === "string" ? value.replace(",", ".") : value,
+      z.coerce.number().positive().default(70),
+    ),
+    NEXT_PUBLIC_POOL_VOUCHER_PRICE: z.preprocess(
+      (value) => typeof value === "string" ? value.replace(",", ".") : value,
+      z.coerce.number().positive().default(70),
+    ),
     NEXT_PUBLIC_FACEBOOK_PIXEL_ID: z.string().optional(),
     NEXT_PUBLIC_ALERT_MESSAGE: z.string().optional(),
     // Toggle Vercel Analytics on/off at runtime (off reduces /_vercel/insights requests)

@@ -21,6 +21,11 @@ Payment discovery has no date or status restriction, reads up to 1,000 payments,
 and fails instead of returning a partial result when the scan is incomplete.
 Provider errors are never interpreted as an empty payment history.
 
+Opening My Vouchers or the admin voucher table checks pending purchases against
+Mercado Pago when an authorized caller is present. Checks are limited to once
+per voucher per minute and reuse an unresolved discovery intent after failure.
+An approved payment enters the same idempotent confirmation path as the webhook.
+
 Provider rejection errors stop automatic attempts and require staff review;
 rate limiting remains retryable.
 Other failures stop after five attempts per retry cycle; resuming a held refund
