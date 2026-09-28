@@ -206,9 +206,10 @@ describe("payment refunds", () => {
     );
     expect(alerts).toHaveLength(1);
     const admin = await withAuth(t, "admin");
-    expect(
-      await admin.query(api.refunds.listOperationalAlerts, {}),
-    ).toMatchObject([{ needsAttention: true }]);
+    const adminAlerts = await admin.query(api.refunds.listOperationalAlerts, {});
+    expect(adminAlerts[0]?.needsAttention).toBe(true);
+    expect(adminAlerts[0]?.explanation).toContain("credencial de acesso");
+    expect(adminAlerts[0]?.providerDetail).toContain("HTTP 401");
     expect(await t.mutation(internal.refunds.sweepOverdueRefunds, {})).toBe(0);
     await t.action(internal.refunds.attemptRefund, { refundId });
     expect(
@@ -305,6 +306,83 @@ describe("payment refunds", () => {
     expect(
       await t.run(async (ctx) => ctx.db.query("operationalAlerts").collect()),
     ).toHaveLength(0);
+  });
+
+  test("admin can retry a held refund after checking provider state", async () => {
+    const t = createConvexTest();
+    fake = createMercadoPagoFake();
+    fake.payments.set("pay-admin-retry", {
+      id: "pay-admin-retry",
+      status: "approved",
+      externalReference: "REF001",
+      amount: 150,
+      refundedAmount: 0,
+    });
+    const refundId = await t.mutation(internal.refunds.requestRefund, {
+      paymentId: "pay-admin-retry",
+      voucherCode: "REF001",
+      amountCents: 15000,
+    });
+    fake.respondWith("refund", "unauthorized", "success");
+    await t.action(internal.refunds.attemptRefund, { refundId });
+    const admin = await withAuth(t, "admin");
+    const employee = await withAuth(t, "employee");
+    await expect(
+      employee.action(api.refunds.retryAdminRefund, { id: refundId }),
+    ).rejects.toThrow("403");
+    expect(await admin.action(api.refunds.retryAdminRefund, { id: refundId })).toBe("queued");
+    await t.action(internal.refunds.attemptRefund, { refundId });
+    expect((await t.run(async (ctx) => ctx.db.get("paymentRefunds", refundId)))?.status).toBe("completed");
+    expect(new Set(fake.attempts.map((attempt) => attempt.key)).size).toBe(1);
+  });
+
+  test("retry reconciles a completed provider refund without another POST", async () => {
+    const t = createConvexTest();
+    fake = createMercadoPagoFake();
+    fake.payments.set("pay-already-refunded", {
+      id: "pay-already-refunded",
+      status: "refunded",
+      externalReference: "REF001",
+      amount: 150,
+      refundedAmount: 150,
+    });
+    const refundId = await t.run(async (ctx) => ctx.db.insert("paymentRefunds", {
+      paymentId: "pay-already-refunded",
+      voucherCode: "REF001",
+      amountCents: 15000,
+      status: "needs_attention",
+      attemptCount: 1,
+      lastError: "Provider response lost",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }));
+    const admin = await withAuth(t, "admin");
+    expect(await admin.action(api.refunds.retryAdminRefund, { id: refundId })).toBe("completed");
+    expect(fake.attempts).toHaveLength(0);
+  });
+
+  test("retry refuses a partial refund", async () => {
+    const t = createConvexTest();
+    fake = createMercadoPagoFake();
+    fake.payments.set("pay-partial-retry", {
+      id: "pay-partial-retry",
+      status: "approved",
+      externalReference: "REF001",
+      amount: 150,
+      refundedAmount: 50,
+    });
+    const refundId = await t.run(async (ctx) => ctx.db.insert("paymentRefunds", {
+      paymentId: "pay-partial-retry",
+      voucherCode: "REF001",
+      amountCents: 15000,
+      status: "needs_attention",
+      attemptCount: 1,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }));
+    const admin = await withAuth(t, "admin");
+    await expect(admin.action(api.refunds.retryAdminRefund, { id: refundId })).rejects.toThrow("estornos anteriores");
+    expect(fake.attempts).toHaveLength(0);
   });
 
   test("a sweep recovers overdue refunds that lost their scheduled attempt", async () => {

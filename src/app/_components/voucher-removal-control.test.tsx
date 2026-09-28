@@ -14,6 +14,6 @@ afterEach(cleanup);
 it("blocks the removal action while a refund is incomplete", () => {
   render(<VoucherRemovalControl code="ABC123" hasIncompleteRefund={true} />);
 
-  expect(screen.getByText(/não pode ser removido/i)).toBeTruthy();
   expect(screen.queryByRole("button")).toBeNull();
+  expect(screen.queryByText(/reembolso/i)).toBeNull();
 });

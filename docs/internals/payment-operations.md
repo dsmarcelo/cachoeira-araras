@@ -21,10 +21,13 @@ Payment discovery has no date or status restriction, reads up to 1,000 payments,
 and fails instead of returning a partial result when the scan is incomplete.
 Provider errors are never interpreted as an empty payment history.
 
-Refund authorization failures stop automatic attempts and require staff review.
+Provider rejection errors stop automatic attempts and require staff review;
+rate limiting remains retryable.
 Other failures stop after five attempts per retry cycle; resuming a held refund
-reuses its original payment operation and idempotency key. Staff must check the
-provider's refund state before resuming, since a response may have been lost.
+reuses its original payment operation and idempotency key. An admin retry first
+checks the provider's current payment, ownership, amount and refunded total.
+A full prior refund is recorded as completed without another provider request;
+a partial refund or mismatch blocks the retry for manual investigation.
 
 Admins can request a full refund for a voucher's official payment. The backend
 checks the provider's payment ID, voucher reference, amount and refund state

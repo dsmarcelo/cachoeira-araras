@@ -8,6 +8,8 @@ import {
   query,
 } from "./_generated/server";
 import { getPayment } from "./lib/mercadopagoOperations";
+import { MercadoPagoApiError } from "./lib/mercadopagoError";
+import { explainRefundFailure, refundProviderDetail } from "./lib/refundFailure";
 import type { Id } from "./_generated/dataModel";
 import type { OperationResult } from "./lib/paymentOperation";
 import { requireRole } from "./lib/auth";
@@ -24,8 +26,12 @@ export const getAdminVoucherRefund = query({
   returns: v.union(
     v.null(),
     v.object({
+      id: v.id("paymentRefunds"),
       status: schema.tables.paymentRefunds.validator.fields.status,
       amountCents: v.number(),
+      explanation: v.optional(v.string()),
+      providerDetail: v.optional(v.string()),
+      attemptCount: v.number(),
     }),
   ),
   handler: async (ctx, { paymentId }) => {
@@ -34,9 +40,33 @@ export const getAdminVoucherRefund = query({
       .query("paymentRefunds")
       .withIndex("by_paymentId", (q) => q.eq("paymentId", paymentId))
       .unique();
-    return refund
-      ? { status: refund.status, amountCents: refund.amountCents }
+    if (!refund) return null;
+    const operation = refund.operationId
+      ? await ctx.db.get("paymentOperations", refund.operationId)
       : null;
+    return {
+      id: refund._id,
+      status: refund.status,
+      amountCents: refund.amountCents,
+      attemptCount: refund.attemptCount,
+      ...(refund.lastError
+        ? {
+            explanation: explainRefundFailure(
+              operation?.lastHttpStatus,
+              operation?.lastProviderCode,
+              operation?.lastProviderMessage,
+              refund.lastError,
+            ),
+          }
+        : {}),
+      providerDetail: refund.lastError
+        ? refundProviderDetail(
+            operation?.lastHttpStatus,
+            operation?.lastProviderCode,
+            operation?.lastProviderMessage,
+          )
+        : undefined,
+    };
   },
 });
 
@@ -116,7 +146,13 @@ export const requestAdminRefund = action({
         },
       );
       throw new Error(
-        "Não foi possível confirmar o pagamento no Mercado Pago. Tente novamente mais tarde.",
+        error instanceof MercadoPagoApiError
+          ? explainRefundFailure(
+              error.status,
+              error.providerCode,
+              error.providerMessage,
+            )
+          : "Não foi possível confirmar o pagamento no Mercado Pago. Tente novamente mais tarde.",
       );
     }
     return await ctx.runMutation(internal.refunds.createAdminRefund, {
@@ -220,6 +256,78 @@ export const getRefund = internalQuery({
   returns: v.union(schema.doc("paymentRefunds"), v.null()),
   handler: async (ctx, { id }) => {
     return await ctx.db.get("paymentRefunds", id);
+  },
+});
+
+export const getRetryCandidate = internalQuery({
+  args: { id: v.id("paymentRefunds") },
+  returns: v.object({
+    paymentId: v.string(),
+    voucherCode: v.string(),
+    amountCents: v.number(),
+  }),
+  handler: async (ctx, { id }) => {
+    const refund = await ctx.db.get("paymentRefunds", id);
+    if (refund?.status !== "needs_attention") {
+      throw new Error("Este reembolso não está pausado para uma nova tentativa.");
+    }
+    return {
+      paymentId: refund.paymentId,
+      voucherCode: refund.voucherCode,
+      amountCents: refund.amountCents,
+    };
+  },
+});
+
+/** Recheck provider state before a held refund can be tried again. */
+export const retryAdminRefund = action({
+  args: { id: v.id("paymentRefunds") },
+  returns: v.union(v.literal("completed"), v.literal("queued")),
+  handler: async (ctx, { id }): Promise<"completed" | "queued"> => {
+    await requireRole(ctx, "admin");
+    const refund = await ctx.runQuery(internal.refunds.getRetryCandidate, { id });
+    let payment: Awaited<ReturnType<typeof getPayment>>;
+    try {
+      payment = await getPayment(refund.paymentId, {
+        idempotencyKey: crypto.randomUUID(),
+        recordedAt: Date.now(),
+      });
+    } catch (error) {
+      console.error("Unable to verify payment before refund retry", {
+        refundId: id,
+        error,
+      });
+      throw new Error(
+        error instanceof MercadoPagoApiError
+          ? explainRefundFailure(
+              error.status,
+              error.providerCode,
+              error.providerMessage,
+            )
+          : "Não foi possível consultar o pagamento no Mercado Pago. Tente novamente mais tarde.",
+      );
+    }
+    const amountCents = Math.round(payment.amount * 100);
+    if (
+      payment.externalReference !== refund.voucherCode ||
+      amountCents !== refund.amountCents ||
+      !Number.isSafeInteger(amountCents)
+    ) {
+      throw new Error(
+        "Os dados do pagamento não correspondem ao reembolso. Confira este caso no Mercado Pago antes de tentar novamente.",
+      );
+    }
+    if (Math.round(payment.refundedAmount * 100) === refund.amountCents) {
+      await ctx.runMutation(internal.refunds.markCompleted, { id });
+      return "completed";
+    }
+    if (payment.refundedAmount > 0 || payment.status !== "approved") {
+      throw new Error(
+        "O pagamento não está aprovado sem estornos anteriores. Confira o estado e o valor devolvido no Mercado Pago antes de tentar novamente.",
+      );
+    }
+    await ctx.runMutation(internal.refunds.resumeRefund, { id });
+    return "queued";
   },
 });
 
@@ -345,8 +453,10 @@ export const recordFailure = internalMutation({
     const attemptCount = refund.attemptCount + 1;
     const retryCycleCount = (refund.retryCycleCount ?? refund.attemptCount) + 1;
     const needsAttention =
-      httpStatus === 401 ||
-      httpStatus === 403 ||
+      (httpStatus !== undefined &&
+        httpStatus >= 400 &&
+        httpStatus < 500 &&
+        httpStatus !== 429) ||
       retryCycleCount >= MAX_REFUND_ATTEMPTS_PER_CYCLE;
     const delayMs = Math.min(1000 * Math.pow(2, retryCycleCount - 1), 60000);
     const nextAttemptAt = Date.now() + delayMs;
@@ -418,6 +528,7 @@ export const resumeRefund = internalMutation({
       status: "pending_attempt",
       retryCycleCount: 0,
       nextAttemptAt: now,
+      lastError: undefined,
       updatedAt: now,
     });
     await ctx.scheduler.runAfter(0, internal.refunds.attemptRefund, {
@@ -589,6 +700,8 @@ export const getRefundNoticesForVouchers = query({
           case "completed":
             message = isPostCancellation
               ? "O pagamento feito após o cancelamento foi reembolsado."
+              : refund.paymentId === voucher.paymentId
+                ? "O reembolso do pagamento do voucher foi concluído."
               : "O pagamento duplicado foi reembolsado.";
             break;
           case "needs_retry":
@@ -636,6 +749,9 @@ export const listOperationalAlerts = query({
       customerPhone: v.string(),
       attemptCount: v.number(),
       needsAttention: v.boolean(),
+      refundId: v.optional(v.id("paymentRefunds")),
+      explanation: v.string(),
+      providerDetail: v.optional(v.string()),
       createdAt: v.number(),
     }),
   ),
@@ -653,6 +769,9 @@ export const listOperationalAlerts = query({
           .query("paymentRefunds")
           .withIndex("by_paymentId", (q) => q.eq("paymentId", alert.paymentId))
           .first();
+        const operation = refund?.operationId
+          ? await ctx.db.get("paymentOperations", refund.operationId)
+          : null;
         return {
           id: alert._id,
           voucherCode: alert.voucherCode,
@@ -660,6 +779,18 @@ export const listOperationalAlerts = query({
           customerPhone: alert.customerContact.phone,
           attemptCount: alert.attemptCount,
           needsAttention: refund?.status === "needs_attention",
+          refundId: refund?._id,
+          explanation: explainRefundFailure(
+            operation?.lastHttpStatus,
+            operation?.lastProviderCode,
+            operation?.lastProviderMessage,
+            refund?.lastError ?? alert.lastError,
+          ),
+          providerDetail: refundProviderDetail(
+            operation?.lastHttpStatus,
+            operation?.lastProviderCode,
+            operation?.lastProviderMessage,
+          ),
           createdAt: alert.createdAt,
         };
       }),

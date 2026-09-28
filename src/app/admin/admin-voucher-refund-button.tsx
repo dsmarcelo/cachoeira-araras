@@ -42,6 +42,7 @@ export function AdminVoucherRefundButton({
   status,
 }: AdminVoucherRefundButtonProps) {
   const requestRefund = useAction(api.refunds.requestAdminRefund);
+  const retryRefund = useAction(api.refunds.retryAdminRefund);
   const refund = useQuery(
     api.refunds.getAdminVoucherRefund,
     paymentId ? { paymentId } : "skip",
@@ -49,13 +50,53 @@ export function AdminVoucherRefundButton({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
+  async function handleRetry(id: NonNullable<typeof refund>["id"]) {
+    setIsSubmitting(true);
+    try {
+      const result = await retryRefund({ id });
+      toast({
+        title: result === "completed" ? "Reembolso confirmado" : "Nova tentativa solicitada",
+        description: result === "completed"
+          ? "O Mercado Pago já havia devolvido o valor integral."
+          : "Acompanhe o andamento neste voucher.",
+      });
+    } catch (error) {
+      toast({
+        title: "Não foi possível tentar novamente",
+        description: getErrorMessage(error, "Confira o pagamento no Mercado Pago."),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   if (!paymentId) return null;
 
   if (refund) {
     return (
-      <p role="status" className="text-sm text-muted-foreground">
-        {refundMessages[refund.status]}
-      </p>
+      <div className="space-y-2 text-sm">
+        <p role="status" className="text-muted-foreground">
+          {refundMessages[refund.status]}
+        </p>
+        {refund.explanation && (
+          <p role="alert" className="text-red-700">
+            Última falha: {refund.explanation}
+          </p>
+        )}
+        {refund.providerDetail && (
+          <p className="text-xs text-muted-foreground">Detalhe técnico: {refund.providerDetail}</p>
+        )}
+        {refund.status === "needs_attention" && (
+          <Button
+            variant="outline"
+            disabled={isSubmitting}
+            onClick={() => void handleRetry(refund.id)}
+          >
+            {isSubmitting ? "Verificando..." : "Tentar reembolso novamente"}
+          </Button>
+        )}
+      </div>
     );
   }
 

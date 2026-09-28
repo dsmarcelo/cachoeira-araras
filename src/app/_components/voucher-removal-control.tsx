@@ -8,11 +8,7 @@ export default function VoucherRemovalControl({
   hasIncompleteRefund: boolean;
 }) {
   if (hasIncompleteRefund) {
-    return (
-      <p className="text-xs text-amber-300">
-        Reembolso em processamento não pode ser removido deste navegador.
-      </p>
-    );
+    return null;
   }
 
   return <DeleteVoucherCookieBtn code={code} />;

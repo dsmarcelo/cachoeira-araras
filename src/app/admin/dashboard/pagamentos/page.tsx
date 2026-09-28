@@ -30,7 +30,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatPhone, formatToBRL } from "@/lib/utils";
+import { formatPhone, formatToBRL, getErrorMessage } from "@/lib/utils";
+import { toast } from "@/components/ui/use-toast";
 
 type PaymentStatus =
   | "all"
@@ -238,6 +239,29 @@ function PaymentCard({ payment }: { payment: AdminPayment }) {
 
 export default function AdminPaymentsPage() {
   const refundAlerts = useQuery(api.refunds.listOperationalAlerts);
+  const retryRefund = useAction(api.refunds.retryAdminRefund);
+  const [retryingRefundId, setRetryingRefundId] = useState<string | null>(null);
+
+  async function handleRetryRefund(id: NonNullable<NonNullable<typeof refundAlerts>[number]["refundId"]>) {
+    setRetryingRefundId(id);
+    try {
+      const result = await retryRefund({ id });
+      toast({
+        title: result === "completed" ? "Reembolso confirmado" : "Nova tentativa solicitada",
+        description: result === "completed"
+          ? "O Mercado Pago já havia devolvido o valor integral."
+          : "Acompanhe o andamento nesta página.",
+      });
+    } catch (error) {
+      toast({
+        title: "Não foi possível tentar novamente",
+        description: getErrorMessage(error, "Confira o pagamento no Mercado Pago."),
+        variant: "destructive",
+      });
+    } finally {
+      setRetryingRefundId(null);
+    }
+  }
   const [month, setMonth] = useState(getCurrentSaoPauloMonth);
   const [status, setStatus] = useState<PaymentStatus>("approved");
   const [search, setSearch] = useState("");
@@ -389,11 +413,24 @@ export default function AdminPaymentsPage() {
                   {alert.customerName} · {formatPhone(alert.customerPhone)} ·{" "}
                   {alert.attemptCount} tentativas
                 </p>
+                <p className="mt-1 text-red-700">Última falha: {alert.explanation}</p>
+                {alert.providerDetail && (
+                  <p className="text-xs text-muted-foreground">Detalhe técnico: {alert.providerDetail}</p>
+                )}
                 {alert.needsAttention ? (
-                  <p className="mt-1 font-medium text-red-700">
-                    Tentativas pausadas. Confira a autorização no Mercado Pago e o
-                    estado do reembolso antes de retomar.
-                  </p>
+                  <div className="mt-2 space-y-2">
+                    <p className="font-medium text-red-700">Tentativas automáticas pausadas.</p>
+                    {alert.refundId && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={retryingRefundId !== null}
+                        onClick={() => void handleRetryRefund(alert.refundId!)}
+                      >
+                        {retryingRefundId === alert.refundId ? "Verificando..." : "Tentar reembolso novamente"}
+                      </Button>
+                    )}
+                  </div>
                 ) : null}
               </div>
             ))}

@@ -167,6 +167,32 @@ describe("refund notices (Issue 99)", () => {
     expect(dupConfNotice?.isPostCancellation).toBe(false);
   });
 
+  test("a completed refund of the official payment has its own message", async () => {
+    const t = createConvexTest();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("vouchers", {
+        ...setupVoucher("OFFICIAL", "valid"),
+        paymentId: "pay-official",
+      });
+      await ctx.db.insert("paymentRefunds", {
+        paymentId: "pay-official",
+        voucherCode: "OFFICIAL",
+        amountCents: 10000,
+        status: "completed",
+        attemptCount: 1,
+        completedAt: Date.now(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+    const notices = await t.query(api.refunds.getRefundNoticesForVouchers, {
+      vouchers: voucherAccess("OFFICIAL"),
+    });
+    expect(notices[0]?.message).toBe(
+      "O reembolso do pagamento do voucher foi concluído.",
+    );
+  });
+
   test("voucher codes alone or a mismatched capability reveal no refund data", async () => {
     const t = createConvexTest();
     await t.run(async (ctx) => {

@@ -104,6 +104,9 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
   const hasIncompleteRefund =
     (entry.hasPendingRefund ?? false) ||
     Boolean(refundNotices?.some((notice) => notice.status !== "completed"));
+  const completedRefundNotices = refundNotices?.filter(
+    (notice) => notice.status === "completed",
+  );
 
   useEffect(() => {
     if (!voucher && (!refundNotices || refundNotices.length === 0)) return;
@@ -185,29 +188,17 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
           <p>Valor: {formatToBRL(voucher.priceCents / 100)}</p>
         </div>
       )}
-      {refundNotices && refundNotices.length > 0 && (
+      {completedRefundNotices && completedRefundNotices.length > 0 && (
         <div className="space-y-2">
-          {refundNotices.map((notice) => {
-            const isCompleted = notice.status === "completed";
-            const isNeedsRetry =
-              notice.status === "needs_retry" ||
-              notice.status === "needs_attention";
-            return (
-              <div
-                key={notice.refundId}
-                role="status"
-                className={`rounded-lg border p-3 text-sm ${
-                  isCompleted
-                    ? "border-green-500/40 bg-green-950/40 text-green-200"
-                    : isNeedsRetry
-                      ? "border-amber-500/40 bg-amber-950/40 text-amber-200"
-                      : "border-blue-500/40 bg-blue-950/40 text-blue-200"
-                }`}
-              >
-                {notice.message}
-              </div>
-            );
-          })}
+          {completedRefundNotices.map((notice) => (
+            <div
+              key={notice.refundId}
+              role="status"
+              className="rounded-lg border border-green-500/40 bg-green-950/40 p-3 text-sm text-green-200"
+            >
+              {notice.message}
+            </div>
+          ))}
         </div>
       )}
       {voucher?.status === "pending" && entry.initPoint && (
