@@ -70,6 +70,8 @@ export function createMercadoPagoFake() {
           p.status = "cancelled";
         return p;
       }),
+    getPayment: async (id: string, _intent: ProviderIntent) =>
+      structuredClone(payment(id)),
     refundPayment: (id: string, intent: ProviderIntent) =>
       perform("refund", intent, () => {
         const previous = refunds.get(intent.idempotencyKey);
@@ -91,6 +93,7 @@ export function createMercadoPagoFake() {
     | "invalidatePreference"
     | "findPaymentsByExternalReference"
     | "cancelPayment"
+    | "getPayment"
     | "refundPayment"
   >;
   return {

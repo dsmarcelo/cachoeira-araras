@@ -74,6 +74,17 @@ Para realizar testes manuais de compra no Checkout do Mercado Pago em ambiente s
 | Senha | `MuFMnTEBR3` |
 | Código de verificação | `367917` |
 
+#### Conta de teste (Seller Test User)
+
+| Campo | Valor |
+| --- | --- |
+| Perfil | Vendedor (`Seller Test User`) |
+| País | Brasil |
+| User ID | `1896707113` |
+| Usuário | `TESTUSER1310489545` |
+| Senha | `BN9TIEH7HO` |
+| Código de verificação | `707113` |
+
 #### Cartão de crédito de teste
 
 | Campo | Valor |

@@ -15,6 +15,8 @@ vi.mock("./lib/mercadopagoOperations", () => ({
   ) => fake.api.findPaymentsByExternalReference(...args),
   cancelPayment: (...args: Parameters<typeof fake.api.cancelPayment>) =>
     fake.api.cancelPayment(...args),
+  getPayment: (...args: Parameters<typeof fake.api.getPayment>) =>
+    fake.api.getPayment(...args),
 }));
 
 describe("payment refunds", () => {
@@ -204,9 +206,9 @@ describe("payment refunds", () => {
     );
     expect(alerts).toHaveLength(1);
     const admin = await withAuth(t, "admin");
-    expect(await admin.query(api.refunds.listOperationalAlerts, {})).toMatchObject([
-      { needsAttention: true },
-    ]);
+    expect(
+      await admin.query(api.refunds.listOperationalAlerts, {}),
+    ).toMatchObject([{ needsAttention: true }]);
     expect(await t.mutation(internal.refunds.sweepOverdueRefunds, {})).toBe(0);
     await t.action(internal.refunds.attemptRefund, { refundId });
     expect(
@@ -487,5 +489,83 @@ describe("payment refunds", () => {
     );
     expect(refund).toBeDefined();
     expect(refund?.status).toBe("pending_attempt");
+  });
+  test("only an admin can request one full refund for the official payment", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = createConvexTest();
+      fake = createMercadoPagoFake();
+      fake.payments.set("pay-official", {
+        id: "pay-official",
+        status: "approved",
+        externalReference: "REF001",
+        amount: 150,
+        refundedAmount: 0,
+      });
+      await t.run(async (ctx) => {
+        await ctx.db.insert("vouchers", setupVoucherDefaults());
+        await ctx.db.insert("payments", {
+          paymentId: "pay-official",
+          voucherCode: "REF001",
+          status: "approved",
+          isOfficial: true,
+          owesRefund: false,
+          createdAt: Date.now(),
+        });
+      });
+
+      const employee = await withAuth(t, "employee");
+      await expect(
+        employee.action(api.refunds.requestAdminRefund, { code: "REF001" }),
+      ).rejects.toThrow("403");
+      const admin = await withAuth(t, "admin");
+      const firstId = await admin.action(api.refunds.requestAdminRefund, {
+        code: "REF001",
+      });
+      const secondId = await admin.action(api.refunds.requestAdminRefund, {
+        code: "REF001",
+      });
+      expect(secondId).toEqual(firstId);
+      expect(
+        await admin.query(api.refunds.getAdminVoucherRefund, {
+          paymentId: "pay-official",
+        }),
+      ).toMatchObject({ status: "pending_attempt", amountCents: 15000 });
+
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      const voucher = await t.run(async (ctx) =>
+        ctx.db
+          .query("vouchers")
+          .withIndex("by_code", (q) => q.eq("code", "REF001"))
+          .unique(),
+      );
+      expect(voucher?.status).toBe("refunded");
+      expect(voucher?.reversal?.reason).toBe("refunded");
+      expect(fake.refunds.size).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("admin refund rejects a payment that belongs to another voucher", async () => {
+    const t = createConvexTest();
+    fake = createMercadoPagoFake();
+    fake.payments.set("pay-official", {
+      id: "pay-official",
+      status: "approved",
+      externalReference: "OTHER",
+      amount: 150,
+      refundedAmount: 0,
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("vouchers", setupVoucherDefaults());
+    });
+    const admin = await withAuth(t, "admin");
+    await expect(
+      admin.action(api.refunds.requestAdminRefund, { code: "REF001" }),
+    ).rejects.toThrow("Não foi possível confirmar o pagamento");
+    expect(
+      await t.run(async (ctx) => ctx.db.query("paymentRefunds").collect()),
+    ).toHaveLength(0);
   });
 });

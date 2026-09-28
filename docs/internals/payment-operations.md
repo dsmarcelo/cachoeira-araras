@@ -25,3 +25,8 @@ Refund authorization failures stop automatic attempts and require staff review.
 Other failures stop after five attempts per retry cycle; resuming a held refund
 reuses its original payment operation and idempotency key. Staff must check the
 provider's refund state before resuming, since a response may have been lost.
+
+Admins can request a full refund for a voucher's official payment. The backend
+checks the provider's payment ID, voucher reference, amount and refund state
+before queuing it. Confirmation invalidates an unused voucher; a redeemed
+voucher retains its redemption and records a reversal warning.

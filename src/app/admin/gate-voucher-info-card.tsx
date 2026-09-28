@@ -20,6 +20,7 @@ import { formatVoucherStatus } from "@/lib/voucher"
 import { Copy } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { api } from "../../../convex/_generated/api"
+import { AdminVoucherRefundButton } from "./admin-voucher-refund-button"
 
 type AdminGateVoucher = FunctionReturnType<typeof api.vouchers.listTodayAdmin>[number];
 
@@ -125,6 +126,7 @@ export function GateVoucherInfoCard({ data, onClose, open }: props) {
             <p className="text-xs text-muted-foreground">{`Preferencia do pagamento:`}</p>
             <p className="text-xs text-muted-foreground">{`${data.preferenceId}`}</p>
           </div>
+          <AdminVoucherRefundButton code={data.code} paymentId={data.paymentId} status={data.status} />
           <p className="text-xs text-center text-muted-foreground">Toque nos items acima para copiar
             <span className="text-muted-foreground"><Copy className="inline-block w-3 h-3 ml-1" /></span>
           </p>

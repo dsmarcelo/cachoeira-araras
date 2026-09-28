@@ -1,11 +1,13 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import {
+  action,
   internalAction,
   internalMutation,
   internalQuery,
   query,
 } from "./_generated/server";
+import { getPayment } from "./lib/mercadopagoOperations";
 import type { Id } from "./_generated/dataModel";
 import type { OperationResult } from "./lib/paymentOperation";
 import { requireRole } from "./lib/auth";
@@ -16,10 +18,164 @@ const REFUND_SWEEP_BATCH_SIZE = 100;
 const MAX_REFUND_ATTEMPTS_PER_CYCLE = 5;
 const PROCESSING_LEASE_MS = 5 * 60_000;
 
+/** Admin-only view of the official payment's refund state. */
+export const getAdminVoucherRefund = query({
+  args: { paymentId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      status: schema.tables.paymentRefunds.validator.fields.status,
+      amountCents: v.number(),
+    }),
+  ),
+  handler: async (ctx, { paymentId }) => {
+    await requireRole(ctx, "admin");
+    const refund = await ctx.db
+      .query("paymentRefunds")
+      .withIndex("by_paymentId", (q) => q.eq("paymentId", paymentId))
+      .unique();
+    return refund
+      ? { status: refund.status, amountCents: refund.amountCents }
+      : null;
+  },
+});
+
+export const getAdminRefundCandidate = internalQuery({
+  args: { code: v.string() },
+  returns: v.object({ paymentId: v.string() }),
+  handler: async (ctx, { code }) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .unique();
+    if (
+      !voucher ||
+      voucher.deletedAt !== undefined ||
+      voucher.isTest ||
+      !voucher.paymentId ||
+      ["pending", "cancelled", "refunded"].includes(voucher.status)
+    ) {
+      throw new Error("Este voucher não pode ser reembolsado.");
+    }
+    const payment = await ctx.db
+      .query("payments")
+      .withIndex("by_paymentId", (q) => q.eq("paymentId", voucher.paymentId!))
+      .unique();
+    if (
+      payment &&
+      (!payment.isOfficial ||
+        payment.voucherCode !== code ||
+        payment.status !== "approved")
+    ) {
+      throw new Error("Este pagamento não pode ser reembolsado.");
+    }
+    return { paymentId: voucher.paymentId };
+  },
+});
+
+/** Requests a full refund for the voucher's official payment. */
+export const requestAdminRefund = action({
+  args: { code: v.string() },
+  returns: v.id("paymentRefunds"),
+  handler: async (ctx, { code }): Promise<Id<"paymentRefunds">> => {
+    await requireRole(ctx, "admin");
+    const candidate = await ctx.runQuery(
+      internal.refunds.getAdminRefundCandidate,
+      {
+        code,
+      },
+    );
+    let amountCents: number;
+    try {
+      const providerPayment = await getPayment(candidate.paymentId, {
+        idempotencyKey: crypto.randomUUID(),
+        recordedAt: Date.now(),
+      });
+      if (
+        providerPayment.status !== "approved" ||
+        providerPayment.externalReference !== code ||
+        providerPayment.refundedAmount > 0
+      ) {
+        throw new Error("Payment is not eligible for a full refund");
+      }
+      amountCents = Math.round(providerPayment.amount * 100);
+      if (
+        amountCents <= 0 ||
+        !Number.isSafeInteger(amountCents) ||
+        Math.abs(providerPayment.amount * 100 - amountCents) > 0.001
+      ) {
+        throw new Error("Invalid payment amount");
+      }
+    } catch (error) {
+      console.error(
+        "Unable to validate Mercado Pago payment for admin refund",
+        {
+          code,
+          paymentId: candidate.paymentId,
+          error,
+        },
+      );
+      throw new Error(
+        "Não foi possível confirmar o pagamento no Mercado Pago. Tente novamente mais tarde.",
+      );
+    }
+    return await ctx.runMutation(internal.refunds.createAdminRefund, {
+      code,
+      paymentId: candidate.paymentId,
+      amountCents,
+    });
+  },
+});
+
+export const createAdminRefund = internalMutation({
+  args: {
+    code: v.string(),
+    paymentId: v.string(),
+    amountCents: v.number(),
+  },
+  returns: v.id("paymentRefunds"),
+  handler: async (
+    ctx,
+    { code, paymentId, amountCents },
+  ): Promise<Id<"paymentRefunds">> => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .unique();
+    if (
+      !voucher ||
+      voucher.deletedAt !== undefined ||
+      voucher.isTest ||
+      voucher.paymentId !== paymentId ||
+      ["pending", "cancelled", "refunded"].includes(voucher.status) ||
+      !Number.isSafeInteger(amountCents) ||
+      amountCents <= 0
+    ) {
+      throw new Error("Este voucher não pode ser reembolsado.");
+    }
+    const payment = await ctx.db
+      .query("payments")
+      .withIndex("by_paymentId", (q) => q.eq("paymentId", paymentId))
+      .unique();
+    if (
+      payment &&
+      (!payment.isOfficial ||
+        payment.voucherCode !== code ||
+        payment.status !== "approved")
+    ) {
+      throw new Error("Este pagamento não pode ser reembolsado.");
+    }
+    return await ctx.runMutation(internal.refunds.requestRefund, {
+      paymentId,
+      voucherCode: code,
+      amountCents,
+    });
+  },
+});
+
 /**
- * Persists and tracks full Payment Refunds for Excess Payments.
- * Each Excess Payment receives exactly one Payment Refund, requested once
- * even under repeated webhook delivery.
+ * Tracks one full refund per Mercado Pago payment, whether requested for an
+ * excess payment or by an admin for the official payment.
  */
 export const requestRefund = internalMutation({
   args: {
@@ -145,6 +301,19 @@ export const markCompleted = internalMutation({
         status: "refunded",
         updatedAt: now,
       });
+    }
+
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", refund.voucherCode))
+      .unique();
+    if (voucher?.paymentId === refund.paymentId) {
+      const reversal = voucher.reversal ?? { reason: "refunded", notedAt: now };
+      if (voucher.status === "redeemed") {
+        await ctx.db.patch(voucher._id, { reversal });
+      } else if (voucher.status === "valid" || voucher.status === "expired") {
+        await ctx.db.patch(voucher._id, { status: "refunded", reversal });
+      }
     }
 
     const alert = await ctx.db

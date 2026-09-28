@@ -80,6 +80,15 @@ const paymentResponse = z
     refundedAmount: p.transaction_amount_refunded ?? 0,
   }));
 
+/** Read the authoritative amount and ownership before an admin refund. */
+export async function getPayment(paymentId: string, intent: ProviderIntent) {
+  const payment = paymentResponse.parse(
+    await request(`/v1/payments/${encodeURIComponent(paymentId)}`, intent),
+  );
+  if (payment.id !== paymentId) throw new Error("Unexpected payment id");
+  return payment;
+}
+
 const preferenceResponse = z.object({
   id: providerId,
   expires: z.boolean(),
