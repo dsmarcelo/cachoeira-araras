@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useSavedVouchers } from "../../_components/saved-vouchers-provider";
@@ -260,6 +261,16 @@ export default function MyVouchersPage() {
   return (
     <main className="bg-page px-4 py-8 text-fg-muted">
       <div className="mx-auto flex max-w-3xl flex-col gap-6">
+        <Button
+          asChild
+          variant="inverseGhost"
+          className="-ml-3 w-fit gap-2 text-base"
+        >
+          <Link href="/">
+            <ArrowLeft className="h-5 w-5" aria-hidden />
+            Voltar
+          </Link>
+        </Button>
         <h1 className="text-3xl font-bold">Meus Vouchers</h1>
         <p>
           Compras iniciadas neste navegador ficam salvas por 2 anos após a

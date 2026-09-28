@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useConvex } from "convex/react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { api } from "../../../convex/_generated/api";
 import { getCookieVoucher } from "../lib";
 import {
@@ -182,8 +183,8 @@ export function useSavedVouchers() {
 export function MyVouchersLink() {
   const { ready, vouchers } = useSavedVouchers();
   return ready && vouchers.length > 0 ? (
-    <Link href="/meus-vouchers" className="px-2 text-sm underline">
-      Meus Vouchers
-    </Link>
+    <Button asChild variant="brand" size="sm" className="mr-1">
+      <Link href="/meus-vouchers">Meus Vouchers</Link>
+    </Button>
   ) : null;
 }

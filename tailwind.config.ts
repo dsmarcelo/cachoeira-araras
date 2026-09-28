@@ -97,9 +97,9 @@ const config = {
         // Light form inputs sitting on dark surfaces.
         field: { DEFAULT: "#ecf7fa", fg: "#00182D" },
         // Main accent (secondary actions, links-as-buttons).
-        brand: { DEFAULT: "#3daac9", hover: "#389bb7", fg: "#00182D" },
+        brand: { DEFAULT: "#257a94", hover: "#1d6177", fg: "#ffffff" },
         // Primary call to action (buy / pay).
-        cta: { DEFAULT: "#14AE5C", fg: "#00182D" },
+        cta: { DEFAULT: "#0e8043", fg: "#ffffff" },
         success: { DEFAULT: "#22c55e", text: "#86efac", soft: "#14532d" },
         warning: { DEFAULT: "#c2410c", text: "#ffedd5" },
         danger: {
