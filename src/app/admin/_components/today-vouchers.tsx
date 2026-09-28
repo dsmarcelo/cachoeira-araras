@@ -105,7 +105,7 @@ export default function TodayVouchers() {
 
         {pendingVouchers.length > 0 && (
           <div className="space-y-4">
-            <h3 className="text-lg font-medium text-amber-500 dark:text-amber-400">
+            <h3 className="text-lg font-medium text-amber-500">
               Pendentes ({pendingVouchers.length})
             </h3>
             <div className="divide-y divide-border">

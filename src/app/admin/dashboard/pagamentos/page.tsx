@@ -126,8 +126,8 @@ function getMatchLabel(matchSource: AdminPayment["matchSource"]) {
 
 function getMatchClassName(matchSource: AdminPayment["matchSource"]) {
   if (matchSource === "unmatched")
-    return "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/70 dark:text-yellow-300 dark:border dark:border-yellow-800/50";
-  return "bg-green-100 text-green-800 dark:bg-green-950/70 dark:text-green-300 dark:border dark:border-green-800/50";
+    return "bg-yellow-100 text-yellow-800";
+  return "bg-green-100 text-green-800";
 }
 
 async function copyToClipboard(value: string | null) {
@@ -369,7 +369,7 @@ export default function AdminPaymentsPage() {
       {refundAlerts && refundAlerts.length > 0 ? (
         <Card className="mb-6 border-red-500/50">
           <CardHeader>
-            <CardTitle className="text-red-700 dark:text-red-300">
+            <CardTitle className="text-red-700">
               Reembolsos que precisam de acompanhamento
             </CardTitle>
             <CardDescription>
