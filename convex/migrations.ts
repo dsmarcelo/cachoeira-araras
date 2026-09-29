@@ -9,7 +9,7 @@ const BACKFILL_BATCH_SIZE = 200;
 /**
  * One-off backfill for vouchers written before `purchasedAt`, `searchText`
  * and `isActive` existed. Walks the table in batches, fills only the fields
- * that are missing (so re-running is harmless), and reschedules itself with
+ * that are missing (plus a stale `searchText`), so re-running is harmless, and reschedules itself with
  * the next cursor until done. Start it with
  * `npx convex run migrations:backfillVoucherPurchasedAtAndSearchText`.
  */
@@ -31,8 +31,11 @@ export const backfillVoucherPurchasedAtAndSearchText = internalMutation({
       if (voucher.purchasedAt === undefined) {
         patch.purchasedAt = voucher._creationTime;
       }
-      if (voucher.searchText === undefined) {
-        patch.searchText = voucherSearchText(voucher);
+      // Recomputed when stale, not only when missing, so a change to the
+      // search tokens reaches existing vouchers by re-running this.
+      const searchText = voucherSearchText(voucher);
+      if (voucher.searchText !== searchText) {
+        patch.searchText = searchText;
       }
       if (voucher.isActive === undefined) {
         patch.isActive = voucher.deletedAt === undefined && !voucher.isTest;

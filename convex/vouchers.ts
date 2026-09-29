@@ -32,7 +32,7 @@ import {
 } from "./lib/voucherCode";
 import { countsAsRealVoucher } from "./lib/financeSummary";
 import { patchVoucher } from "./lib/voucherWrites";
-import { normalizeSearch, voucherSearchText } from "./lib/voucherSearch";
+import { normalizeSearchQuery, voucherSearchText } from "./lib/voucherSearch";
 import { validateVoucherPurchase } from "./lib/voucherPurchase";
 import type { PaymentSnapshot } from "./lib/paymentOperation";
 
@@ -1916,7 +1916,7 @@ function parseAdminSearch(search: string | undefined): string | undefined {
       `A busca pode ter no máximo ${MAX_ADMIN_SEARCH_LENGTH} caracteres.`,
     );
   }
-  return normalizeSearch(trimmed) || undefined;
+  return normalizeSearchQuery(trimmed) || undefined;
 }
 
 /**

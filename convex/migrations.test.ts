@@ -23,7 +23,7 @@ function legacyVoucher(code: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-test("the backfill fills missing purchasedAt, searchText and isActive across batches and keeps existing values", async () => {
+test("the backfill fills missing purchasedAt and isActive across batches, keeps an existing purchasedAt and refreshes a stale searchText", async () => {
   const t = createConvexTest();
   await t.run(async (ctx) => {
     // More than one batch of 200 to exercise the self-rescheduling cursor.
@@ -58,9 +58,9 @@ test("the backfill fills missing purchasedAt, searchText and isActive across bat
   }
   const byCode = new Map(rows.map((r) => [r.code, r]));
   expect(byCode.get("c0")?.purchasedAt).toBe(byCode.get("c0")?._creationTime);
-  expect(byCode.get("c0")?.searchText).toBe("c0 jose conceicao 11999999999");
+  expect(byCode.get("c0")?.searchText).toBe("c0 jose conceicao 11999999999 999999999 99999999");
   expect(byCode.get("kept")?.purchasedAt).toBe(123);
-  expect(byCode.get("kept")?.searchText).toBe("custom");
+  expect(byCode.get("kept")?.searchText).not.toBe("custom");
   expect(byCode.get("c0")?.isActive).toBe(true);
   expect(byCode.get("gone")?.isActive).toBe(false);
   expect(byCode.get("test")?.isActive).toBe(false);
