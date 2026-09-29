@@ -24,6 +24,15 @@ crons.cron(
   {},
 );
 
+// Safety net for the persisted finance summaries: re-summarize the last week
+// in case a voucher write missed its scheduled recompute.
+crons.cron(
+  "recompute recent finance days",
+  "15 3 * * *",
+  internal.finance.recomputeRecentDays,
+  {},
+);
+
 crons.interval(
   "sweep overdue payment refunds",
   { minutes: 15 },

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
+import { patchVoucher } from "./lib/voucherWrites";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -59,7 +60,7 @@ export const runDailyMaintenance = internalMutation({
       )
       .take(BATCH_SIZE);
     for (const voucher of overdueValid) {
-      await ctx.db.patch(voucher._id, { status: "expired" });
+      await patchVoucher(ctx, voucher, { status: "expired" });
     }
 
     const overduePending = await ctx.db
@@ -69,7 +70,7 @@ export const runDailyMaintenance = internalMutation({
       )
       .take(BATCH_SIZE);
     for (const voucher of overduePending) {
-      await ctx.db.patch(voucher._id, { deletedAt: now });
+      await patchVoucher(ctx, voucher, { deletedAt: now, isActive: false });
     }
 
     const testCutoff = now - THIRTY_DAYS_MS;

@@ -1,3 +1,7 @@
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from "convex/server";
 import { ConvexError, v } from "convex/values";
 
 import { endOfSaoPauloDayMs, getSaoPauloDateKey } from "../src/lib/utils/date";
@@ -26,20 +30,13 @@ import {
   generateVoucherCode,
   splitCustomerName,
 } from "./lib/voucherCode";
+import { countsAsRealVoucher } from "./lib/financeSummary";
+import { patchVoucher } from "./lib/voucherWrites";
+import { normalizeSearchQuery, voucherSearchText } from "./lib/voucherSearch";
 import { validateVoucherPurchase } from "./lib/voucherPurchase";
 import type { PaymentSnapshot } from "./lib/paymentOperation";
 
-/**
- * Whether a voucher counts as a real, live voucher for operational and
- * reporting purposes: not soft-deleted, and not a Test Voucher. Every gate,
- * admin, and summary query must use this instead of re-typing the two
- * conditions, so a new query can't accidentally forget one.
- */
-export function countsAsRealVoucher(
-  voucher: Pick<Doc<"vouchers">, "deletedAt" | "isTest">,
-): boolean {
-  return voucher.deletedAt === undefined && !voucher.isTest;
-}
+export { countsAsRealVoucher };
 
 export const voucherStatusValidator = v.union(
   v.literal("pending"),
@@ -141,7 +138,7 @@ export const authorizeLookup = mutation({
 
     const lookupToken = voucher.lookupToken ?? crypto.randomUUID();
     if (voucher.lookupToken === undefined) {
-      await ctx.db.patch("vouchers", voucher._id, { lookupToken });
+      await patchVoucher(ctx, voucher, { lookupToken });
     }
 
     return {
@@ -530,7 +527,7 @@ export const prepareCancellation = internalMutation({
       .first();
 
     if (officialPayment?.status === "approved") {
-      await ctx.db.patch(voucher._id, {
+      await patchVoucher(ctx, voucher, {
         status: "valid",
         paymentId: officialPayment.paymentId,
         cancellationStartedAt: undefined,
@@ -554,7 +551,7 @@ export const prepareCancellation = internalMutation({
       });
     }
 
-    await ctx.db.patch(voucher._id, {
+    await patchVoucher(ctx, voucher, {
       cancellationStartedAt: voucher.cancellationStartedAt ?? now,
       cancellationSearchOpId: searchOpId,
       cancellationInvalidateOpId: invalidateOpId,
@@ -601,7 +598,7 @@ export const finalizeCancellation = internalMutation({
       return { outcome: "already_approved" as const };
     }
 
-    await ctx.db.patch(voucher._id, {
+    await patchVoucher(ctx, voucher, {
       status: "cancelled",
       cancellationStartedAt: undefined,
     });
@@ -636,7 +633,7 @@ export const clearCancellationIntent = internalMutation({
       .unique();
 
     if (voucher?.status === "pending") {
-      await ctx.db.patch(voucher._id, {
+      await patchVoucher(ctx, voucher, {
         cancellationStartedAt: undefined,
       });
     }
@@ -1303,6 +1300,8 @@ export const insertPendingVoucher = internalMutation({
       referrer: args.referrer,
       isTest: args.isTest,
       purchasedAt: Date.now(),
+      searchText: voucherSearchText(args),
+      isActive: !args.isTest,
     });
 
     return { ok: true as const, managementToken };
@@ -1455,7 +1454,7 @@ export const confirmPayment = internalMutation({
         if (voucher.status === "redeemed") {
           if (voucher.reversal === undefined) {
             const reversal = { reason: reversalReason, notedAt: Date.now() };
-            await ctx.db.patch(voucher._id, { reversal });
+            await patchVoucher(ctx, voucher, { reversal });
           }
           if (existingPayment) {
             await ctx.db.patch(existingPayment._id, {
@@ -1504,7 +1503,7 @@ export const confirmPayment = internalMutation({
 
         if (voucher.status === "valid") {
           const reversal = { reason: reversalReason, notedAt: Date.now() };
-          await ctx.db.patch(voucher._id, { status: "refunded", reversal });
+          await patchVoucher(ctx, voucher, { status: "refunded", reversal });
           if (existingPayment) {
             await ctx.db.patch(existingPayment._id, {
               status: args.paymentStatus,
@@ -1589,7 +1588,7 @@ export const confirmPayment = internalMutation({
           existingOfficialPayment.paymentId === args.paymentId);
 
       if (canBeOfficial) {
-        await ctx.db.patch(voucher._id, {
+        await patchVoucher(ctx, voucher, {
           status: "valid",
           paymentId: args.paymentId,
           paymentTypeId: args.paymentTypeId,
@@ -1690,7 +1689,7 @@ export const confirmPayment = internalMutation({
     }
 
     if (voucher.status === "pending" && voucher.paymentId === undefined) {
-      await ctx.db.patch(voucher._id, { paymentId: args.paymentId });
+      await patchVoucher(ctx, voucher, { paymentId: args.paymentId });
     }
 
     return {
@@ -1727,7 +1726,7 @@ function summarizeForGate(voucher: Doc<"vouchers">) {
     elderlyPool: voucher.elderlyPool,
     visitDate: voucher.visitDate,
     expiresAt: voucher.expiresAt,
-    createdAt: voucher._creationTime,
+    createdAt: voucher.purchasedAt ?? voucher._creationTime,
   };
 }
 
@@ -1859,7 +1858,7 @@ export const redeemByCode = mutation({
       throw new ConvexError("Este voucher não é válido para o dia de hoje.");
     }
 
-    await ctx.db.patch(voucher._id, { status: "redeemed" });
+    await patchVoucher(ctx, voucher, { status: "redeemed" });
 
     return { code: voucher.code, status: "redeemed" as const };
   },
@@ -1897,88 +1896,183 @@ export const reactivate = mutation({
     }
 
     const expiresAt = endOfSaoPauloDayMs(getSaoPauloDateKey());
-    await ctx.db.patch(voucher._id, { status: "valid", expiresAt });
+    await patchVoucher(ctx, voucher, { status: "valid", expiresAt });
 
     return { code: voucher.code, status: "valid" as const, expiresAt };
   },
 });
 
+const MAX_ADMIN_SEARCH_LENGTH = 64;
+
 /**
- * Every real voucher (excludes Test Vouchers and soft-deleted rows), for the
- * admin table. No cursor pagination and no search index: production holds
- * roughly a thousand vouchers growing at about fifty a month, so the full
- * filtered set is loaded in one reactive query and the browser paginates and
- * substring-searches it — the only way to get true `contains` semantics and
- * an accurate page count at this scale (see the spec's "Admin data access").
- * Status and creation-date-range filters run here so the returned set — and
- * therefore the client's page count — already reflects them; substring
- * search stays client-side since it isn't representable as an index range.
- * Admin-only: an employee identity is rejected, same as `listTodayAdmin`.
+ * Trims and normalizes the admin search box. Returns undefined for an empty
+ * search (meaning "no search") and refuses text longer than the limit.
+ */
+function parseAdminSearch(search: string | undefined): string | undefined {
+  const trimmed = search?.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.length > MAX_ADMIN_SEARCH_LENGTH) {
+    throw new ConvexError(
+      `A busca pode ter no máximo ${MAX_ADMIN_SEARCH_LENGTH} caracteres.`,
+    );
+  }
+  return normalizeSearchQuery(trimmed) || undefined;
+}
+
+/**
+ * Every real voucher (excludes Test Vouchers and soft-deleted rows), one page
+ * at a time, for the admin table. Admin-only: an employee identity is
+ * rejected, same as `listTodayAdmin`.
+ *
+ * Without `search`, rows come newest sale first straight from an index, with
+ * `status` and the `purchasedFrom`/`purchasedTo` range applied in the index.
+ * With `search` (word or prefix match on code, name and phone, accents and
+ * case ignored) the search index is used instead and rows come by relevance;
+ * the date range then runs as a post-filter. `expiresAfter`/`expiresBefore`
+ * are always post-filters, so a page may hold fewer rows than requested.
+ *
+ * Vouchers not yet backfilled with `purchasedAt` (see
+ * `migrations.backfillVoucherPurchasedAtAndSearchText`) only drop out of the
+ * view when a purchase date range is set, and of search results always.
  */
 export const listAdmin = query({
   args: {
+    paginationOpts: paginationOptsValidator,
     status: v.optional(voucherStatusValidator),
-    createdAfter: v.optional(v.number()),
-    createdBefore: v.optional(v.number()),
+    purchasedFrom: v.optional(v.number()),
+    purchasedTo: v.optional(v.number()),
     expiresAfter: v.optional(v.number()),
     expiresBefore: v.optional(v.number()),
+    search: v.optional(v.string()),
   },
-  returns: v.array(gateVoucherAdminValidator),
+  returns: paginationResultValidator(gateVoucherAdminValidator),
   handler: async (ctx, args) => {
     await requireRole(ctx, "admin");
 
-    const vouchers = await ctx.db.query("vouchers").collect();
+    const search = parseAdminSearch(args.search);
+    const { status, purchasedFrom, purchasedTo } = args;
 
-    return vouchers
-      .filter(countsAsRealVoucher)
-      .filter(
-        (voucher) =>
-          args.status === undefined || voucher.status === args.status,
+    const base = search
+      ? ctx.db.query("vouchers").withSearchIndex("search_text", (q) => {
+          const filtered = q.search("searchText", search).eq("isActive", true);
+          return status ? filtered.eq("status", status) : filtered;
+        })
+      : status
+        ? ctx.db
+            .query("vouchers")
+            .withIndex(
+              "by_isTest_and_deletedAt_and_status_and_purchasedAt",
+              (q) => {
+                const scoped = q
+                  .eq("isTest", false)
+                  .eq("deletedAt", undefined)
+                  .eq("status", status);
+                if (purchasedFrom === undefined && purchasedTo === undefined) {
+                  return scoped;
+                }
+                return purchasedTo === undefined
+                  ? scoped.gte("purchasedAt", purchasedFrom ?? 0)
+                  : scoped
+                      .gte("purchasedAt", purchasedFrom ?? 0)
+                      .lte("purchasedAt", purchasedTo);
+              },
+            )
+            .order("desc")
+        : ctx.db
+            .query("vouchers")
+            .withIndex("by_isTest_and_deletedAt_and_purchasedAt", (q) => {
+              const scoped = q.eq("isTest", false).eq("deletedAt", undefined);
+              if (purchasedFrom === undefined && purchasedTo === undefined) {
+                return scoped;
+              }
+              return purchasedTo === undefined
+                ? scoped.gte("purchasedAt", purchasedFrom ?? 0)
+                : scoped
+                    .gte("purchasedAt", purchasedFrom ?? 0)
+                    .lte("purchasedAt", purchasedTo);
+            })
+            .order("desc");
+
+    const result = await base
+      .filter((q) =>
+        q.and(
+          // Date bounds already enforced by the index when not searching.
+          search && args.purchasedFrom !== undefined
+            ? q.gte(q.field("purchasedAt"), args.purchasedFrom)
+            : true,
+          search && args.purchasedTo !== undefined
+            ? q.lte(q.field("purchasedAt"), args.purchasedTo)
+            : true,
+          args.expiresAfter !== undefined
+            ? q.gte(q.field("expiresAt"), args.expiresAfter)
+            : true,
+          args.expiresBefore !== undefined
+            ? q.lte(q.field("expiresAt"), args.expiresBefore)
+            : true,
+        ),
       )
-      .filter(
-        (voucher) =>
-          args.createdAfter === undefined ||
-          voucher._creationTime >= args.createdAfter,
-      )
-      .filter(
-        (voucher) =>
-          args.createdBefore === undefined ||
-          voucher._creationTime <= args.createdBefore,
-      )
-      .filter(
-        (voucher) =>
-          args.expiresAfter === undefined ||
-          voucher.expiresAt >= args.expiresAfter,
-      )
-      .filter(
-        (voucher) =>
-          args.expiresBefore === undefined ||
-          voucher.expiresAt <= args.expiresBefore,
-      )
-      .sort((a, b) => b._creationTime - a._creationTime)
-      .map(summarizeForGateAdmin);
+      .paginate(args.paginationOpts);
+
+    return { ...result, page: result.page.map(summarizeForGateAdmin) };
   },
 });
 
 /**
- * Soft-deleted vouchers, for the admin's separate audit/restore view — the
- * mirror image of `countsAsRealVoucher`'s `deletedAt` check: everything
- * `listAdmin` hides for being deleted, this shows. Test Vouchers are
- * included here (unlike `listAdmin`) since a soft-deleted Test Voucher is
- * still something an admin may want to audit or restore. Admin-only.
+ * Codes of live Pending vouchers that have not yet expired, capped at 200.
+ * Feeds the admin table's payment reconciliation, which must look at every
+ * pending voucher regardless of which page of the table is loaded.
  */
-export const listDeleted = query({
+export const listPendingCodes = query({
   args: {},
-  returns: v.array(gateVoucherAdminValidator),
+  returns: v.array(v.string()),
   handler: async (ctx) => {
     await requireRole(ctx, "admin");
 
-    const vouchers = await ctx.db.query("vouchers").collect();
+    const pending = await ctx.db
+      .query("vouchers")
+      .withIndex("by_status_and_deletedAt_and_expiresAt", (q) =>
+        q.eq("status", "pending").eq("deletedAt", undefined),
+      )
+      .take(200);
 
-    return vouchers
-      .filter((voucher) => voucher.deletedAt !== undefined)
-      .sort((a, b) => b._creationTime - a._creationTime)
-      .map(summarizeForGateAdmin);
+    return pending.filter((voucher) => !voucher.isTest).map((v) => v.code);
+  },
+});
+
+/**
+ * Soft-deleted vouchers, one page at a time, for the admin's separate
+ * audit/restore view — the mirror image of `listAdmin`: everything it hides
+ * for being deleted, this shows, newest deletion first (relevance order when
+ * searching). Test Vouchers are included since a soft-deleted Test Voucher is
+ * still something an admin may want to audit or restore. Admin-only.
+ */
+export const listDeleted = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    search: v.optional(v.string()),
+  },
+  returns: paginationResultValidator(gateVoucherAdminValidator),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const search = parseAdminSearch(args.search);
+
+    const result = search
+      ? await ctx.db
+          .query("vouchers")
+          .withSearchIndex("search_text", (q) =>
+            q.search("searchText", search).eq("isActive", false),
+          )
+          // `isActive: false` also covers live Test Vouchers.
+          .filter((q) => q.neq(q.field("deletedAt"), undefined))
+          .paginate(args.paginationOpts)
+      : await ctx.db
+          .query("vouchers")
+          .withIndex("by_deletedAt", (q) => q.gte("deletedAt", 0))
+          .order("desc")
+          .paginate(args.paginationOpts);
+
+    return { ...result, page: result.page.map(summarizeForGateAdmin) };
   },
 });
 
@@ -2016,7 +2110,7 @@ export const updateStatus = mutation({
         "Um voucher cancelado é terminal e não pode ter o status alterado.",
       );
     }
-    await ctx.db.patch(voucher._id, { status: args.status });
+    await patchVoucher(ctx, voucher, { status: args.status });
     return null;
   },
 });
@@ -2030,7 +2124,10 @@ export const restore = mutation({
 
     const voucher = await requireVoucherByCode(ctx, args.code);
     // Convex `patch` removes a field entirely when set to `undefined`.
-    await ctx.db.patch(voucher._id, { deletedAt: undefined });
+    await patchVoucher(ctx, voucher, {
+      deletedAt: undefined,
+      isActive: !voucher.isTest,
+    });
     return null;
   },
 });
