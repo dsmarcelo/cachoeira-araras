@@ -52,6 +52,18 @@ pnpm export:postgres-to-convex
 pnpm exec convex import --table vouchers --append .import-data/vouchers.jsonl
 ```
 
+Depois de qualquer importacao em lote (e no primeiro deploy do resumo financeiro), rode os dois comandos abaixo, nesta ordem. Sem eles a busca da tabela admin nao encontra os vouchers importados e a pagina Financeiro mostra totais desatualizados:
+
+```bash
+# 3. Preenche purchasedAt, searchText e isActive que faltarem (seguro rodar de novo)
+pnpm exec convex run migrations:backfillVoucherPurchasedAtAndSearchText
+
+# 4. Recalcula os resumos diarios (financeDays) a partir dos vouchers
+pnpm exec convex run finance:rebuildAll
+```
+
+- Os dois comandos rodam em lotes agendados e terminam alguns segundos depois de retornar; rode o 4 so depois que o 3 terminar.
+- Para producao, acrescente `--prod` aos dois comandos. Detalhes em [docs/internals/finance-summaries.md](./docs/internals/finance-summaries.md).
 - Se alguma linha nao puder ser convertida, o export lista os erros e nao grava arquivo.
 - `--append` nao evita duplicados por codigo: se a tabela ja tem vouchers importados, use `--replace` (apaga a tabela antes) ou exporte so o que falta.
 - Para producao, acrescente `--prod` ao `convex import`, seguindo o [runbook de corte](./docs/operations/postgres-to-convex-cutover.md).
