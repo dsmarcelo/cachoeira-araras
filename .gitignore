@@ -54,3 +54,6 @@ yarn-error.log*
 /public/images/novas/
 /public/images/principais/
 .env*
+
+# Postgres export for `convex import` (contains customer data)
+/.import-data/

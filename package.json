@@ -20,6 +20,7 @@
     "test:webhook": "node --import ts-node/register --test src/server/mercadopago-webhook.test.ts",
     "test:payments": "node scripts/payment-e2e/run-payment-e2e.mjs",
     "test:convex": "vitest run",
+    "export:postgres-to-convex": "node --disable-warning=ExperimentalWarning --env-file=.env.local scripts/import-postgres-to-convex/export.ts",
     "test:import": "vitest run --config vitest.config.scripts.ts",
     "type-check": "tsc --noEmit",
     "start": "next start"

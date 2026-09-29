@@ -12,6 +12,7 @@ Prisma é uma ponte temporária obrigatória: lê o banco legado no corte e tamb
 - Normaliza status, converte reais em centavos, deriva data/expiração e incorpora o referrer.
 - Insere por código do voucher e não altera registros já existentes no Convex.
 - Falha diante de status ou valores desconhecidos em vez de adivinhar.
+- Alternativa em lote: `pnpm export:postgres-to-convex` gera `.import-data/vouchers.jsonl` para o `convex import` (veja o README); não passa pelo bloqueio `dev:` nem ignora códigos já existentes, então confira o alvo e use `--replace` ou `--append` conscientemente.
 - Atualmente recusa qualquer `CONVEX_DEPLOYMENT` que não comece com `dev:`; portanto não pode atingir produção sem uma mudança deliberada e revisada.
 
 ## Repetir o ensaio

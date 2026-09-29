@@ -106,13 +106,15 @@ export interface VoucherImportRow {
   preferenceId: string;
   paymentId?: string;
   referrer?: { source: string; url: string };
+  purchasedAt: number;
   deletedAt?: number;
 }
 
 /**
  * Builds the full Convex import row for one legacy Voucher, applying every
  * transformation this migration requires: status normalisation, cents,
- * the visitDate/expiresAt split, and the folded referrer.
+ * the visitDate/expiresAt split, the folded referrer, and `purchasedAt` from
+ * the legacy `createdAt`.
  */
 export function buildVoucherImportRow(
   voucher: Voucher,
@@ -141,6 +143,7 @@ export function buildVoucherImportRow(
     preferenceId: voucher.preference_id,
     paymentId: voucher.payment_id ?? undefined,
     referrer: foldReferrer(referrer),
+    purchasedAt: voucher.createdAt.getTime(),
     deletedAt: voucher.deletedAt?.getTime(),
   };
 }
