@@ -1,35 +1,39 @@
 "use client";
 
-import React, { type ReactNode, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { Menu } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
+import { useSidebar } from "@/components/ui/sidebar";
+import { adminPageTitle } from "./admin-nav";
+import { useLogout } from "./use-logout";
 
-export default function AdminHeader({ children }: { children: ReactNode }) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-
-  function handleLogout() {
-    startTransition(async () => {
-      await authClient.signOut();
-      router.replace("/admin");
-      router.refresh();
-    });
-  }
+/** Sticky top bar: menu toggle, the current page's title and "Sair". */
+export default function AdminHeader() {
+  const pathname = usePathname();
+  const { toggleSidebar } = useSidebar();
+  const { logout, isPending } = useLogout();
 
   return (
-    <header className="sticky top-0 z-50 flex h-12 w-full items-center justify-between border-b border-border bg-background px-4 md:px-6">
-      {children}
-      <Button
-        variant="ghost"
+    <header className="sticky top-0 z-40 flex h-16 w-full items-center gap-1 border-b border-border bg-white px-2 md:px-4">
+      <button
         type="button"
-        className="p-0 text-sm text-muted-foreground hover:text-foreground hover:bg-transparent"
-        onClick={handleLogout}
+        aria-label="Abrir menu"
+        onClick={toggleSidebar}
+        className="flex size-11 items-center justify-center rounded-lg text-foreground hover:bg-muted"
+      >
+        <Menu className="size-5" aria-hidden />
+      </button>
+      <h1 className="flex-1 truncate text-lg font-semibold tracking-tight">
+        {adminPageTitle(pathname)}
+      </h1>
+      <button
+        type="button"
+        onClick={logout}
         disabled={isPending}
+        className="h-11 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
       >
         {isPending ? "Saindo..." : "Sair"}
-      </Button>
+      </button>
     </header>
   );
 }
