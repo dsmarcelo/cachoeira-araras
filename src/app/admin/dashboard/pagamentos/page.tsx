@@ -3,35 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAction, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
-import { Copy, CreditCard, Search } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, CreditCard } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { formatPhone, formatToBRL, getErrorMessage } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
+import {
+  ChipGroup,
+  EmptyState,
+  PageShell,
+  Pager,
+  Panel,
+  SearchInput,
+  StatusBadge,
+  type Tone,
+} from "../../_components/admin-ui";
 
 type PaymentStatus =
   | "all"
@@ -74,15 +60,18 @@ const statusOptions: Array<{ value: PaymentStatus; label: string }> = [
   { value: "charged_back", label: "Chargeback" },
 ];
 
-const statusLabels: Record<string, string> = {
-  approved: "Aprovado",
-  pending: "Pendente",
-  in_process: "Em processamento",
-  rejected: "Rejeitado",
-  cancelled: "Cancelado",
-  refunded: "Reembolsado",
-  charged_back: "Chargeback",
+const statusLabels: Record<string, { label: string; tone: Tone }> = {
+  approved: { label: "Aprovado", tone: "success" },
+  pending: { label: "Pendente", tone: "warning" },
+  in_process: { label: "Em processamento", tone: "warning" },
+  rejected: { label: "Rejeitado", tone: "danger" },
+  cancelled: { label: "Cancelado", tone: "neutral" },
+  refunded: { label: "Reembolsado", tone: "neutral" },
+  charged_back: { label: "Chargeback", tone: "danger" },
 };
+
+const monthArrowClass =
+  "flex size-11 items-center justify-center rounded-lg border border-border bg-white shadow-sm transition-colors hover:bg-zinc-50 disabled:opacity-40";
 
 function getCurrentSaoPauloMonth() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -96,6 +85,22 @@ function getCurrentSaoPauloMonth() {
   return `${year ?? new Date().getFullYear()}-${month ?? "01"}`;
 }
 
+/** Shifts a "YYYY-MM" key by `delta` months. */
+function shiftMonth(month: string, delta: number) {
+  const [year = 1970, monthNumber = 1] = month.split("-").map(Number);
+  const date = new Date(year, monthNumber - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** "2026-09" → "Setembro 2026". */
+function formatMonthLabel(month: string) {
+  const [year = 1970, monthNumber = 1] = month.split("-").map(Number);
+  const name = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(
+    new Date(year, monthNumber - 1, 1),
+  );
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${year}`;
+}
+
 function formatDateTime(value: string | null) {
   if (!value) return "—";
 
@@ -104,11 +109,6 @@ function formatDateTime(value: string | null) {
     timeStyle: "short",
     timeZone: "America/Sao_Paulo",
   }).format(new Date(value));
-}
-
-function formatStatus(status: string | null) {
-  if (!status) return "—";
-  return statusLabels[status] ?? status;
 }
 
 function formatMethod(payment: AdminPayment) {
@@ -125,115 +125,110 @@ function getMatchLabel(matchSource: AdminPayment["matchSource"]) {
   return "Não encontrado no banco";
 }
 
-function getMatchClassName(matchSource: AdminPayment["matchSource"]) {
-  if (matchSource === "unmatched")
-    return "bg-yellow-100 text-yellow-800";
-  return "bg-green-100 text-green-800";
-}
+/** Outlined "Copiar …" button that confirms with a check for a moment. */
+function CopyTextButton({ label, value }: { label: string; value: string | null }) {
+  const [copied, setCopied] = useState(false);
 
-async function copyToClipboard(value: string | null) {
-  if (!value) return;
-  await navigator.clipboard.writeText(value);
+  async function handleCopy() {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast({ title: "Não foi possível copiar", variant: "destructive" });
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={!value}
+      onClick={() => void handleCopy()}
+      className="flex h-10 items-center justify-center gap-1.5 rounded-lg border border-border bg-white text-[13px] font-medium transition-colors hover:bg-zinc-50 disabled:opacity-45"
+    >
+      {copied ? (
+        <Check className="size-3.5 text-green-700" aria-hidden />
+      ) : (
+        <Copy className="size-3.5" aria-hidden />
+      )}
+      {copied ? "Copiado" : label}
+    </button>
+  );
 }
 
 function PaymentDetails({ payment }: { payment: AdminPayment }) {
   return (
-    <details className="text-sm">
+    <details className="text-[13px]">
       <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
         Ver detalhes
       </summary>
-      <div className="mt-2 grid gap-1 rounded-md bg-muted/50 p-3 text-muted-foreground">
+      <div className="mt-2 grid gap-1 rounded-lg bg-muted p-3 text-zinc-600">
         <span>Status detalhado: {payment.statusDetail ?? "—"}</span>
         <span>Status do voucher no banco: {payment.voucherStatus ?? "—"}</span>
         <span>
           Valor reembolsado: {formatToBRL(payment.refundedAmount ?? 0)}
         </span>
-        <span>Origem do vínculo: {getMatchLabel(payment.matchSource)}</span>
       </div>
     </details>
   );
 }
 
-function CopyButton({ label, value }: { label: string; value: string | null }) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      className="h-7 px-2"
-      disabled={!value}
-      onClick={() => copyToClipboard(value)}
-    >
-      <Copy className="mr-1 h-3.5 w-3.5" />
-      {label}
-    </Button>
-  );
-}
-
 function PaymentCard({ payment }: { payment: AdminPayment }) {
+  const status = payment.status ? statusLabels[payment.status] : undefined;
+  const payer = payment.payerName ?? payment.payerEmail ?? "—";
+
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="space-y-2">
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <CardTitle
-              className="truncate text-lg"
-              title={payment.voucherCode ?? "Sem código"}
-            >
-              {payment.voucherCode ?? "Sem código"}
-            </CardTitle>
-            <CardDescription className="truncate" title={payment.paymentId}>
-              ID {payment.paymentId}
-            </CardDescription>
-          </div>
-          <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs font-medium">
-            {formatStatus(payment.status)}
+    <Panel as="article" className="flex flex-col">
+      <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-4">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span
+            className={`truncate font-mono text-base font-semibold uppercase tracking-wide ${payment.voucherCode ? "" : "text-muted-foreground"}`}
+          >
+            {payment.voucherCode ?? "Sem código"}
+          </span>
+          <span className="truncate text-xs text-muted-foreground" title={payment.paymentId}>
+            ID {payment.paymentId}
           </span>
         </div>
-        <span
-          className={`max-w-full truncate rounded-full px-2 py-1 text-xs font-medium ${getMatchClassName(payment.matchSource)}`}
-        >
-          {getMatchLabel(payment.matchSource)}
+        <StatusBadge tone={status?.tone ?? "neutral"}>
+          {status?.label ?? payment.status ?? "—"}
+        </StatusBadge>
+      </div>
+      <div className="flex items-baseline justify-between gap-3 px-4 pb-3">
+        <span className="text-[22px] font-semibold tracking-tight">
+          {formatToBRL(payment.transactionAmount ?? 0)}
         </span>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
-          <span className="text-muted-foreground">Data</span>
-          <span
-            className="truncate text-right"
-            title={formatDateTime(payment.dateCreated)}
-          >
-            {formatDateTime(payment.dateCreated)}
-          </span>
-          <span className="text-muted-foreground">Valor</span>
-          <span className="truncate text-right font-medium">
-            {formatToBRL(payment.transactionAmount ?? 0)}
-          </span>
-          <span className="text-muted-foreground">Método</span>
-          <span className="truncate text-right" title={formatMethod(payment)}>
-            {formatMethod(payment)}
-          </span>
-          <span className="text-muted-foreground">Pagador</span>
-          <span
-            className="truncate text-right"
-            title={payment.payerName ?? payment.payerEmail ?? "—"}
-          >
-            {payment.payerName ?? payment.payerEmail ?? "—"}
-          </span>
-          <span className="text-muted-foreground">Telefone</span>
-          <span className="truncate text-right">
-            {payment.voucherBuyerPhone
-              ? formatPhone(payment.voucherBuyerPhone)
-              : "—"}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <CopyButton label="Copiar ID" value={payment.paymentId} />
-          <CopyButton label="Copiar código" value={payment.voucherCode} />
-        </div>
+        <span className="truncate text-[13px] text-muted-foreground" title={formatMethod(payment)}>
+          {formatMethod(payment)}
+        </span>
+      </div>
+      <dl className="grid grid-cols-[76px_minmax(0,1fr)] gap-x-3 gap-y-2 border-t border-border px-4 py-3 text-[13px]">
+        <dt className="text-muted-foreground">Data</dt>
+        <dd className="text-right">{formatDateTime(payment.dateCreated)}</dd>
+        <dt className="text-muted-foreground">Pagador</dt>
+        <dd className="truncate text-right" title={payer}>
+          {payer}
+        </dd>
+        <dt className="text-muted-foreground">Telefone</dt>
+        <dd className="text-right">
+          {payment.voucherBuyerPhone ? formatPhone(payment.voucherBuyerPhone) : "—"}
+        </dd>
+        <dt className="text-muted-foreground">Vínculo</dt>
+        <dd className="flex justify-end">
+          <StatusBadge tone={payment.matchSource === "unmatched" ? "warning" : "success"}>
+            {getMatchLabel(payment.matchSource)}
+          </StatusBadge>
+        </dd>
+      </dl>
+      <div className="border-t border-border px-4 py-3">
         <PaymentDetails payment={payment} />
-      </CardContent>
-    </Card>
+      </div>
+      <div className="grid grid-cols-2 gap-2 border-t border-border px-4 pb-4 pt-3">
+        <CopyTextButton label="Copiar ID" value={payment.paymentId} />
+        <CopyTextButton label="Copiar código" value={payment.voucherCode} />
+      </div>
+    </Panel>
   );
 }
 
@@ -378,289 +373,159 @@ export default function AdminPaymentsPage() {
 
   const payments = paymentsQuery.data?.items ?? [];
   const pageCount = paymentsQuery.data?.pageCount ?? 0;
-  const canGoPrevious = page > 1;
-  const canGoNext = pageCount > 0 && page < pageCount;
+  const currentMonth = getCurrentSaoPauloMonth();
+
+  function changeMonth(delta: number) {
+    setMonth((current) => shiftMonth(current, delta));
+    setPage(1);
+  }
 
   return (
-    <div className="px-4 py-6 sm:px-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Pagamentos Mercado Pago</h1>
-        <p className="text-muted-foreground">
-          Consulte pagamentos por mês e confira o código do voucher vinculado.
-        </p>
-      </div>
-
+    <PageShell className="md:max-w-5xl">
       {refundAlerts && refundAlerts.length > 0 ? (
-        <Card className="mb-6 border-red-500/50">
-          <CardHeader>
-            <CardTitle className="text-red-700">
+        <Panel className="flex flex-col gap-3 border-red-200 p-5">
+          <div className="flex flex-col gap-0.5">
+            <h2 className="text-[15px] font-semibold text-red-700">
               Reembolsos que precisam de acompanhamento
-            </CardTitle>
-            <CardDescription>
+            </h2>
+            <p className="text-[13px] text-muted-foreground">
               O Mercado Pago falhou repetidamente. Confirme o reembolso e entre
               em contato com o cliente se necessário.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {refundAlerts.map((alert) => (
-              <div
-                key={alert.id}
-                role="alert"
-                className="rounded-md border border-red-500/30 p-3 text-sm"
-              >
-                <p className="font-medium">Voucher {alert.voucherCode}</p>
-                <p>
-                  {alert.customerName} · {formatPhone(alert.customerPhone)} ·{" "}
-                  {alert.attemptCount} tentativas
-                </p>
-                <p className="mt-1 text-red-700">Última falha: {alert.explanation}</p>
-                {alert.providerDetail && (
-                  <p className="text-xs text-muted-foreground">Detalhe técnico: {alert.providerDetail}</p>
-                )}
-                {alert.needsAttention ? (
-                  <div className="mt-2 space-y-2">
-                    <p className="font-medium text-red-700">Tentativas automáticas pausadas.</p>
-                    {alert.refundId && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={retryingRefundId !== null}
-                        onClick={() => void handleRetryRefund(alert.refundId!)}
-                      >
-                        {retryingRefundId === alert.refundId ? "Verificando..." : "Tentar reembolso novamente"}
-                      </Button>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+            </p>
+          </div>
+          {refundAlerts.map((alert) => (
+            <div
+              key={alert.id}
+              role="alert"
+              className="flex flex-col gap-1 rounded-[10px] border border-red-200 bg-red-50 p-3 text-sm"
+            >
+              <p className="font-medium">
+                Voucher <span className="font-mono uppercase">{alert.voucherCode}</span>
+              </p>
+              <p className="text-zinc-700">
+                {alert.customerName} · {formatPhone(alert.customerPhone)} · {alert.attemptCount} tentativas
+              </p>
+              <p className="text-red-700">Última falha: {alert.explanation}</p>
+              {alert.providerDetail && (
+                <p className="text-xs text-muted-foreground">Detalhe técnico: {alert.providerDetail}</p>
+              )}
+              {alert.needsAttention ? (
+                <div className="mt-1 flex flex-col items-start gap-2">
+                  <p className="font-medium text-red-700">Tentativas automáticas pausadas.</p>
+                  {alert.refundId && (
+                    <Button
+                      variant="outline"
+                      className="h-10"
+                      disabled={retryingRefundId !== null}
+                      onClick={() => void handleRetryRefund(alert.refundId!)}
+                    >
+                      {retryingRefundId === alert.refundId ? "Verificando..." : "Tentar reembolso novamente"}
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </Panel>
       ) : null}
 
-      <div className="mb-6 grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Aprovados no mês
-            </CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {summaryQuery.isLoading
-                ? "Carregando..."
-                : formatToBRL(summaryQuery.data?.approvedAmount ?? 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {summaryQuery.data?.approvedCount ?? 0} pagamento(s) aprovado(s)
-              {summaryQuery.data?.incomplete
-                ? ` — resumo limitado aos primeiros ${summaryQuery.data.scanLimit}`
-                : ""}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              Registros encontrados
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {paymentsQuery.data?.total ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {paymentsQuery.data?.searchMode === "current_page"
-                ? "Busca ampla filtrando apenas a página carregada."
-                : "Total retornado pelo Mercado Pago para os filtros."}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="mb-6 grid gap-3 md:grid-cols-[180px_220px_1fr]">
-        <Input
-          type="month"
-          value={month}
-          onChange={(event) => {
-            setMonth(event.target.value);
-            setPage(1);
-          }}
-        />
-        <Select
-          value={status}
-          onValueChange={(nextStatus: PaymentStatus) => {
-            setStatus(nextStatus);
-            setPage(1);
-          }}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          aria-label="Mês anterior"
+          className={monthArrowClass}
+          onClick={() => changeMonth(-1)}
         >
-          <SelectTrigger>
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {statusOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <div className="relative">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="pl-8"
-            maxLength={120}
-            placeholder="Buscar ID, código, pagador ou telefone"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
+          <ChevronLeft className="size-4" aria-hidden />
+        </button>
+        <span className="text-[15px] font-semibold">{formatMonthLabel(month)}</span>
+        <button
+          type="button"
+          aria-label="Próximo mês"
+          className={monthArrowClass}
+          disabled={month >= currentMonth}
+          onClick={() => changeMonth(1)}
+        >
+          <ChevronRight className="size-4" aria-hidden />
+        </button>
       </div>
+
+      <Panel className="flex items-center justify-between gap-3 px-5 py-4">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[13px] font-medium text-muted-foreground">Aprovados no mês</span>
+          <span className="text-2xl font-semibold tracking-tight">
+            {summaryQuery.isLoading
+              ? "Carregando..."
+              : summaryQuery.isError
+                ? "—"
+                : formatToBRL(summaryQuery.data?.approvedAmount ?? 0)}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {summaryQuery.isError
+              ? "Não foi possível carregar o resumo do mês."
+              : `${summaryQuery.data?.approvedCount ?? 0} pagamento(s) aprovado(s)${
+                  summaryQuery.data?.incomplete
+                    ? ` — resumo limitado aos primeiros ${summaryQuery.data.scanLimit}`
+                    : ""
+                }`}
+          </span>
+        </div>
+        <CreditCard className="size-5 text-muted-foreground" aria-hidden />
+      </Panel>
+
+      <SearchInput
+        value={search}
+        onChange={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
+        placeholder="Buscar ID, código, pagador ou telefone"
+      />
+      <ChipGroup
+        value={status}
+        options={statusOptions}
+        onChange={(nextStatus) => {
+          setStatus(nextStatus);
+          setPage(1);
+        }}
+        label="Status"
+      />
+
+      <p className="px-1 pt-1 text-[13px] text-muted-foreground">
+        {paymentsQuery.data?.total ?? 0} pagamento(s) encontrado(s)
+        {paymentsQuery.data?.searchMode === "current_page"
+          ? " — busca ampla filtrando apenas a página carregada"
+          : ""}
+      </p>
 
       {paymentsQuery.isError ? (
-        <Card>
-          <CardContent className="py-8 text-center text-destructive">
-            Erro ao carregar pagamentos do Mercado Pago.
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <div className="grid gap-4 md:hidden">
-        {paymentsQuery.isLoading ? (
-          <Card>
-            <CardContent className="py-8 text-center">
-              Carregando pagamentos...
-            </CardContent>
-          </Card>
-        ) : payments.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center">
-              Nenhum pagamento encontrado.
-            </CardContent>
-          </Card>
-        ) : (
-          payments.map((payment) => (
+        <Panel>
+          <EmptyState tone="error">
+            Não foi possível carregar os pagamentos do Mercado Pago. Tente novamente em instantes.
+          </EmptyState>
+        </Panel>
+      ) : paymentsQuery.isLoading ? (
+        <Panel>
+          <EmptyState>Carregando pagamentos...</EmptyState>
+        </Panel>
+      ) : payments.length === 0 ? (
+        <Panel>
+          <EmptyState>Nenhum pagamento encontrado.</EmptyState>
+        </Panel>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {payments.map((payment) => (
             <PaymentCard key={payment.paymentId} payment={payment} />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
-      <div className="hidden rounded-md border border-border bg-card text-card-foreground md:block">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Voucher</TableHead>
-              <TableHead>Pagamento</TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Valor</TableHead>
-              <TableHead>Método</TableHead>
-              <TableHead>Pagador</TableHead>
-              <TableHead>Vínculo</TableHead>
-              <TableHead>Detalhes</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paymentsQuery.isLoading ? (
-              <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center">
-                  Carregando pagamentos...
-                </TableCell>
-              </TableRow>
-            ) : payments.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center">
-                  Nenhum pagamento encontrado.
-                </TableCell>
-              </TableRow>
-            ) : (
-              payments.map((payment) => (
-                <TableRow key={payment.paymentId}>
-                  <TableCell className="max-w-32 font-medium">
-                    <div
-                      className="truncate"
-                      title={payment.voucherCode ?? "—"}
-                    >
-                      {payment.voucherCode ?? "—"}
-                    </div>
-                    <CopyButton label="Copiar" value={payment.voucherCode} />
-                  </TableCell>
-                  <TableCell className="max-w-40">
-                    <div className="truncate" title={payment.paymentId}>
-                      {payment.paymentId}
-                    </div>
-                    <CopyButton label="Copiar" value={payment.paymentId} />
-                  </TableCell>
-                  <TableCell>{formatDateTime(payment.dateCreated)}</TableCell>
-                  <TableCell>{formatStatus(payment.status)}</TableCell>
-                  <TableCell>
-                    {formatToBRL(payment.transactionAmount ?? 0)}
-                  </TableCell>
-                  <TableCell
-                    className="max-w-36 truncate"
-                    title={formatMethod(payment)}
-                  >
-                    {formatMethod(payment)}
-                  </TableCell>
-                  <TableCell className="max-w-56">
-                    <div
-                      className="truncate"
-                      title={payment.payerName ?? payment.payerEmail ?? "—"}
-                    >
-                      {payment.payerName ?? payment.payerEmail ?? "—"}
-                    </div>
-                    <div
-                      className="truncate text-xs text-muted-foreground"
-                      title={payment.voucherBuyerPhone ?? undefined}
-                    >
-                      {payment.voucherBuyerPhone
-                        ? formatPhone(payment.voucherBuyerPhone)
-                        : "—"}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-medium ${getMatchClassName(payment.matchSource)}`}
-                    >
-                      {getMatchLabel(payment.matchSource)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <PaymentDetails payment={payment} />
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <Button
-          variant="outline"
-          disabled={!canGoPrevious || paymentsQuery.isFetching}
-          onClick={() => setPage((current) => Math.max(1, current - 1))}
-        >
-          Anterior
-        </Button>
-        <span className="text-sm text-muted-foreground">
-          Página {page} de {Math.max(pageCount, 1)}
-        </span>
-        <Button
-          variant="outline"
-          disabled={!canGoNext || paymentsQuery.isFetching}
-          onClick={() => setPage((current) => current + 1)}
-        >
-          Próxima
-        </Button>
-      </div>
-    </div>
+      <Pager
+        page={page}
+        pageCount={pageCount}
+        disabled={paymentsQuery.isFetching}
+        onPageChange={setPage}
+      />
+    </PageShell>
   );
 }
