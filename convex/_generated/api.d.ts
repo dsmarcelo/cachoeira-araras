@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as authAdmin from "../authAdmin.js";
 import type * as crons from "../crons.js";
+import type * as finance from "../finance.js";
 import type * as http from "../http.js";
 import type * as import_ from "../import.js";
 import type * as lib_auth from "../lib/auth.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   authAdmin: typeof authAdmin;
   crons: typeof crons;
+  finance: typeof finance;
   http: typeof http;
   import: typeof import_;
   "lib/auth": typeof lib_auth;

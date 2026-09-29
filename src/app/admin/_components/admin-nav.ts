@@ -5,6 +5,7 @@ import {
   SlidersHorizontal,
   Ticket,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,6 +32,7 @@ export const adminNav: ReadonlyArray<{ label: string; items: ReadonlyArray<NavIt
     label: "Gestão",
     items: [
       { name: "Vouchers", href: "/admin/tabela", icon: Ticket, roles: ["admin"] },
+      { name: "Financeiro", href: "/admin/dashboard/financeiro", icon: Wallet, roles: ["admin"] },
       { name: "Pagamentos", href: "/admin/dashboard/pagamentos", icon: CreditCard, roles: ["admin"] },
       { name: "Usuários", href: "/admin/dashboard/usuarios", icon: Users, roles: ["admin"] },
       { name: "Configurações", href: "/admin/dashboard/configuracoes", icon: SlidersHorizontal, roles: ["admin"] },

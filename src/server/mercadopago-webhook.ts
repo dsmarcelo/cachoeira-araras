@@ -26,6 +26,8 @@ type MercadoPagoPaymentWebhookPayload = {
   external_reference?: unknown;
   status?: string | null;
   transaction_amount?: unknown;
+  payment_type_id?: unknown;
+  payment_method_id?: unknown;
 };
 
 type ProcessMercadoPagoPaymentWebhookInput = {
@@ -39,6 +41,8 @@ type ProcessMercadoPagoPaymentWebhookInput = {
     paymentId: string;
     paymentStatus: string | null | undefined;
     paymentAmountCents?: number;
+    paymentTypeId?: string;
+    paymentMethodId?: string;
   }) => Promise<VoucherPaymentWebhookResult>;
   sendConversionEvents?: (
     payment: MercadoPagoPaymentWebhookPayload,
@@ -225,6 +229,12 @@ export async function processMercadoPagoPaymentWebhook({
     Number.isFinite(payment.transaction_amount) &&
     payment.transaction_amount >= 0
       ? { paymentAmountCents: Math.round(payment.transaction_amount * 100) }
+      : {}),
+    ...(typeof payment.payment_type_id === "string" && payment.payment_type_id
+      ? { paymentTypeId: payment.payment_type_id }
+      : {}),
+    ...(typeof payment.payment_method_id === "string" && payment.payment_method_id
+      ? { paymentMethodId: payment.payment_method_id }
       : {}),
   });
 

@@ -71,6 +71,8 @@ const paymentResponse = z
     external_reference: z.string().nullish(),
     transaction_amount: z.number().nonnegative(),
     transaction_amount_refunded: z.number().nonnegative().optional(),
+    payment_type_id: z.string().nullish(),
+    payment_method_id: z.string().nullish(),
   })
   .transform((p) => ({
     id: p.id,
@@ -78,6 +80,8 @@ const paymentResponse = z
     externalReference: p.external_reference ?? null,
     amount: p.transaction_amount,
     refundedAmount: p.transaction_amount_refunded ?? 0,
+    ...(p.payment_type_id ? { paymentTypeId: p.payment_type_id } : {}),
+    ...(p.payment_method_id ? { paymentMethodId: p.payment_method_id } : {}),
   }));
 
 /** Read the authoritative amount and ownership before an admin refund. */

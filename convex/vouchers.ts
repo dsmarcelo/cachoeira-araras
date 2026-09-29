@@ -1,10 +1,6 @@
 import { ConvexError, v } from "convex/values";
 
-import {
-  endOfSaoPauloDayMs,
-  getSaoPauloDateKey,
-  startOfSaoPauloDayMs,
-} from "../src/lib/utils/date";
+import { endOfSaoPauloDayMs, getSaoPauloDateKey } from "../src/lib/utils/date";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -725,6 +721,8 @@ export const cancelPendingPurchase = action({
           code: args.code,
           paymentId: approvedPayment.id,
           paymentStatus: "approved",
+          paymentTypeId: approvedPayment.paymentTypeId,
+          paymentMethodId: approvedPayment.paymentMethodId,
         });
         await ctx.runMutation(internal.vouchers.clearCancellationIntent, {
           code: args.code,
@@ -766,6 +764,8 @@ export const cancelPendingPurchase = action({
             paymentId: cancelledPayment.id,
             paymentStatus: "approved",
             paymentAmountCents: Math.round(cancelledPayment.amount * 100),
+            paymentTypeId: cancelledPayment.paymentTypeId,
+            paymentMethodId: cancelledPayment.paymentMethodId,
           });
           await ctx.runMutation(internal.vouchers.clearCancellationIntent, {
             code: args.code,
@@ -1302,6 +1302,7 @@ export const insertPendingVoucher = internalMutation({
       initPoint: args.initPoint,
       referrer: args.referrer,
       isTest: args.isTest,
+      purchasedAt: Date.now(),
     });
 
     return { ok: true as const, managementToken };
@@ -1348,6 +1349,11 @@ const negativeTerminalPaymentStatuses = new Set([
  * a `reversal` warning on an already `redeemed` Voucher. A negative-terminal
  * notification for an Excess Payment updates that payment record and leaves the
  * Voucher untouched.
+ *
+ * `paymentTypeId`/`paymentMethodId` are Mercado Pago's `payment_type_id`
+ * ("credit_card", "debit_card", "bank_transfer", …) and `payment_method_id`
+ * ("pix", "visa", "master", …); they are stored on the Voucher with the
+ * Official Payment so the Financeiro report can split revenue by method.
  */
 export const confirmPayment = internalMutation({
   args: {
@@ -1355,6 +1361,8 @@ export const confirmPayment = internalMutation({
     paymentId: v.string(),
     paymentStatus: v.union(v.string(), v.null()),
     paymentAmountCents: v.optional(v.number()),
+    paymentTypeId: v.optional(v.string()),
+    paymentMethodId: v.optional(v.string()),
   },
   returns: v.union(
     v.object({
@@ -1584,6 +1592,8 @@ export const confirmPayment = internalMutation({
         await ctx.db.patch(voucher._id, {
           status: "valid",
           paymentId: args.paymentId,
+          paymentTypeId: args.paymentTypeId,
+          paymentMethodId: args.paymentMethodId,
         });
 
         if (existingPayment) {
@@ -2022,217 +2032,5 @@ export const restore = mutation({
     // Convex `patch` removes a field entirely when set to `undefined`.
     await ctx.db.patch(voucher._id, { deletedAt: undefined });
     return null;
-  },
-});
-
-// --- Admin summaries and daily sales ---
-//
-// These two queries always read every voucher and reduce in memory (see the
-// spec's "Admin data access" section), so they never accept an unbounded
-// range: both bounds omitted defaults to the current calendar month in Sao
-// Paulo, but supplying only one bound or explicitly passing `null` for both
-// is refused rather than scanning the whole table.
-
-/** The first and last day (as date keys) of the current calendar month in Sao Paulo. */
-function currentSaoPauloMonthRange(): { fromKey: string; toKey: string } {
-  const today = getSaoPauloDateKey();
-  const [year, month] = today.split("-").map(Number) as [number, number];
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return {
-    fromKey: `${year}-${pad(month)}-01`,
-    toKey: `${year}-${pad(month)}-${pad(lastDay)}`,
-  };
-}
-
-/**
- * Resolves the two optional date-key bounds a summary query receives into a
- * concrete `[fromKey, toKey]` range: both omitted defaults to the current
- * Sao Paulo month, exactly one supplied is refused (an accidental partial
- * bound), and an explicit `null` on either side — a caller asking for an
- * unbounded range on purpose — is refused too.
- */
-function resolveDateRange(args: { from?: string | null; to?: string | null }): {
-  fromKey: string;
-  toKey: string;
-} {
-  const { from, to } = args;
-
-  if (from === undefined && to === undefined) {
-    return currentSaoPauloMonthRange();
-  }
-
-  if (from === undefined || to === undefined) {
-    throw new Error(
-      "A summary range needs both a start and an end date; provide both or neither.",
-    );
-  }
-
-  if (from === null || to === null) {
-    throw new Error(
-      "An unbounded date range isn't allowed here: these queries read every matching voucher.",
-    );
-  }
-
-  if (from > to) {
-    throw new Error("The start date must not be after the end date.");
-  }
-
-  return { fromKey: from, toKey: to };
-}
-
-/**
- * Whether a voucher counts toward "vouchers sold" in the admin summaries: a
- * real voucher (see `countsAsRealVoucher`) whose payment has been confirmed
- * at least once. A still-`pending` voucher hasn't been sold yet, so it
- * contributes to no summary figure.
- */
-function countsAsSoldVoucher(voucher: Doc<"vouchers">): boolean {
-  return (
-    countsAsRealVoucher(voucher) &&
-    voucher.status !== "pending" &&
-    voucher.status !== "cancelled"
-  );
-}
-
-/** Every sold voucher (see `countsAsSoldVoucher`) created within `[fromKey, toKey]`, inclusive, Sao Paulo calendar days. */
-async function soldVouchersInRange(
-  ctx: { db: QueryCtx["db"] },
-  fromKey: string,
-  toKey: string,
-): Promise<Doc<"vouchers">[]> {
-  const fromMs = startOfSaoPauloDayMs(fromKey);
-  const toMs = endOfSaoPauloDayMs(toKey);
-
-  const vouchers = await ctx.db.query("vouchers").collect();
-
-  return vouchers.filter(
-    (voucher) =>
-      countsAsSoldVoucher(voucher) &&
-      voucher._creationTime >= fromMs &&
-      voucher._creationTime <= toMs,
-  );
-}
-
-const dateRangeArgs = {
-  from: v.optional(v.union(v.string(), v.null())),
-  to: v.optional(v.union(v.string(), v.null())),
-};
-
-/**
- * Vouchers sold, visitors expected, and revenue (integer cents) for a
- * bounded date range. Admin-only. See `resolveDateRange` for how the range
- * is derived from `from`/`to`, and `countsAsSoldVoucher` for which vouchers
- * count.
- */
-export const periodSummary = query({
-  args: dateRangeArgs,
-  returns: v.object({
-    from: v.string(),
-    to: v.string(),
-    voucherCount: v.number(),
-    visitorCount: v.number(),
-    revenueCents: v.number(),
-    adults: v.number(),
-    elderly: v.number(),
-    adultsPool: v.number(),
-    elderlyPool: v.number(),
-  }),
-  handler: async (ctx, args) => {
-    await requireRole(ctx, "admin");
-
-    const { fromKey, toKey } = resolveDateRange(args);
-    const vouchers = await soldVouchersInRange(ctx, fromKey, toKey);
-
-    const totals = vouchers.reduce(
-      (acc, voucher) => {
-        acc.revenueCents += voucher.priceCents;
-        acc.adults += voucher.adults;
-        acc.elderly += voucher.elderly;
-        acc.adultsPool += voucher.adultsPool;
-        acc.elderlyPool += voucher.elderlyPool;
-        return acc;
-      },
-      { revenueCents: 0, adults: 0, elderly: 0, adultsPool: 0, elderlyPool: 0 },
-    );
-
-    return {
-      from: fromKey,
-      to: toKey,
-      voucherCount: vouchers.length,
-      visitorCount:
-        totals.adults + totals.elderly + totals.adultsPool + totals.elderlyPool,
-      ...totals,
-    };
-  },
-});
-
-/**
- * The same range as `periodSummary`, broken down by Sao Paulo calendar day
- * so trends are visible. Only days with at least one sold voucher appear.
- * Admin-only.
- */
-export const dailyBreakdown = query({
-  args: dateRangeArgs,
-  returns: v.array(
-    v.object({
-      date: v.string(),
-      voucherCount: v.number(),
-      visitorCount: v.number(),
-      revenueCents: v.number(),
-      adults: v.number(),
-      elderly: v.number(),
-      adultsPool: v.number(),
-      elderlyPool: v.number(),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    await requireRole(ctx, "admin");
-
-    const { fromKey, toKey } = resolveDateRange(args);
-    const vouchers = await soldVouchersInRange(ctx, fromKey, toKey);
-
-    const byDay = new Map<
-      string,
-      {
-        voucherCount: number;
-        revenueCents: number;
-        adults: number;
-        elderly: number;
-        adultsPool: number;
-        elderlyPool: number;
-      }
-    >();
-
-    for (const voucher of vouchers) {
-      const day = getSaoPauloDateKey(new Date(voucher._creationTime));
-      const bucket = byDay.get(day) ?? {
-        voucherCount: 0,
-        revenueCents: 0,
-        adults: 0,
-        elderly: 0,
-        adultsPool: 0,
-        elderlyPool: 0,
-      };
-      bucket.voucherCount += 1;
-      bucket.revenueCents += voucher.priceCents;
-      bucket.adults += voucher.adults;
-      bucket.elderly += voucher.elderly;
-      bucket.adultsPool += voucher.adultsPool;
-      bucket.elderlyPool += voucher.elderlyPool;
-      byDay.set(day, bucket);
-    }
-
-    return Array.from(byDay.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, bucket]) => ({
-        date,
-        ...bucket,
-        visitorCount:
-          bucket.adults +
-          bucket.elderly +
-          bucket.adultsPool +
-          bucket.elderlyPool,
-      }));
   },
 });

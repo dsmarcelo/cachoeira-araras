@@ -34,8 +34,14 @@ http.route({
     if (typeof body !== "object" || body === null) {
       return new Response("Bad Request", { status: 400 });
     }
-    const { code, paymentId, paymentStatus, paymentAmountCents } =
-      body as Record<string, unknown>;
+    const {
+      code,
+      paymentId,
+      paymentStatus,
+      paymentAmountCents,
+      paymentTypeId,
+      paymentMethodId,
+    } = body as Record<string, unknown>;
     if (typeof code !== "string" || typeof paymentId !== "string") {
       return new Response("Bad Request", { status: 400 });
     }
@@ -50,12 +56,20 @@ http.route({
     ) {
       return new Response("Bad Request", { status: 400 });
     }
+    if (
+      (paymentTypeId !== undefined && typeof paymentTypeId !== "string") ||
+      (paymentMethodId !== undefined && typeof paymentMethodId !== "string")
+    ) {
+      return new Response("Bad Request", { status: 400 });
+    }
 
     const result = await ctx.runMutation(internal.vouchers.confirmPayment, {
       code,
       paymentId,
       paymentStatus,
       ...(typeof paymentAmountCents === "number" ? { paymentAmountCents } : {}),
+      ...(paymentTypeId ? { paymentTypeId: paymentTypeId.slice(0, 40) } : {}),
+      ...(paymentMethodId ? { paymentMethodId: paymentMethodId.slice(0, 40) } : {}),
     });
 
     return new Response(JSON.stringify(result), {

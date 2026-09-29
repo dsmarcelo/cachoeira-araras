@@ -40,6 +40,23 @@ A origem publica do app (`SITE_URL`) fica no deployment Convex, nao no `.env`; v
 
 `DATABASE_URL` e opcional: conexao somente com o PostgreSQL legado, usada pela importacao ao Convex e pelo teste E2E de pagamentos; veja o [runbook de corte](./docs/operations/postgres-to-convex-cutover.md).
 
+### Exportar do PostgreSQL e importar no Convex (em lote)
+
+Alternativa ao `pnpm import:postgres-to-convex`, que faz uma mutation a cada 10 vouchers e consome muito do limite gratuito do Convex. O export gera um unico arquivo e o `convex import` o carrega de uma vez.
+
+```bash
+# 1. Le o PostgreSQL (somente leitura, usa DATABASE_URL do .env.local) e grava .import-data/vouchers.jsonl
+pnpm export:postgres-to-convex
+
+# 2. Importa no deployment de desenvolvimento (CONVEX_DEPLOYMENT do .env.local)
+pnpm exec convex import --table vouchers --append .import-data/vouchers.jsonl
+```
+
+- Se alguma linha nao puder ser convertida, o export lista os erros e nao grava arquivo.
+- `--append` nao evita duplicados por codigo: se a tabela ja tem vouchers importados, use `--replace` (apaga a tabela antes) ou exporte so o que falta.
+- Para producao, acrescente `--prod` ao `convex import`, seguindo o [runbook de corte](./docs/operations/postgres-to-convex-cutover.md).
+- `.import-data/` esta no `.gitignore` porque contem nomes e telefones de clientes; apague a pasta depois de importar.
+
 ### Pagamentos e webhooks
 
 | Key | Uso |

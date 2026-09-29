@@ -69,7 +69,7 @@ function confirmPaymentRequest(
   };
 }
 
-test("an approved payment flips a Pending voucher to valid", async () => {
+test("an approved payment flips a Pending voucher to valid and records how it was paid", async () => {
   const t = convexTest(schema, modules);
   await insertVoucher(t);
 
@@ -77,6 +77,8 @@ test("an approved payment flips a Pending voucher to valid", async () => {
     code: "a1b2",
     paymentId: "pay-1",
     paymentStatus: "approved",
+    paymentTypeId: "bank_transfer",
+    paymentMethodId: "pix",
   });
 
   expect(result).toMatchObject({
@@ -93,6 +95,7 @@ test("an approved payment flips a Pending voucher to valid", async () => {
   );
   expect(stored?.status).toBe("valid");
   expect(stored?.paymentId).toBe("pay-1");
+  expect(stored).toMatchObject({ paymentTypeId: "bank_transfer", paymentMethodId: "pix" });
 });
 
 test("a non-approved payment status records the payment id but leaves the voucher pending", async () => {

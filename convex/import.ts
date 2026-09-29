@@ -32,6 +32,7 @@ const voucherImportValidator = v.object({
   preferenceId: v.string(),
   paymentId: v.optional(v.string()),
   referrer: v.optional(referrerValidator),
+  purchasedAt: v.optional(v.number()),
   deletedAt: v.optional(v.number()),
 });
 

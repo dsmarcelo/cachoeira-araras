@@ -124,6 +124,7 @@ describe("buildVoucherImportRow", () => {
     });
     expect(row.adultsPool).toBe(0);
     expect(row.elderlyPool).toBe(0);
+    expect(row.purchasedAt).toBe(new Date("2026-08-02T19:00:00.000Z").getTime());
   });
 
   test("a voucher with no Referrer row stays valid, with referrer absent", () => {

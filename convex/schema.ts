@@ -45,6 +45,11 @@ const vouchers = defineTable({
   // delivery and to make payment confirmation idempotent.
   preferenceId: v.string(),
   paymentId: v.optional(v.string()),
+  // Mercado Pago `payment_type_id` / `payment_method_id` of the Official
+  // Payment, set when it makes the voucher valid (see `confirmPayment`).
+  // Absent on vouchers paid before these were recorded.
+  paymentTypeId: v.optional(v.string()),
+  paymentMethodId: v.optional(v.string()),
 
   // Set once, the first time a negative-terminal Mercado Pago notification
   // (refund, chargeback, cancellation) arrives after the Voucher was already
@@ -93,9 +98,17 @@ const vouchers = defineTable({
   cancellationSearchOpId: v.optional(v.id("paymentOperations")),
   cancellationInvalidateOpId: v.optional(v.id("paymentOperations")),
 
+  // When the customer bought the voucher (epoch ms). Set to the checkout time
+  // for new vouchers; the Postgres import will carry the legacy `created_at`
+  // so imported vouchers keep their real sale date. Optional until existing
+  // vouchers are backfilled; the financial report will read this instead of
+  // `_creationTime`.
+  purchasedAt: v.optional(v.number()),
+
   deletedAt: v.optional(v.number()),
 })
   .index("by_code", ["code"])
+  .index("by_purchasedAt", ["purchasedAt"])
   .index("by_lookupToken", ["lookupToken"])
   .index("by_managementToken", ["managementToken"])
   .index("by_paymentId", ["paymentId"])

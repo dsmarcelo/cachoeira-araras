@@ -81,6 +81,8 @@ async function reconcile(
       paymentId: payment.id,
       paymentStatus: payment.status,
       paymentAmountCents: Math.round(payment.amount * 100),
+      paymentTypeId: payment.paymentTypeId,
+      paymentMethodId: payment.paymentMethodId,
     });
     updated ||= result.outcome !== "not_found" && result.becameValid;
   }
