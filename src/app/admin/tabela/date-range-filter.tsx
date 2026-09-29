@@ -58,20 +58,24 @@ export function DateRangeFilter({
   }
 
   return (
-    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-      <span>{label}</span>
+    <div>
       <Popover>
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
+          <button
+            type="button"
             disabled={disabled}
-            className="h-8 justify-start px-2 font-normal text-foreground"
+            className="flex h-11 w-full items-center gap-2 rounded-lg border border-border bg-white px-3 text-left shadow-sm transition-colors hover:bg-zinc-50 disabled:opacity-45"
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {hasValue
-              ? `${formatKey(value.from)} – ${formatKey(value.to)}`
-              : "Selecionar período"}
-          </Button>
+            <CalendarIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="flex min-w-0 flex-col leading-tight">
+              <span className="text-[11px] text-muted-foreground">{label}</span>
+              <span className="truncate text-[13px] font-medium">
+                {hasValue
+                  ? `${formatKey(value.from)} – ${formatKey(value.to)}`
+                  : "Qualquer data"}
+              </span>
+            </span>
+          </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto p-2">
           <CossCalendar
