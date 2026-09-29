@@ -1,3 +1,7 @@
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from "convex/server";
 import { ConvexError, v } from "convex/values";
 
 import { endOfSaoPauloDayMs, getSaoPauloDateKey } from "../src/lib/utils/date";
@@ -26,7 +30,7 @@ import {
   generateVoucherCode,
   splitCustomerName,
 } from "./lib/voucherCode";
-import { voucherSearchText } from "./lib/voucherSearch";
+import { normalizeSearch, voucherSearchText } from "./lib/voucherSearch";
 import { validateVoucherPurchase } from "./lib/voucherPurchase";
 import type { PaymentSnapshot } from "./lib/paymentOperation";
 
@@ -1730,7 +1734,7 @@ function summarizeForGate(voucher: Doc<"vouchers">) {
     elderlyPool: voucher.elderlyPool,
     visitDate: voucher.visitDate,
     expiresAt: voucher.expiresAt,
-    createdAt: voucher._creationTime,
+    createdAt: voucher.purchasedAt ?? voucher._creationTime,
   };
 }
 
@@ -1906,82 +1910,177 @@ export const reactivate = mutation({
   },
 });
 
+const MAX_ADMIN_SEARCH_LENGTH = 64;
+
 /**
- * Every real voucher (excludes Test Vouchers and soft-deleted rows), for the
- * admin table. No cursor pagination and no search index: production holds
- * roughly a thousand vouchers growing at about fifty a month, so the full
- * filtered set is loaded in one reactive query and the browser paginates and
- * substring-searches it — the only way to get true `contains` semantics and
- * an accurate page count at this scale (see the spec's "Admin data access").
- * Status and creation-date-range filters run here so the returned set — and
- * therefore the client's page count — already reflects them; substring
- * search stays client-side since it isn't representable as an index range.
- * Admin-only: an employee identity is rejected, same as `listTodayAdmin`.
+ * Trims and normalizes the admin search box. Returns undefined for an empty
+ * search (meaning "no search") and refuses text longer than the limit.
+ */
+function parseAdminSearch(search: string | undefined): string | undefined {
+  const trimmed = search?.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.length > MAX_ADMIN_SEARCH_LENGTH) {
+    throw new ConvexError(
+      `A busca pode ter no máximo ${MAX_ADMIN_SEARCH_LENGTH} caracteres.`,
+    );
+  }
+  return normalizeSearch(trimmed) || undefined;
+}
+
+/**
+ * Every real voucher (excludes Test Vouchers and soft-deleted rows), one page
+ * at a time, for the admin table. Admin-only: an employee identity is
+ * rejected, same as `listTodayAdmin`.
+ *
+ * Without `search`, rows come newest sale first straight from an index, with
+ * `status` and the `purchasedFrom`/`purchasedTo` range applied in the index.
+ * With `search` (word or prefix match on code, name and phone, accents and
+ * case ignored) the search index is used instead and rows come by relevance;
+ * the date range then runs as a post-filter. `expiresAfter`/`expiresBefore`
+ * are always post-filters, so a page may hold fewer rows than requested.
+ *
+ * Vouchers not yet backfilled with `purchasedAt` (see
+ * `migrations.backfillVoucherPurchasedAtAndSearchText`) only drop out of the
+ * view when a purchase date range is set, and of search results always.
  */
 export const listAdmin = query({
   args: {
+    paginationOpts: paginationOptsValidator,
     status: v.optional(voucherStatusValidator),
-    createdAfter: v.optional(v.number()),
-    createdBefore: v.optional(v.number()),
+    purchasedFrom: v.optional(v.number()),
+    purchasedTo: v.optional(v.number()),
     expiresAfter: v.optional(v.number()),
     expiresBefore: v.optional(v.number()),
+    search: v.optional(v.string()),
   },
-  returns: v.array(gateVoucherAdminValidator),
+  returns: paginationResultValidator(gateVoucherAdminValidator),
   handler: async (ctx, args) => {
     await requireRole(ctx, "admin");
 
-    const vouchers = await ctx.db.query("vouchers").collect();
+    const search = parseAdminSearch(args.search);
+    const { status, purchasedFrom, purchasedTo } = args;
 
-    return vouchers
-      .filter(countsAsRealVoucher)
-      .filter(
-        (voucher) =>
-          args.status === undefined || voucher.status === args.status,
+    const base = search
+      ? ctx.db.query("vouchers").withSearchIndex("search_text", (q) => {
+          const filtered = q.search("searchText", search).eq("isActive", true);
+          return status ? filtered.eq("status", status) : filtered;
+        })
+      : status
+        ? ctx.db
+            .query("vouchers")
+            .withIndex(
+              "by_isTest_and_deletedAt_and_status_and_purchasedAt",
+              (q) => {
+                const scoped = q
+                  .eq("isTest", false)
+                  .eq("deletedAt", undefined)
+                  .eq("status", status);
+                if (purchasedFrom === undefined && purchasedTo === undefined) {
+                  return scoped;
+                }
+                return purchasedTo === undefined
+                  ? scoped.gte("purchasedAt", purchasedFrom ?? 0)
+                  : scoped
+                      .gte("purchasedAt", purchasedFrom ?? 0)
+                      .lte("purchasedAt", purchasedTo);
+              },
+            )
+            .order("desc")
+        : ctx.db
+            .query("vouchers")
+            .withIndex("by_isTest_and_deletedAt_and_purchasedAt", (q) => {
+              const scoped = q.eq("isTest", false).eq("deletedAt", undefined);
+              if (purchasedFrom === undefined && purchasedTo === undefined) {
+                return scoped;
+              }
+              return purchasedTo === undefined
+                ? scoped.gte("purchasedAt", purchasedFrom ?? 0)
+                : scoped
+                    .gte("purchasedAt", purchasedFrom ?? 0)
+                    .lte("purchasedAt", purchasedTo);
+            })
+            .order("desc");
+
+    const result = await base
+      .filter((q) =>
+        q.and(
+          // Date bounds already enforced by the index when not searching.
+          search && args.purchasedFrom !== undefined
+            ? q.gte(q.field("purchasedAt"), args.purchasedFrom)
+            : true,
+          search && args.purchasedTo !== undefined
+            ? q.lte(q.field("purchasedAt"), args.purchasedTo)
+            : true,
+          args.expiresAfter !== undefined
+            ? q.gte(q.field("expiresAt"), args.expiresAfter)
+            : true,
+          args.expiresBefore !== undefined
+            ? q.lte(q.field("expiresAt"), args.expiresBefore)
+            : true,
+        ),
       )
-      .filter(
-        (voucher) =>
-          args.createdAfter === undefined ||
-          voucher._creationTime >= args.createdAfter,
-      )
-      .filter(
-        (voucher) =>
-          args.createdBefore === undefined ||
-          voucher._creationTime <= args.createdBefore,
-      )
-      .filter(
-        (voucher) =>
-          args.expiresAfter === undefined ||
-          voucher.expiresAt >= args.expiresAfter,
-      )
-      .filter(
-        (voucher) =>
-          args.expiresBefore === undefined ||
-          voucher.expiresAt <= args.expiresBefore,
-      )
-      .sort((a, b) => b._creationTime - a._creationTime)
-      .map(summarizeForGateAdmin);
+      .paginate(args.paginationOpts);
+
+    return { ...result, page: result.page.map(summarizeForGateAdmin) };
   },
 });
 
 /**
- * Soft-deleted vouchers, for the admin's separate audit/restore view — the
- * mirror image of `countsAsRealVoucher`'s `deletedAt` check: everything
- * `listAdmin` hides for being deleted, this shows. Test Vouchers are
- * included here (unlike `listAdmin`) since a soft-deleted Test Voucher is
- * still something an admin may want to audit or restore. Admin-only.
+ * Codes of live Pending vouchers that have not yet expired, capped at 200.
+ * Feeds the admin table's payment reconciliation, which must look at every
+ * pending voucher regardless of which page of the table is loaded.
  */
-export const listDeleted = query({
+export const listPendingCodes = query({
   args: {},
-  returns: v.array(gateVoucherAdminValidator),
+  returns: v.array(v.string()),
   handler: async (ctx) => {
     await requireRole(ctx, "admin");
 
-    const vouchers = await ctx.db.query("vouchers").collect();
+    const pending = await ctx.db
+      .query("vouchers")
+      .withIndex("by_status_and_deletedAt_and_expiresAt", (q) =>
+        q.eq("status", "pending").eq("deletedAt", undefined),
+      )
+      .take(200);
 
-    return vouchers
-      .filter((voucher) => voucher.deletedAt !== undefined)
-      .sort((a, b) => b._creationTime - a._creationTime)
-      .map(summarizeForGateAdmin);
+    return pending.filter((voucher) => !voucher.isTest).map((v) => v.code);
+  },
+});
+
+/**
+ * Soft-deleted vouchers, one page at a time, for the admin's separate
+ * audit/restore view — the mirror image of `listAdmin`: everything it hides
+ * for being deleted, this shows, newest deletion first (relevance order when
+ * searching). Test Vouchers are included since a soft-deleted Test Voucher is
+ * still something an admin may want to audit or restore. Admin-only.
+ */
+export const listDeleted = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    search: v.optional(v.string()),
+  },
+  returns: paginationResultValidator(gateVoucherAdminValidator),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const search = parseAdminSearch(args.search);
+
+    const result = search
+      ? await ctx.db
+          .query("vouchers")
+          .withSearchIndex("search_text", (q) =>
+            q.search("searchText", search).eq("isActive", false),
+          )
+          // `isActive: false` also covers live Test Vouchers.
+          .filter((q) => q.neq(q.field("deletedAt"), undefined))
+          .paginate(args.paginationOpts)
+      : await ctx.db
+          .query("vouchers")
+          .withIndex("by_deletedAt", (q) => q.gte("deletedAt", 0))
+          .order("desc")
+          .paginate(args.paginationOpts);
+
+    return { ...result, page: result.page.map(summarizeForGateAdmin) };
   },
 });
 

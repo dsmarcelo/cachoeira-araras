@@ -22,7 +22,7 @@ import {
   secondaryActionClass,
 } from "./_components/voucher-sheet"
 
-export type AdminVoucher = FunctionReturnType<typeof api.vouchers.listAdmin>[number]
+export type AdminVoucher = FunctionReturnType<typeof api.vouchers.listAdmin>["page"][number]
 
 const correctableStatuses = ["pending", "valid", "redeemed", "expired", "refunded"] as const
 

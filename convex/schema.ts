@@ -139,7 +139,28 @@ const vouchers = defineTable({
   ])
   // Lets daily maintenance find Test Vouchers old enough to hard-delete
   // without scanning non-test vouchers too.
-  .index("by_isTest", ["isTest"]);
+  .index("by_isTest", ["isTest"])
+  // Admin table (`listAdmin`): real vouchers newest-sale-first, optionally
+  // narrowed by status and a purchasedAt range without scanning the table.
+  .index("by_isTest_and_deletedAt_and_purchasedAt", [
+    "isTest",
+    "deletedAt",
+    "purchasedAt",
+  ])
+  .index("by_isTest_and_deletedAt_and_status_and_purchasedAt", [
+    "isTest",
+    "deletedAt",
+    "status",
+    "purchasedAt",
+  ])
+  // Admin "deleted" view (`listDeleted`).
+  .index("by_deletedAt", ["deletedAt"])
+  // Admin search by code, name or phone. `isActive` (not `deletedAt`) is the
+  // filter for live vs. deleted because search filters only support equality.
+  .searchIndex("search_text", {
+    searchField: "searchText",
+    filterFields: ["isActive", "status"],
+  });
 
 // One document per key so concurrent admins editing settings cannot clobber
 // each other. `key` values and their value shapes come from the

@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from "react"
+import type { PaginationStatus } from "convex/react"
 import {
   type ColumnDef,
   flexRender,
@@ -16,20 +17,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { formateDateDayMonthYear, formatPhone, formatReferrer } from "@/lib/utils"
 import { VoucherInfoCard, type AdminVoucher } from "../voucher-info-card"
 import { DateRangeFilter, type DateRangeValue } from "./date-range-filter"
 import {
   ChipGroup,
   EmptyState,
-  Pager,
   Panel,
   SearchInput,
   Segmented,
@@ -57,18 +50,13 @@ type StatusValue = (typeof statusOptions)[number]["value"]
 interface VoucherTableProps {
   columns: ColumnDef<AdminVoucher>[]
   data: AdminVoucher[]
-  total: number
-  page: number
-  pageSize: number
-  pageCount: number
+  loadStatus: PaginationStatus
   status: string
   search: string
   view: VoucherView
   created: DateRangeValue
   expires: DateRangeValue
-  isLoading?: boolean
-  onPageChange: (page: number) => void
-  onPageSizeChange: (pageSize: number) => void
+  onLoadMore: () => void
   onStatusChange: (status: string) => void
   onSearchChange: (search: string) => void
   onViewChange: (view: VoucherView) => void
@@ -83,18 +71,13 @@ interface VoucherTableProps {
 export function VoucherTable({
   columns,
   data,
-  total,
-  page,
-  pageSize,
-  pageCount,
+  loadStatus,
   status,
   search,
   view,
   created,
   expires,
-  isLoading = false,
-  onPageChange,
-  onPageSizeChange,
+  onLoadMore,
   onStatusChange,
   onSearchChange,
   onViewChange,
@@ -110,10 +93,9 @@ export function VoucherTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    manualPagination: true,
-    pageCount,
   })
 
+  const isLoading = loadStatus === "LoadingFirstPage"
   const emptyMessage = isLoading ? "Carregando vouchers..." : "Nenhum voucher encontrado."
 
   return (
@@ -133,12 +115,12 @@ export function VoucherTable({
         disabled={isDeletedView}
       />
       <div className="grid grid-cols-2 gap-2">
-        <DateRangeFilter label="Criado" value={created} disabled={isDeletedView} onChange={onCreatedChange} />
+        <DateRangeFilter label="Data da compra" value={created} disabled={isDeletedView} onChange={onCreatedChange} />
         <DateRangeFilter label="Expira" value={expires} disabled={isDeletedView} onChange={onExpiresChange} />
       </div>
 
       <p className="px-1 pt-1 text-[13px] text-muted-foreground">
-        {total} {total === 1 ? "voucher encontrado" : "vouchers encontrados"}
+        {data.length} {data.length === 1 ? "carregado" : "carregados"}
       </p>
 
       {/* Phones: cards */}
@@ -221,20 +203,16 @@ export function VoucherTable({
         </Table>
       </Panel>
 
-      <Pager page={page} pageCount={pageCount} onPageChange={onPageChange}>
-        <Select value={`${pageSize}`} onValueChange={(value) => onPageSizeChange(Number(value))}>
-          <SelectTrigger aria-label="Itens por página" className="hidden h-9 w-[76px] sm:flex">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent side="top">
-            {[10, 20, 30, 50].map((size) => (
-              <SelectItem key={size} value={`${size}`}>
-                {size}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Pager>
+      {loadStatus === "CanLoadMore" || loadStatus === "LoadingMore" ? (
+        <button
+          type="button"
+          onClick={onLoadMore}
+          disabled={loadStatus === "LoadingMore"}
+          className="h-11 rounded-lg border border-border bg-white text-sm font-medium shadow-sm transition-colors hover:bg-zinc-50 disabled:opacity-60"
+        >
+          {loadStatus === "LoadingMore" ? "Carregando..." : "Carregar mais"}
+        </button>
+      ) : null}
 
       {selected ? (
         <VoucherInfoCard
