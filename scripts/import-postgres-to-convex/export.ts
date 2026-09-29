@@ -16,6 +16,9 @@
  * deduplicated by code, so export only what is missing), or `--replace` to
  * overwrite the table. The output dir is gitignored: it holds customer data.
  *
+ * Vouchers without `expires_at` fall back to their creation day and are
+ * listed in the output.
+ *
  * Nothing is written if any row fails to convert, so a partial file can never
  * be imported by accident.
  */
@@ -50,12 +53,14 @@ async function main() {
 
     const lines: string[] = [];
     const failed: string[] = [];
+    const createdAtFallbacks: string[] = [];
     for (const voucher of legacyVouchers) {
       try {
-        const row = buildVoucherImportRow(
+        const { row, usedCreatedAtFallback } = buildVoucherImportRow(
           voucher,
           referrerByVoucherCode.get(voucher.code),
         );
+        if (usedCreatedAtFallback) createdAtFallbacks.push(voucher.code);
         // The bulk importer skips mutations, so `isTest` (server-set in the
         // app; never true for legacy data) must be written here.
         lines.push(JSON.stringify({ ...row, isTest: false }));
@@ -69,6 +74,13 @@ async function main() {
     console.log(
       `Read from Postgres: ${legacyVouchers.length} vouchers, ${legacyReferrers.length} referrers`,
     );
+
+    if (createdAtFallbacks.length > 0) {
+      console.log(
+        `\n${createdAtFallbacks.length} voucher(s) had no expires_at; visitDate/expiresAt derived from createdAt:`,
+      );
+      for (const code of createdAtFallbacks) console.log(`  - ${code}`);
+    }
 
     if (failed.length > 0) {
       console.log("\nVoucher rows that could not be converted:");
