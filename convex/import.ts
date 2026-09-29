@@ -60,6 +60,8 @@ export const importVouchers = internalMutation({
         continue;
       }
 
+      // Bulk insert: no finance recompute is scheduled per voucher. Run
+      // `finance:rebuildAll` after an import (docs/internals/finance-summaries.md).
       await ctx.db.insert("vouchers", {
         ...row,
         isTest: false,

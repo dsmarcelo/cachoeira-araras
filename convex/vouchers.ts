@@ -30,21 +30,13 @@ import {
   generateVoucherCode,
   splitCustomerName,
 } from "./lib/voucherCode";
+import { countsAsRealVoucher } from "./lib/financeSummary";
+import { patchVoucher } from "./lib/voucherWrites";
 import { normalizeSearch, voucherSearchText } from "./lib/voucherSearch";
 import { validateVoucherPurchase } from "./lib/voucherPurchase";
 import type { PaymentSnapshot } from "./lib/paymentOperation";
 
-/**
- * Whether a voucher counts as a real, live voucher for operational and
- * reporting purposes: not soft-deleted, and not a Test Voucher. Every gate,
- * admin, and summary query must use this instead of re-typing the two
- * conditions, so a new query can't accidentally forget one.
- */
-export function countsAsRealVoucher(
-  voucher: Pick<Doc<"vouchers">, "deletedAt" | "isTest">,
-): boolean {
-  return voucher.deletedAt === undefined && !voucher.isTest;
-}
+export { countsAsRealVoucher };
 
 export const voucherStatusValidator = v.union(
   v.literal("pending"),
@@ -146,7 +138,7 @@ export const authorizeLookup = mutation({
 
     const lookupToken = voucher.lookupToken ?? crypto.randomUUID();
     if (voucher.lookupToken === undefined) {
-      await ctx.db.patch("vouchers", voucher._id, { lookupToken });
+      await patchVoucher(ctx, voucher, { lookupToken });
     }
 
     return {
@@ -535,7 +527,7 @@ export const prepareCancellation = internalMutation({
       .first();
 
     if (officialPayment?.status === "approved") {
-      await ctx.db.patch(voucher._id, {
+      await patchVoucher(ctx, voucher, {
         status: "valid",
         paymentId: officialPayment.paymentId,
         cancellationStartedAt: undefined,
@@ -559,7 +551,7 @@ export const prepareCancellation = internalMutation({
       });
     }
 
-    await ctx.db.patch(voucher._id, {
+    await patchVoucher(ctx, voucher, {
       cancellationStartedAt: voucher.cancellationStartedAt ?? now,
       cancellationSearchOpId: searchOpId,
       cancellationInvalidateOpId: invalidateOpId,
@@ -606,7 +598,7 @@ export const finalizeCancellation = internalMutation({
       return { outcome: "already_approved" as const };
     }
 
-    await ctx.db.patch(voucher._id, {
+    await patchVoucher(ctx, voucher, {
       status: "cancelled",
       cancellationStartedAt: undefined,
     });
@@ -641,7 +633,7 @@ export const clearCancellationIntent = internalMutation({
       .unique();
 
     if (voucher?.status === "pending") {
-      await ctx.db.patch(voucher._id, {
+      await patchVoucher(ctx, voucher, {
         cancellationStartedAt: undefined,
       });
     }
@@ -1462,7 +1454,7 @@ export const confirmPayment = internalMutation({
         if (voucher.status === "redeemed") {
           if (voucher.reversal === undefined) {
             const reversal = { reason: reversalReason, notedAt: Date.now() };
-            await ctx.db.patch(voucher._id, { reversal });
+            await patchVoucher(ctx, voucher, { reversal });
           }
           if (existingPayment) {
             await ctx.db.patch(existingPayment._id, {
@@ -1511,7 +1503,7 @@ export const confirmPayment = internalMutation({
 
         if (voucher.status === "valid") {
           const reversal = { reason: reversalReason, notedAt: Date.now() };
-          await ctx.db.patch(voucher._id, { status: "refunded", reversal });
+          await patchVoucher(ctx, voucher, { status: "refunded", reversal });
           if (existingPayment) {
             await ctx.db.patch(existingPayment._id, {
               status: args.paymentStatus,
@@ -1596,7 +1588,7 @@ export const confirmPayment = internalMutation({
           existingOfficialPayment.paymentId === args.paymentId);
 
       if (canBeOfficial) {
-        await ctx.db.patch(voucher._id, {
+        await patchVoucher(ctx, voucher, {
           status: "valid",
           paymentId: args.paymentId,
           paymentTypeId: args.paymentTypeId,
@@ -1697,7 +1689,7 @@ export const confirmPayment = internalMutation({
     }
 
     if (voucher.status === "pending" && voucher.paymentId === undefined) {
-      await ctx.db.patch(voucher._id, { paymentId: args.paymentId });
+      await patchVoucher(ctx, voucher, { paymentId: args.paymentId });
     }
 
     return {
@@ -1866,7 +1858,7 @@ export const redeemByCode = mutation({
       throw new ConvexError("Este voucher não é válido para o dia de hoje.");
     }
 
-    await ctx.db.patch(voucher._id, { status: "redeemed" });
+    await patchVoucher(ctx, voucher, { status: "redeemed" });
 
     return { code: voucher.code, status: "redeemed" as const };
   },
@@ -1904,7 +1896,7 @@ export const reactivate = mutation({
     }
 
     const expiresAt = endOfSaoPauloDayMs(getSaoPauloDateKey());
-    await ctx.db.patch(voucher._id, { status: "valid", expiresAt });
+    await patchVoucher(ctx, voucher, { status: "valid", expiresAt });
 
     return { code: voucher.code, status: "valid" as const, expiresAt };
   },
@@ -2118,7 +2110,7 @@ export const updateStatus = mutation({
         "Um voucher cancelado é terminal e não pode ter o status alterado.",
       );
     }
-    await ctx.db.patch(voucher._id, { status: args.status });
+    await patchVoucher(ctx, voucher, { status: args.status });
     return null;
   },
 });
@@ -2132,7 +2124,7 @@ export const restore = mutation({
 
     const voucher = await requireVoucherByCode(ctx, args.code);
     // Convex `patch` removes a field entirely when set to `undefined`.
-    await ctx.db.patch(voucher._id, {
+    await patchVoucher(ctx, voucher, {
       deletedAt: undefined,
       isActive: !voucher.isTest,
     });

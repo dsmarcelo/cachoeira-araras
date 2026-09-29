@@ -38,6 +38,8 @@ export const backfillVoucherPurchasedAtAndSearchText = internalMutation({
         patch.isActive = voucher.deletedAt === undefined && !voucher.isTest;
       }
       if (Object.keys(patch).length > 0) {
+        // Direct patch on purpose: a backfill changes no revenue; run
+        // `finance:rebuildAll` after it to build the finance summaries.
         await ctx.db.patch(voucher._id, patch);
       }
     }

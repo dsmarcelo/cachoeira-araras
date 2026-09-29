@@ -236,8 +236,28 @@ const operationalAlerts = defineTable({
   .index("by_voucherCode", ["voucherCode"])
   .index("by_paymentId", ["paymentId"]);
 
+// Derived, recomputable revenue summary of one Sao Paulo purchase day (see
+// convex/lib/financeSummary.ts). Vouchers are the source of truth; rewrite
+// only through `finance.recomputeDay`. Days without revenue have no document.
+const financeShare = v.object({
+  key: v.string(),
+  netCents: v.number(),
+  voucherCount: v.number(),
+});
+const financeDays = defineTable({
+  date: v.string(),
+  netCents: v.number(),
+  voucherCount: v.number(),
+  // 24 entries, indexed by Sao Paulo hour of day.
+  hours: v.array(v.object({ netCents: v.number(), voucherCount: v.number() })),
+  referrers: v.array(financeShare),
+  paymentMethods: v.array(financeShare),
+  updatedAt: v.number(),
+}).index("by_date", ["date"]);
+
 export default defineSchema({
   vouchers,
+  financeDays,
   settings,
   payments,
   paymentRefunds,

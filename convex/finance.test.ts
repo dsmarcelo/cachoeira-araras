@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { afterEach, expect, test, vi } from "vitest";
 
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { createConvexTest, withAuth } from "./test.setup";
 
 function defaults() {
@@ -37,7 +37,7 @@ async function insertVoucherAt(
   vi.useFakeTimers();
   vi.setSystemTime(atMs);
   try {
-    await t.run(async (ctx) => ctx.db.insert("vouchers", { ...defaults(), ...overrides }));
+    await t.run(async (ctx) => ctx.db.insert("vouchers", { ...defaults(), purchasedAt: atMs, ...overrides }));
   } finally {
     vi.useRealTimers();
   }
@@ -47,6 +47,13 @@ async function insertVoucherAt(
 function middayMs(dateKey: string): number {
   const [year, month, day] = dateKey.split("-").map(Number) as [number, number, number];
   return Date.UTC(year, month - 1, day, 15, 0, 0);
+}
+
+/** Builds the persisted summaries for the given Sao Paulo dates, as the scheduled recompute would. */
+async function recomputeDays(t: ReturnType<typeof createConvexTest>, dates: string[]) {
+  for (const date of dates) {
+    await t.mutation(internal.finance.recomputeDay, { date });
+  }
 }
 
 afterEach(() => {
@@ -86,6 +93,8 @@ test("net revenue counts only real vouchers with an approved, unreversed payment
   await insertVoucherAt(t, middayMs("2026-01-06"), { code: "pending", status: "pending" });
   await insertVoucherAt(t, middayMs("2026-01-06"), { code: "test", isTest: true, paymentId: "p5" });
 
+  await recomputeDays(t, ["2026-01-04", "2026-01-05", "2026-01-06"]);
+
   const asAdmin = await withAuth(t, "admin");
   const report = await asAdmin.query(api.finance.financialReport, {
     from: "2026-01-05",
@@ -114,6 +123,24 @@ test("net revenue counts only real vouchers with an approved, unreversed payment
     ["2026-01-06", 0],
   ]);
   expect(report.recent.map((r) => r.code).sort()).toEqual(["card", "pix"]);
+});
+
+test("a single-day report charts sales by Sao Paulo hour, keeping the opening window", async () => {
+  const t = createConvexTest();
+  await insertVoucherAt(t, Date.UTC(2026, 0, 5, 12, 30), { code: "nine", priceCents: 1000, paymentId: "p1" });
+  await insertVoucherAt(t, Date.UTC(2026, 0, 5, 22, 0), { code: "nineteen", priceCents: 2000, paymentId: "p2" });
+  await recomputeDays(t, ["2026-01-05"]);
+
+  const asAdmin = await withAuth(t, "admin");
+  const report = await asAdmin.query(api.finance.financialReport, {
+    from: "2026-01-05",
+    to: "2026-01-05",
+  });
+
+  expect(report.granularity).toBe("hour");
+  expect(report.buckets.map((b) => b.hour)).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+  expect(report.buckets.find((b) => b.hour === 9)).toMatchObject({ netCents: 1000, voucherCount: 1 });
+  expect(report.buckets.find((b) => b.hour === 19)).toMatchObject({ netCents: 2000, voucherCount: 1 });
 });
 
 test("a range longer than the limit is refused", async () => {
