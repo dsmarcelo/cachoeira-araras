@@ -75,7 +75,7 @@ export function AdminVoucherRefundButton({
 
   if (refund) {
     return (
-      <div className="space-y-2 text-sm">
+      <div className="space-y-2 rounded-[10px] border border-border bg-zinc-50 px-3.5 py-3 text-sm">
         <p role="status" className="text-muted-foreground">
           {refundMessages[refund.status]}
         </p>
@@ -126,7 +126,8 @@ export function AdminVoucherRefundButton({
     <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <AlertDialogTrigger asChild>
         <Button
-          variant="destructive"
+          variant="outline"
+          className="h-11 w-full border-red-200 text-red-700 hover:bg-red-50 hover:text-red-700"
           disabled={isSubmitting || refund === undefined}
         >
           Reembolsar pagamento

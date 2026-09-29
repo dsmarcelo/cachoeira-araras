@@ -3,6 +3,7 @@ import React from "react";
 import { requireAdmin } from "@/app/lib";
 
 import DataTable from "./data-table";
+import { PageShell } from "../_components/admin-ui";
 
 export default async function TablePage() {
   const user = await requireAdmin();
@@ -12,8 +13,8 @@ export default async function TablePage() {
   }
 
   return (
-    <main className="flex w-full flex-col items-center px-4 py-4 md:py-8">
+    <PageShell className="md:max-w-6xl">
       <DataTable />
-    </main>
+    </PageShell>
   );
 }

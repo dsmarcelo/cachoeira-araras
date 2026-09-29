@@ -50,3 +50,12 @@
     background-color: hsl(0 0% 100%);
   }
 }
+
+/* Admin panel typeface, set by src/app/admin/layout.tsx on its wrapper and <body>. */
+.admin-scope {
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.admin-scope .font-mono {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+}

@@ -1,26 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { UserPlus } from "lucide-react";
+import { ChevronDown, UserPlus } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
+import {
+  EmptyState,
+  Panel,
+  PanelHeader,
+  Segmented,
+  StatusBadge,
+} from "../../_components/admin-ui";
 
 type AuthRole = "admin" | "user";
 
@@ -30,6 +21,23 @@ type ManagedUser = {
   role: AuthRole;
   banned: boolean;
 };
+
+const roleOptions = [
+  { value: "user", label: "Funcionário" },
+  { value: "admin", label: "Administrador" },
+] as const;
+
+const roleHelp: Record<AuthRole, string> = {
+  user: "Funcionário valida vouchers e faz compra teste.",
+  admin: "Administrador vê tudo, inclusive pagamentos e usuários.",
+};
+
+const inputClass =
+  "h-11 w-full rounded-lg border border-border bg-white px-3 text-sm font-normal shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 disabled:opacity-50";
+const primaryButton =
+  "h-11 rounded-lg bg-zinc-900 text-sm font-semibold text-zinc-50 transition-colors hover:bg-zinc-800 disabled:opacity-45";
+const outlineButton =
+  "h-11 rounded-lg border border-border bg-white text-sm font-medium shadow-sm transition-colors hover:bg-zinc-50 disabled:opacity-45";
 
 function readRole(value: string | null | undefined): AuthRole {
   return value?.split(",").includes("admin") ? "admin" : "user";
@@ -54,6 +62,7 @@ export default function UserManager({
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const loadUsers = useCallback(async () => {
     setError("");
@@ -86,42 +95,34 @@ export default function UserManager({
   }, [loadUsers]);
 
   return (
-    <div className="space-y-6">
-      <CreateUserForm onCreated={loadUsers} />
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Acessos cadastrados</CardTitle>
-          <CardDescription>
-            Alterar a função ou a senha encerra as outras sessões do usuário.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
-          {isLoading ? (
-            <p className="py-8 text-sm text-muted-foreground">
-              Carregando usuários...
-            </p>
-          ) : users.length === 0 ? (
-            <p className="py-8 text-sm text-muted-foreground">
-              Nenhum usuário cadastrado.
-            </p>
-          ) : (
-            users.map((user) => (
-              <UserEditor
+    <>
+      <Panel className="overflow-hidden">
+        <PanelHeader
+          title="Acessos cadastrados"
+          description="Toque em uma pessoa para editar. Mudar função ou senha encerra as sessões dela."
+        />
+        {error ? <EmptyState tone="error">{error}</EmptyState> : null}
+        {isLoading ? (
+          <EmptyState>Carregando usuários...</EmptyState>
+        ) : users.length === 0 && !error ? (
+          <EmptyState>Nenhum usuário cadastrado.</EmptyState>
+        ) : (
+          <ul>
+            {users.map((user) => (
+              <UserRow
                 key={user.id}
                 user={user}
-                currentUserId={currentUserId}
+                isSelf={user.id === currentUserId}
+                open={openId === user.id}
+                onToggle={() => setOpenId((current) => (current === user.id ? null : user.id))}
                 onChanged={loadUsers}
               />
-            ))
-          )}
-        </CardContent>
-      </Card>
-    </div>
+            ))}
+          </ul>
+        )}
+      </Panel>
+      <CreateUserForm onCreated={loadUsers} />
+    </>
   );
 }
 
@@ -129,12 +130,12 @@ function CreateUserForm({ onCreated }: { onCreated: () => Promise<void> }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<AuthRole>("user");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage("");
+    setMessage(null);
 
     startTransition(async () => {
       const normalizedUsername = username.trim().toLowerCase();
@@ -147,104 +148,106 @@ function CreateUserForm({ onCreated }: { onCreated: () => Promise<void> }) {
       });
 
       if (error) {
-        setMessage(getErrorMessage(error));
+        setMessage({ ok: false, text: getErrorMessage(error) });
         return;
       }
 
       setUsername("");
       setPassword("");
       setRole("user");
-      setMessage("Usuário criado.");
+      setMessage({ ok: true, text: "Usuário criado." });
       await onCreated();
     });
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <UserPlus className="h-5 w-5" /> Novo usuário
-        </CardTitle>
-        <CardDescription>
-          A pessoa poderá trocar o nome de usuário e a senha depois do primeiro
-          acesso.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form
-          onSubmit={handleSubmit}
-          className="grid items-end gap-4 md:grid-cols-[1fr_1fr_12rem_auto]"
-        >
-          <div className="space-y-2">
-            <Label htmlFor="new-user-username">Nome de usuário</Label>
-            <Input
-              id="new-user-username"
-              autoComplete="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              minLength={3}
-              maxLength={30}
-              pattern="[a-z0-9._]+"
-              value={username}
-              onChange={(event) =>
-                setUsername(event.target.value.toLowerCase())
-              }
-              disabled={isPending}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="new-user-password">Senha inicial</Label>
-            <Input
-              id="new-user-password"
-              type="password"
-              autoComplete="new-password"
-              minLength={5}
-              maxLength={128}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              disabled={isPending}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Função</Label>
-            <RoleSelect value={role} onChange={setRole} disabled={isPending} />
-          </div>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? "Criando..." : "Criar acesso"}
-          </Button>
-          {message ? (
-            <p
-              aria-live="polite"
-              className="text-sm text-muted-foreground md:col-span-4"
-            >
-              {message}
+    <Panel>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-8 items-center justify-center rounded-lg bg-muted">
+            <UserPlus className="size-4" aria-hidden />
+          </span>
+          <div className="flex flex-col">
+            <h2 className="text-[15px] font-semibold tracking-tight">Novo acesso</h2>
+            <p className="text-[13px] text-muted-foreground">
+              A pessoa pode trocar usuário e senha depois do primeiro acesso.
             </p>
-          ) : null}
-        </form>
-      </CardContent>
-    </Card>
+          </div>
+        </div>
+        <label htmlFor="new-user-username" className="flex flex-col gap-1.5 text-sm font-medium">
+          Nome de usuário
+          <input
+            id="new-user-username"
+            className={inputClass}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder="ex.: portaria2"
+            minLength={3}
+            maxLength={30}
+            pattern="[a-z0-9._]+"
+            title="Use de 3 a 30 letras minúsculas, números, pontos ou sublinhados."
+            value={username}
+            onChange={(event) => setUsername(event.target.value.toLowerCase())}
+            disabled={isPending}
+            required
+          />
+        </label>
+        <label htmlFor="new-user-password" className="flex flex-col gap-1.5 text-sm font-medium">
+          Senha inicial
+          <input
+            id="new-user-password"
+            className={inputClass}
+            type="password"
+            autoComplete="new-password"
+            placeholder="Mínimo de 5 caracteres"
+            minLength={5}
+            maxLength={128}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            disabled={isPending}
+            required
+          />
+        </label>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium">Função</span>
+          <Segmented value={role} options={roleOptions} onChange={setRole} label="Função do novo acesso" />
+          <span className="text-xs text-muted-foreground">{roleHelp[role]}</span>
+        </div>
+        <button type="submit" className={primaryButton} disabled={isPending}>
+          {isPending ? "Criando..." : "Criar acesso"}
+        </button>
+        {message ? (
+          <p aria-live="polite" className={cn("text-sm", message.ok ? "text-green-700" : "text-red-700")}>
+            {message.text}
+          </p>
+        ) : null}
+      </form>
+    </Panel>
   );
 }
 
-function UserEditor({
+function UserRow({
   user,
-  currentUserId,
+  isSelf,
+  open,
+  onToggle,
   onChanged,
 }: {
   user: ManagedUser;
-  currentUserId: string;
+  isSelf: boolean;
+  open: boolean;
+  onToggle: () => void;
   onChanged: () => Promise<void>;
 }) {
   const [username, setUsername] = useState(user.username);
   const [role, setRole] = useState<AuthRole>(user.role);
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function saveProfile() {
-    setMessage("");
+    setMessage(null);
     startTransition(async () => {
       const normalizedUsername = username.trim().toLowerCase();
 
@@ -254,48 +257,45 @@ function UserEditor({
           data: { username: normalizedUsername, name: normalizedUsername },
         });
         if (result.error) {
-          setMessage(getErrorMessage(result.error));
+          setMessage({ ok: false, text: getErrorMessage(result.error) });
           return;
         }
       }
 
-      if (role !== user.role && user.id !== currentUserId) {
-        const result = await authClient.admin.setRole({
-          userId: user.id,
-          role,
-        });
+      if (role !== user.role && !isSelf) {
+        const result = await authClient.admin.setRole({ userId: user.id, role });
         if (result.error) {
-          setMessage(getErrorMessage(result.error));
+          setMessage({ ok: false, text: getErrorMessage(result.error) });
           return;
         }
         await authClient.admin.revokeUserSessions({ userId: user.id });
       }
 
-      setMessage("Dados atualizados.");
+      setMessage({ ok: true, text: "Dados atualizados." });
       await onChanged();
     });
   }
 
   function resetPassword() {
-    setMessage("");
+    setMessage(null);
     startTransition(async () => {
       const result = await authClient.admin.setUserPassword({
         userId: user.id,
         newPassword: password,
       });
       if (result.error) {
-        setMessage(getErrorMessage(result.error));
+        setMessage({ ok: false, text: getErrorMessage(result.error) });
         return;
       }
 
       await authClient.admin.revokeUserSessions({ userId: user.id });
       setPassword("");
-      setMessage("Senha redefinida e sessões encerradas.");
+      setMessage({ ok: true, text: "Senha redefinida e sessões encerradas." });
     });
   }
 
   function toggleBan() {
-    setMessage("");
+    setMessage(null);
     startTransition(async () => {
       const result = user.banned
         ? await authClient.admin.unbanUser({ userId: user.id })
@@ -305,7 +305,7 @@ function UserEditor({
           });
 
       if (result.error) {
-        setMessage(getErrorMessage(result.error));
+        setMessage({ ok: false, text: getErrorMessage(result.error) });
         return;
       }
 
@@ -316,109 +316,132 @@ function UserEditor({
     });
   }
 
-  return (
-    <section className="space-y-4 rounded-lg border p-4">
-      <div className="grid items-end gap-4 md:grid-cols-[1fr_12rem_auto]">
-        <div className="space-y-2">
-          <Label htmlFor={`username-${user.id}`}>Nome de usuário</Label>
-          <Input
-            id={`username-${user.id}`}
-            autoCapitalize="none"
-            spellCheck={false}
-            minLength={3}
-            maxLength={30}
-            pattern="[a-z0-9._]+"
-            value={username}
-            onChange={(event) => setUsername(event.target.value.toLowerCase())}
-            disabled={isPending || user.banned}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Função</Label>
-          <RoleSelect
-            value={role}
-            onChange={setRole}
-            disabled={isPending || user.banned || user.id === currentUserId}
-          />
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={saveProfile}
-          disabled={
-            isPending ||
-            user.banned ||
-            !username.trim() ||
-            (username === user.username && role === user.role)
-          }
-        >
-          Salvar dados
-        </Button>
-      </div>
+  const badge = user.banned
+    ? { tone: "danger" as const, label: "Desativado" }
+    : user.role === "admin"
+      ? { tone: "success" as const, label: "Administrador" }
+      : { tone: "neutral" as const, label: "Funcionário" };
+  const locked = isPending || user.banned;
 
-      <div className="grid items-end gap-4 border-t pt-4 md:grid-cols-[1fr_auto_auto]">
-        <div className="space-y-2">
-          <Label htmlFor={`password-${user.id}`}>Nova senha</Label>
-          <Input
-            id={`password-${user.id}`}
-            type="password"
-            autoComplete="new-password"
-            minLength={5}
-            maxLength={128}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            disabled={isPending || user.banned}
-            placeholder="Mínimo de 5 caracteres"
-          />
+  return (
+    <li className="border-t border-border">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className={cn(
+          "flex min-h-16 w-full items-center gap-3 py-2.5 pl-5 pr-4 text-left transition-colors hover:bg-zinc-50",
+          open && "bg-zinc-50",
+        )}
+      >
+        <span
+          className={cn(
+            "flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-sm font-semibold uppercase",
+            user.banned && "text-zinc-400",
+          )}
+        >
+          {user.username.charAt(0)}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className={cn("truncate text-sm font-medium", user.banned && "text-muted-foreground")}>
+            {user.username}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {isSelf ? "Você" : user.banned ? "Acesso desativado" : "Toque para editar"}
+          </span>
+        </span>
+        <StatusBadge tone={badge.tone}>{badge.label}</StatusBadge>
+        <ChevronDown
+          className={cn("size-4 shrink-0 text-zinc-400 transition-transform", open && "rotate-180")}
+          aria-hidden
+        />
+      </button>
+
+      {open ? (
+        <div className="flex flex-col gap-3.5 bg-zinc-50 px-5 pb-5 pt-1">
+          <label htmlFor={`username-${user.id}`} className="flex flex-col gap-1.5 text-sm font-medium">
+            Nome de usuário
+            <input
+              id={`username-${user.id}`}
+              className={inputClass}
+              autoCapitalize="none"
+              spellCheck={false}
+              minLength={3}
+              maxLength={30}
+              pattern="[a-z0-9._]+"
+              value={username}
+              onChange={(event) => setUsername(event.target.value.toLowerCase())}
+              disabled={locked}
+            />
+          </label>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Função</span>
+            {isSelf ? (
+              <span className="text-xs text-muted-foreground">Você não pode mudar a sua própria função.</span>
+            ) : (
+              <Segmented
+                value={role}
+                options={roleOptions}
+                onChange={setRole}
+                label={`Função de ${user.username}`}
+                className={locked ? "pointer-events-none opacity-50" : undefined}
+              />
+            )}
+          </div>
+          <button
+            type="button"
+            className={primaryButton}
+            onClick={saveProfile}
+            disabled={locked || !username.trim() || (username === user.username && role === user.role)}
+          >
+            Salvar dados
+          </button>
+
+          <div className="h-px bg-border" />
+
+          <label htmlFor={`password-${user.id}`} className="flex flex-col gap-1.5 text-sm font-medium">
+            Nova senha
+            <input
+              id={`password-${user.id}`}
+              className={inputClass}
+              type="password"
+              autoComplete="new-password"
+              placeholder="Mínimo de 5 caracteres"
+              minLength={5}
+              maxLength={128}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              disabled={locked}
+            />
+            <span className="text-xs font-normal text-muted-foreground">
+              A pessoa será desconectada de todos os aparelhos.
+            </span>
+          </label>
+          <button
+            type="button"
+            className={outlineButton}
+            onClick={resetPassword}
+            disabled={locked || password.length < 5}
+          >
+            Redefinir senha
+          </button>
+          {!isSelf ? (
+            <button
+              type="button"
+              className={cn(outlineButton, !user.banned && "border-red-200 text-red-700 hover:bg-red-50")}
+              onClick={toggleBan}
+              disabled={isPending}
+            >
+              {user.banned ? "Reativar acesso" : "Desativar acesso"}
+            </button>
+          ) : null}
+          {message ? (
+            <p aria-live="polite" className={cn("text-sm", message.ok ? "text-green-700" : "text-red-700")}>
+              {message.text}
+            </p>
+          ) : null}
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={resetPassword}
-          disabled={isPending || user.banned || password.length < 5}
-        >
-          Redefinir senha
-        </Button>
-        <Button
-          type="button"
-          variant={user.banned ? "outline" : "destructive"}
-          onClick={toggleBan}
-          disabled={isPending}
-        >
-          {user.banned ? "Reativar acesso" : "Desativar acesso"}
-        </Button>
-      </div>
-      {message ? (
-        <p aria-live="polite" className="text-sm text-muted-foreground">
-          {message}
-        </p>
       ) : null}
-    </section>
-  );
-}
-
-function RoleSelect({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: AuthRole;
-  onChange: (role: AuthRole) => void;
-  disabled: boolean;
-}) {
-  return (
-    <Select
-      value={value}
-      onValueChange={(next) => onChange(readRole(next))}
-      disabled={disabled}
-    >
-      <SelectTrigger>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="user">Funcionário</SelectItem>
-        <SelectItem value="admin">Administrador</SelectItem>
-      </SelectContent>
-    </Select>
+    </li>
   );
 }
