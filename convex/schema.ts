@@ -98,9 +98,17 @@ const vouchers = defineTable({
   cancellationSearchOpId: v.optional(v.id("paymentOperations")),
   cancellationInvalidateOpId: v.optional(v.id("paymentOperations")),
 
+  // When the customer bought the voucher (epoch ms). Set to the checkout time
+  // for new vouchers; the Postgres import will carry the legacy `created_at`
+  // so imported vouchers keep their real sale date. Optional until existing
+  // vouchers are backfilled; the financial report will read this instead of
+  // `_creationTime`.
+  purchasedAt: v.optional(v.number()),
+
   deletedAt: v.optional(v.number()),
 })
   .index("by_code", ["code"])
+  .index("by_purchasedAt", ["purchasedAt"])
   .index("by_lookupToken", ["lookupToken"])
   .index("by_managementToken", ["managementToken"])
   .index("by_paymentId", ["paymentId"])

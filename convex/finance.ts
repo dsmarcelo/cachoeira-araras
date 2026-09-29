@@ -169,9 +169,10 @@ function trimHours(buckets: Bucket[]): Bucket[] {
  * TODO: the sale date is the voucher's `_creationTime`. Vouchers imported
  * from Postgres (scripts/import-postgres-to-convex) got the import time
  * instead of their original purchase date, so they all land in the import
- * month. Re-import saving the legacy `created_at` in a new `purchasedAt`
- * column on `vouchers` (set to `_creationTime` for new checkouts), index it,
- * and read that here instead of `by_creation_time`.
+ * month. `vouchers.purchasedAt` (indexed `by_purchasedAt`, set at checkout)
+ * now exists; still to do: make the import script save the legacy
+ * `created_at` in it, backfill the existing vouchers, and read it here
+ * instead of `by_creation_time`.
  */
 export const financialReport = query({
   args: { from: v.string(), to: v.string() },

@@ -1302,6 +1302,7 @@ export const insertPendingVoucher = internalMutation({
       initPoint: args.initPoint,
       referrer: args.referrer,
       isTest: args.isTest,
+      purchasedAt: Date.now(),
     });
 
     return { ok: true as const, managementToken };
