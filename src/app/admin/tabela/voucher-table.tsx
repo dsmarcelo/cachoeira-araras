@@ -162,7 +162,7 @@ export function VoucherTable({
                     <span className="font-mono font-medium uppercase tracking-wide text-zinc-700">{voucher.code}</span>
                     <span aria-hidden>·</span>
                     <span>{formatPhone(voucher.phone)}</span>
-                    {voucher.referrer ? (
+                    {voucher.referrer?.source ? (
                       <>
                         <span aria-hidden>·</span>
                         <span>{formatReferrer(voucher.referrer.source)}</span>
