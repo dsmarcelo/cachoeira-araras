@@ -5,6 +5,7 @@ import {
   Cog,
   CreditCard,
   FlaskConical,
+  Wallet,
   Ticket,
   Users,
 } from "lucide-react";
@@ -35,6 +36,11 @@ const adminSidebarItems = [
     name: "Visão Geral",
     icon: <Ticket className="h-5 w-5" />,
     href: "/admin/tabela",
+  },
+  {
+    name: "Financeiro",
+    icon: <Wallet className="h-5 w-5" />,
+    href: "/admin/dashboard/financeiro",
   },
   {
     name: "Pagamentos",

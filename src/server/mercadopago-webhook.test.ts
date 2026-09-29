@@ -380,6 +380,28 @@ await test("forwards the observed payment amount as integer cents", async () => 
   assert.equal(receivedAmount, 12345);
 });
 
+await test("forwards Mercado Pago's payment type and method", async () => {
+  let received: { paymentTypeId?: string; paymentMethodId?: string } = {};
+  await processMercadoPagoPaymentWebhook({
+    dataId,
+    type: "payment",
+    getPayment: async () => ({
+      external_reference: "abcd",
+      status: "approved",
+      payment_type_id: "bank_transfer",
+      payment_method_id: "pix",
+    }),
+    processVoucherPayment: async (input) => {
+      received = input;
+      return { outcome: "updated", shouldSendConversionEvents: false };
+    },
+    logger: silentLogger,
+  });
+
+  assert.equal(received.paymentTypeId, "bank_transfer");
+  assert.equal(received.paymentMethodId, "pix");
+});
+
 await test("does not send conversion events for already processed vouchers", async () => {
   let conversionCalls = 0;
   const result = await processMercadoPagoPaymentWebhook({

@@ -16,6 +16,8 @@ export const paymentSnapshot = v.object({
   externalReference: v.union(v.string(), v.null()),
   amount: v.number(),
   refundedAmount: v.number(),
+  paymentTypeId: v.optional(v.string()),
+  paymentMethodId: v.optional(v.string()),
 });
 
 export const operationResult = v.union(

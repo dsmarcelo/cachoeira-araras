@@ -45,6 +45,11 @@ const vouchers = defineTable({
   // delivery and to make payment confirmation idempotent.
   preferenceId: v.string(),
   paymentId: v.optional(v.string()),
+  // Mercado Pago `payment_type_id` / `payment_method_id` of the Official
+  // Payment, set when it makes the voucher valid (see `confirmPayment`).
+  // Absent on vouchers paid before these were recorded.
+  paymentTypeId: v.optional(v.string()),
+  paymentMethodId: v.optional(v.string()),
 
   // Set once, the first time a negative-terminal Mercado Pago notification
   // (refund, chargeback, cancellation) arrives after the Voucher was already

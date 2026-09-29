@@ -14,7 +14,7 @@
 - `/admin` — validação de vouchers + painel de vouchers do dia.
 - `/admin/dashboard` — visão analítica/operacional do dia.
 - `/admin/dashboard/configuracoes` — gerenciamento de settings do site.
-- `/admin/dashboard/vendas` — área de vendas.
+- `/admin/dashboard/financeiro` — relatório financeiro por período (receita líquida, origem e forma de pagamento).
 - `/admin/dashboard/vouchers` — visão de vouchers.
 - `/admin/dashboard/usuarios` — criação e administração de acessos.
 - `/admin/conta` — alteração do próprio usuário e senha.
