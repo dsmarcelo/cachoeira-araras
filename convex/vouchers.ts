@@ -1910,6 +1910,8 @@ export const listAdmin = query({
     status: v.optional(voucherStatusValidator),
     createdAfter: v.optional(v.number()),
     createdBefore: v.optional(v.number()),
+    expiresAfter: v.optional(v.number()),
+    expiresBefore: v.optional(v.number()),
   },
   returns: v.array(gateVoucherAdminValidator),
   handler: async (ctx, args) => {
@@ -1932,6 +1934,16 @@ export const listAdmin = query({
         (voucher) =>
           args.createdBefore === undefined ||
           voucher._creationTime <= args.createdBefore,
+      )
+      .filter(
+        (voucher) =>
+          args.expiresAfter === undefined ||
+          voucher.expiresAt >= args.expiresAfter,
+      )
+      .filter(
+        (voucher) =>
+          args.expiresBefore === undefined ||
+          voucher.expiresAt <= args.expiresBefore,
       )
       .sort((a, b) => b._creationTime - a._creationTime)
       .map(summarizeForGateAdmin);

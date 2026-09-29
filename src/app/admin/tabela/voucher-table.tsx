@@ -34,6 +34,7 @@ import { Search } from "lucide-react"
 import { useWindowWidth } from "@/lib/utils"
 import { VoucherInfoCard, type AdminVoucher } from "../voucher-info-card"
 import { DataTablePagination } from "./table-pagination"
+import { DateRangeFilter, type DateRangeValue } from "./date-range-filter"
 
 export type VoucherView = "active" | "deleted"
 
@@ -47,16 +48,16 @@ interface DataTableProps {
   status: string
   search: string
   view: VoucherView
-  dateFrom: string
-  dateTo: string
+  created: DateRangeValue
+  expires: DateRangeValue
   isLoading?: boolean
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
   onStatusChange: (status: string) => void
   onSearchChange: (search: string) => void
   onViewChange: (view: VoucherView) => void
-  onDateFromChange: (value: string) => void
-  onDateToChange: (value: string) => void
+  onCreatedChange: (value: DateRangeValue) => void
+  onExpiresChange: (value: DateRangeValue) => void
 }
 
 export function VoucherTable({
@@ -69,16 +70,16 @@ export function VoucherTable({
   status,
   search,
   view,
-  dateFrom,
-  dateTo,
+  created,
+  expires,
   isLoading = false,
   onPageChange,
   onPageSizeChange,
   onStatusChange,
   onSearchChange,
   onViewChange,
-  onDateFromChange,
-  onDateToChange,
+  onCreatedChange,
+  onExpiresChange,
 }: DataTableProps) {
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
@@ -150,24 +151,18 @@ export function VoucherTable({
               onChange={(event) => onSearchChange(event.target.value)}
             />
           </div>
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <span>Criado de</span>
-            <Input
-              type="date"
-              className="h-8 w-36"
-              value={dateFrom}
-              disabled={view === "deleted"}
-              onChange={(event) => onDateFromChange(event.target.value)}
-            />
-            <span>até</span>
-            <Input
-              type="date"
-              className="h-8 w-36"
-              value={dateTo}
-              disabled={view === "deleted"}
-              onChange={(event) => onDateToChange(event.target.value)}
-            />
-          </div>
+          <DateRangeFilter
+            label="Criado:"
+            value={created}
+            disabled={view === "deleted"}
+            onChange={onCreatedChange}
+          />
+          <DateRangeFilter
+            label="Expira:"
+            value={expires}
+            disabled={view === "deleted"}
+            onChange={onExpiresChange}
+          />
         </div>
       </div>
       <div className="px-4 text-sm text-muted-foreground sm:px-0">

@@ -83,6 +83,27 @@ test("the admin list narrows by creation-date range", async () => {
   expect(outsideRange).toEqual([]);
 });
 
+test("the admin list narrows by expiry range", async () => {
+  const t = createConvexTest();
+  const day = 1000 * 60 * 60 * 24;
+  const base = Date.now() + 10 * day;
+  await insertVoucher(t, { code: "early", expiresAt: base });
+  await insertVoucher(t, { code: "mid", expiresAt: base + 2 * day });
+  await insertVoucher(t, { code: "late", expiresAt: base + 4 * day });
+  const asAdmin = await withAuth(t, "admin");
+
+  const bounded = await asAdmin.query(api.vouchers.listAdmin, {
+    expiresAfter: base + day,
+    expiresBefore: base + 3 * day,
+  });
+  const openEnded = await asAdmin.query(api.vouchers.listAdmin, {
+    expiresAfter: base + 2 * day,
+  });
+
+  expect(bounded.map((v) => v.code)).toEqual(["mid"]);
+  expect(openEnded.map((v) => v.code).sort()).toEqual(["late", "mid"]);
+});
+
 test("an employee identity is rejected by every admin voucher function, including with a forged role argument", async () => {
   const t = createConvexTest();
   await insertVoucher(t);

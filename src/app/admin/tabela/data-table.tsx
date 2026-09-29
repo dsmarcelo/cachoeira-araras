@@ -6,6 +6,7 @@ import { VoucherTable, type VoucherView } from "./voucher-table"
 import { columns } from "./columns"
 import { api } from "../../../../convex/_generated/api"
 import type { AdminVoucher } from "../voucher-info-card"
+import type { DateRangeValue } from "./date-range-filter"
 
 /** A calendar date input ("YYYY-MM-DD") read as Sao Paulo local time, matching the fixed
  * UTC-3 offset assumption used throughout the voucher backend. */
@@ -30,8 +31,8 @@ export default function DataTable() {
   const [status, setStatus] = React.useState<StatusFilter>('all')
   const [search, setSearch] = React.useState('')
   const [view, setView] = React.useState<VoucherView>('active')
-  const [dateFrom, setDateFrom] = React.useState('')
-  const [dateTo, setDateTo] = React.useState('')
+  const [created, setCreated] = React.useState<DateRangeValue>({ from: '', to: '' })
+  const [expires, setExpires] = React.useState<DateRangeValue>({ from: '', to: '' })
   const [reconciliationError, setReconciliationError] = React.useState('')
   const checkedCodes = React.useRef(new Set<string>())
   const reconcilePayments = useAction(api.voucherReconciliation.reconcileAdmin)
@@ -41,8 +42,10 @@ export default function DataTable() {
     view === 'active'
       ? {
         status: status === 'all' ? undefined : status,
-        createdAfter: dateFrom ? startOfSaoPauloDayMs(dateFrom) : undefined,
-        createdBefore: dateTo ? endOfSaoPauloDayMs(dateTo) : undefined,
+        createdAfter: created.from ? startOfSaoPauloDayMs(created.from) : undefined,
+        createdBefore: created.to ? endOfSaoPauloDayMs(created.to) : undefined,
+        expiresAfter: expires.from ? startOfSaoPauloDayMs(expires.from) : undefined,
+        expiresBefore: expires.to ? endOfSaoPauloDayMs(expires.to) : undefined,
       }
       : 'skip',
   )
@@ -106,8 +109,8 @@ export default function DataTable() {
         status={status}
         search={search}
         view={view}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
+        created={created}
+        expires={expires}
         isLoading={isLoading}
         onPageChange={setPage}
         onPageSizeChange={(nextPageSize) => {
@@ -126,12 +129,12 @@ export default function DataTable() {
           setView(nextView)
           resetToFirstPage()
         }}
-        onDateFromChange={(value) => {
-          setDateFrom(value)
+        onCreatedChange={(value) => {
+          setCreated(value)
           resetToFirstPage()
         }}
-        onDateToChange={(value) => {
-          setDateTo(value)
+        onExpiresChange={(value) => {
+          setExpires(value)
           resetToFirstPage()
         }}
       />
