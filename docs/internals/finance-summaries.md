@@ -22,9 +22,11 @@ revenue has no document.
 
 ## Operations
 
-After the first deploy of this table, and after any bulk import:
+After the first deploy of this table, and after any bulk import (including
+`npx convex import`, which bypasses `convex/import.ts`):
 
 1. `npx convex run migrations:backfillVoucherPurchasedAtAndSearchText`
-   (vouchers without `purchasedAt` are invisible to the summaries).
+   (fills `purchasedAt`, which the summaries need, and `searchText`/`isActive`,
+   which the admin table search needs).
 2. `npx convex run finance:rebuildAll` (walks every day from the earliest
    purchase to today in batches and removes stale summaries).
