@@ -26,6 +26,7 @@ import {
   generateVoucherCode,
   splitCustomerName,
 } from "./lib/voucherCode";
+import { voucherSearchText } from "./lib/voucherSearch";
 import { validateVoucherPurchase } from "./lib/voucherPurchase";
 import type { PaymentSnapshot } from "./lib/paymentOperation";
 
@@ -1303,6 +1304,8 @@ export const insertPendingVoucher = internalMutation({
       referrer: args.referrer,
       isTest: args.isTest,
       purchasedAt: Date.now(),
+      searchText: voucherSearchText(args),
+      isActive: !args.isTest,
     });
 
     return { ok: true as const, managementToken };
@@ -2030,7 +2033,10 @@ export const restore = mutation({
 
     const voucher = await requireVoucherByCode(ctx, args.code);
     // Convex `patch` removes a field entirely when set to `undefined`.
-    await ctx.db.patch(voucher._id, { deletedAt: undefined });
+    await ctx.db.patch(voucher._id, {
+      deletedAt: undefined,
+      isActive: !voucher.isTest,
+    });
     return null;
   },
 });

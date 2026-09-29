@@ -103,7 +103,20 @@ const vouchers = defineTable({
   // so imported vouchers keep their real sale date. Optional until existing
   // vouchers are backfilled; the financial report will read this instead of
   // `_creationTime`.
+  // TODO: make required once `migrations:backfillVoucherPurchasedAtAndSearchText`
+  // has run in production (also in convex/import.ts).
   purchasedAt: v.optional(v.number()),
+
+  // Normalized `code name phone` (see convex/lib/voucherSearch.ts) feeding the
+  // admin search index. Rewrite it whenever code, name or phone changes.
+  // TODO: make required after the backfill.
+  searchText: v.optional(v.string()),
+
+  // `deletedAt === undefined && !isTest`, derived so the admin search index can
+  // filter "real, live vouchers" with a single equality (search filters can't
+  // express "field is set"). Rewrite it on every write that changes
+  // `deletedAt` or `isTest`. TODO: make required after the backfill.
+  isActive: v.optional(v.boolean()),
 
   deletedAt: v.optional(v.number()),
 })

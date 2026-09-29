@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 
 import { internalMutation } from "./_generated/server";
+import { voucherSearchText } from "./lib/voucherSearch";
 import { referrerValidator, voucherStatusValidator } from "./vouchers";
 
 /**
@@ -59,7 +60,14 @@ export const importVouchers = internalMutation({
         continue;
       }
 
-      await ctx.db.insert("vouchers", { ...row, isTest: false });
+      await ctx.db.insert("vouchers", {
+        ...row,
+        isTest: false,
+        // Falls back to now for rows exported before `purchasedAt` existed.
+        purchasedAt: row.purchasedAt ?? Date.now(),
+        searchText: voucherSearchText(row),
+        isActive: row.deletedAt === undefined,
+      });
       results.push({ code: row.code, outcome: "inserted" });
     }
 

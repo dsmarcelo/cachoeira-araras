@@ -69,7 +69,7 @@ export const runDailyMaintenance = internalMutation({
       )
       .take(BATCH_SIZE);
     for (const voucher of overduePending) {
-      await ctx.db.patch(voucher._id, { deletedAt: now });
+      await ctx.db.patch(voucher._id, { deletedAt: now, isActive: false });
     }
 
     const testCutoff = now - THIRTY_DAYS_MS;
