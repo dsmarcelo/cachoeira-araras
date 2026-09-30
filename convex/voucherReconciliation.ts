@@ -94,6 +94,20 @@ export const findUnsettledAttempt = internalQuery({
   },
 });
 
+/** True while the newest attempt has no known provider result at all. */
+export const hasUnresolvedAttempt = internalQuery({
+  args: { code: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, { code }) => {
+    const latest = await ctx.db
+      .query("paymentAttempts")
+      .withIndex("by_voucherCode", (q) => q.eq("voucherCode", code))
+      .order("desc")
+      .first();
+    return latest?.status === "creating" || latest?.status === "uncertain";
+  },
+});
+
 /**
  * Finds the outcome of a charge whose response was lost or interrupted by
  * running its own recorded operation again: same operation, same provider

@@ -805,6 +805,8 @@ export const getCheckout = query({
         cancelling: v.boolean(),
       }),
       embedded: v.boolean(),
+      // A payment approved after the purchase was cancelled: it is refunded.
+      lateApproval: v.boolean(),
       // Same-day visits: no new Pix from this instant (epoch ms), else null.
       pixCutoffAt: v.union(v.number(), v.null()),
       // Same-day visits: no new card charge from this instant, else null.
@@ -840,6 +842,8 @@ export const getCheckout = query({
       },
       embedded:
         voucher.preferenceId === undefined && voucher.initPoint === undefined,
+      lateApproval:
+        voucher.status === "cancelled" && latest?.status === "approved",
       pixCutoffAt: sameDayPixCutoffMs(voucher.visitDate, Date.now()),
       cardCutoffAt: sameDayCardCutoffMs(voucher.visitDate, Date.now()),
       attempt: latest && {

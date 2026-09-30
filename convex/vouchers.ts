@@ -23,6 +23,7 @@ import {
   generateVoucherCode,
 } from "./lib/voucherCode";
 import { attemptStatusFromProvider } from "./paymentAttempts";
+import { recoverUnsettledAttempt } from "./voucherReconciliation";
 import { rateLimiter } from "./lib/rateLimiter";
 import {
   pendingPurchaseMessage,
@@ -624,6 +625,19 @@ export const finalizeCancellation = internalMutation({
       }
     }
 
+    // Charges of the embedded checkout were closed at the provider by now.
+    const attempts = await ctx.db
+      .query("paymentAttempts")
+      .withIndex("by_voucherCode", (q) => q.eq("voucherCode", voucher.code))
+      .take(50);
+    for (const attempt of attempts) {
+      if (attempt.status === "pending" || attempt.status === "in_process")
+        await ctx.db.patch("paymentAttempts", attempt._id, {
+          status: "cancelled",
+          updatedAt: Date.now(),
+        });
+    }
+
     return { outcome: "cancelled" as const };
   },
 });
@@ -637,7 +651,8 @@ export const clearCancellationIntent = internalMutation({
       .withIndex("by_code", (q) => q.eq("code", args.code))
       .unique();
 
-    if (voucher?.status === "pending") {
+    // Also after an approval won the race: the intent must not outlive it.
+    if (voucher?.cancellationStartedAt !== undefined) {
       await patchVoucher(ctx, voucher, {
         cancellationStartedAt: undefined,
       });
@@ -711,10 +726,31 @@ export const cancelPendingPurchase = action({
     }
 
     try {
-      const searchResult = (await ctx.runAction(
-        internal.paymentOperations.execute,
-        { id: prep.searchOpId },
-      )) as PaymentSnapshot[];
+      // A charge whose creation result was lost may not show in the provider's
+      // search yet: find it through its own operation, and never cancel while
+      // it is still unknown (it could be approved after the cancellation).
+      const recovered = await recoverUnsettledAttempt(ctx, args.code);
+      if (
+        await ctx.runQuery(internal.voucherReconciliation.hasUnresolvedAttempt, {
+          code: args.code,
+        })
+      ) {
+        await ctx.runMutation(internal.vouchers.clearCancellationIntent, {
+          code: args.code,
+        });
+        return {
+          kind: "error" as const,
+          message:
+            "Ainda estamos verificando o resultado do seu pagamento. Aguarde alguns instantes e tente cancelar novamente.",
+        };
+      }
+      const found = (await ctx.runAction(internal.paymentOperations.execute, {
+        id: prep.searchOpId,
+      })) as PaymentSnapshot[];
+      const searchResult =
+        recovered && !found.some((payment) => payment.id === recovered.id)
+          ? [...found, recovered]
+          : found;
 
       const approvedPayment = searchResult.find((p) => p.status === "approved");
 
@@ -723,6 +759,8 @@ export const cancelPendingPurchase = action({
           code: args.code,
           paymentId: approvedPayment.id,
           paymentStatus: "approved",
+          paymentAmountCents: Math.round(approvedPayment.amount * 100),
+          paymentCurrency: approvedPayment.currency,
           paymentTypeId: approvedPayment.paymentTypeId,
           paymentMethodId: approvedPayment.paymentMethodId,
         });
