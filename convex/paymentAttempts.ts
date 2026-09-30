@@ -345,14 +345,18 @@ export const beginCardAttempt = internalMutation({
 
 // HTTP statuses where the provider certainly created nothing, so the buyer can
 // fix the request and send it again. Anything else may have created a charge.
+// 401/403 are our own credential or configuration faults, never the buyer's.
 function isDefiniteRefusal(httpStatus: number | undefined) {
   return (
     httpStatus !== undefined &&
     httpStatus >= 400 &&
     httpStatus < 500 &&
-    ![408, 409, 425, 429].includes(httpStatus)
+    ![401, 403, 408, 409, 425, 429].includes(httpStatus)
   );
 }
+
+const technicalFaultMessage =
+  "Não conseguimos concluir o pagamento por um problema técnico. Sua compra continua reservada; tente novamente em instantes.";
 
 /** Provider payment status -> attempt status (unknown statuses stay uncertain). */
 export function attemptStatusFromProvider(
@@ -424,7 +428,10 @@ export const settleAttempt = internalMutation({
         status: "uncertain",
         updatedAt: now,
       });
-      return { status: "uncertain" as const };
+      const httpStatus = operation?.lastHttpStatus;
+      return httpStatus === 401 || httpStatus === 403
+        ? { status: "uncertain" as const, message: technicalFaultMessage }
+        : { status: "uncertain" as const };
     }
 
     const voucher = await findVoucher(ctx, attempt.voucherCode);

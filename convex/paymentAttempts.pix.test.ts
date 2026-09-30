@@ -197,6 +197,21 @@ test("a request the provider refuses outright can be corrected and sent again", 
 });
 
 
+test("a provider credential fault is a technical failure, not a buyer data refusal", async () => {
+  const t = createConvexTest();
+  await seedVoucher(t);
+  mpFake.respondWith("createPayment", "unauthorized");
+
+  const result = await submit(t);
+
+  expect(result.status).toBe("uncertain");
+  expect(result.message).toMatch(/problema técnico/);
+  expect(result.message).not.toMatch(/Confira/);
+  expect((await attemptsOf(t))[0]?.status).toBe("uncertain");
+  mpFake.respondWith("createPayment", "unauthorized");
+  expect((await submit(t)).status).toBe("uncertain");
+});
+
 test("Voucher states that cannot be paid never reach the provider", async () => {
   const t = createConvexTest();
   await seedVoucher(t, { status: "cancelled" });
