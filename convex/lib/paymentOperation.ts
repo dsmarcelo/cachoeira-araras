@@ -24,7 +24,15 @@ export const operationRequest = v.union(
       ),
     }),
     // date_of_expiration (epoch ms) of a Pix charge.
-    expiresAt: v.number(),
+    expiresAt: v.optional(v.number()),
+    // Card charge: the Brick's single-use token (never the card number or CVV).
+    card: v.optional(
+      v.object({
+        token: v.string(),
+        installments: v.number(),
+        issuerId: v.optional(v.string()),
+      }),
+    ),
   }),
 );
 
@@ -41,6 +49,10 @@ export const paymentSnapshot = v.object({
   // Pix charge deadline (epoch ms) and copy-and-paste data, when present.
   expiresAt: v.optional(v.number()),
   pix: v.optional(v.object({ qrCode: v.string(), qrCodeBase64: v.string() })),
+  // 3DS challenge the buyer must complete to finish a card charge.
+  challenge: v.optional(
+    v.object({ externalResourceUrl: v.string(), creq: v.string() }),
+  ),
 });
 
 export const operationResult = v.union(

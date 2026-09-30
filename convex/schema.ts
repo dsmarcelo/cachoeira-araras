@@ -218,13 +218,19 @@ const paymentAttempts = defineTable({
   voucherCode: v.string(),
   requestId: v.string(),
   operationId: v.id("paymentOperations"),
-  method: v.literal("pix"),
+  method: v.union(v.literal("pix"), v.literal("card")),
   status: paymentAttemptStatus,
   paymentId: v.optional(v.string()),
   statusDetail: v.optional(v.string()),
   // When the Pix charge stops being payable (epoch ms). Not the Voucher Expiry.
-  expiresAt: v.number(),
+  // Absent on card attempts, which have no deadline of their own.
+  expiresAt: v.optional(v.number()),
   pix: v.optional(v.object({ qrCode: v.string(), qrCodeBase64: v.string() })),
+  // Bank authentication (3DS) the buyer must complete; kept only while the
+  // provider reports the challenge as pending.
+  challenge: v.optional(
+    v.object({ externalResourceUrl: v.string(), creq: v.string() }),
+  ),
   createdAt: v.number(),
   updatedAt: v.number(),
 })

@@ -47,3 +47,13 @@ export function planPix(visitDate: string, now: number) {
           ),
   };
 }
+
+/** Same-day visits: no new card charge from this time on (America/Sao_Paulo). */
+const SAME_DAY_CARD_CUTOFF_MS = 17 * HOUR;
+
+/** When a same-day card charge stops being creatable, or null for other days. */
+export function sameDayCardCutoffMs(visitDate: string, now: number) {
+  return getSaoPauloDateKey(new Date(now)) === visitDate
+    ? startOfSaoPauloDayMs(visitDate) + SAME_DAY_CARD_CUTOFF_MS
+    : null;
+}
