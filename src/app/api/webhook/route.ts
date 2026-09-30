@@ -115,6 +115,7 @@ async function confirmVoucherPaymentViaConvex({
   paymentId,
   paymentStatus,
   paymentAmountCents,
+  paymentCurrency,
   paymentTypeId,
   paymentMethodId,
 }: {
@@ -122,6 +123,7 @@ async function confirmVoucherPaymentViaConvex({
   paymentId: string;
   paymentStatus: string | null | undefined;
   paymentAmountCents?: number;
+  paymentCurrency?: string;
   paymentTypeId?: string;
   paymentMethodId?: string;
 }) {
@@ -132,6 +134,7 @@ async function confirmVoucherPaymentViaConvex({
       paymentId,
       paymentStatus: paymentStatus ?? null,
       paymentAmountCents,
+      paymentCurrency,
       paymentTypeId,
       paymentMethodId,
     },

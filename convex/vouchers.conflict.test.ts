@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { createConvexTest } from "./test.setup";
@@ -25,6 +25,9 @@ vi.mock("./lib/mercadopago", () => ({
 }));
 
 beforeEach(() => {
+  // The fixtures use a fixed visit date; keep "today" just before it.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-01T12:00:00-03:00"));
   createCheckoutPreference.mockReset();
   createCheckoutPreference.mockImplementation(
     async (input: { code: string }) => ({
@@ -33,6 +36,8 @@ beforeEach(() => {
     }),
   );
 });
+
+afterEach(() => vi.useRealTimers());
 
 const visitDateMs = new Date("2026-09-10T12:00:00-03:00").getTime();
 

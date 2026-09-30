@@ -82,6 +82,7 @@ async function reconcile(
       paymentId: payment.id,
       paymentStatus: payment.status,
       paymentAmountCents: Math.round(payment.amount * 100),
+      paymentCurrency: payment.currency,
       paymentTypeId: payment.paymentTypeId,
       paymentMethodId: payment.paymentMethodId,
     });

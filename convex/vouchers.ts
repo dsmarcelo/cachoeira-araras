@@ -2,10 +2,10 @@ import {
   paginationOptsValidator,
   paginationResultValidator,
 } from "convex/server";
-import { ConvexError, v } from "convex/values";
+import { ConvexError, v, type ObjectType } from "convex/values";
 
 import { endOfSaoPauloDayMs, getSaoPauloDateKey } from "../src/lib/utils/date";
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
   action,
@@ -22,6 +22,7 @@ import {
   formatVoucherCheckoutDescription,
   generateVoucherCode,
 } from "./lib/voucherCode";
+import { attemptStatusFromProvider } from "./paymentAttempts";
 import { rateLimiter } from "./lib/rateLimiter";
 import {
   pendingPurchaseMessage,
@@ -762,6 +763,7 @@ export const cancelPendingPurchase = action({
             paymentId: cancelledPayment.id,
             paymentStatus: "approved",
             paymentAmountCents: Math.round(cancelledPayment.amount * 100),
+            paymentCurrency: cancelledPayment.currency,
             paymentTypeId: cancelledPayment.paymentTypeId,
             paymentMethodId: cancelledPayment.paymentMethodId,
           });
@@ -1297,29 +1299,46 @@ const negativeTerminalPaymentStatuses = new Set([
  * ("pix", "visa", "master", …); they are stored on the Voucher with the
  * Official Payment so the Financeiro report can split revenue by method.
  */
-export const confirmPayment = internalMutation({
-  args: {
-    code: v.string(),
-    paymentId: v.string(),
-    paymentStatus: v.union(v.string(), v.null()),
-    paymentAmountCents: v.optional(v.number()),
-    paymentTypeId: v.optional(v.string()),
-    paymentMethodId: v.optional(v.string()),
-  },
-  returns: v.union(
-    v.object({
-      outcome: v.union(
-        v.literal("redeemed"),
-        v.literal("already_processed"),
-        v.literal("updated"),
-        v.literal("reversed"),
-      ),
-      becameValid: v.boolean(),
-      isTest: v.boolean(),
-    }),
-    v.object({ outcome: v.literal("not_found") }),
-  ),
-  handler: async (ctx, args) => {
+const confirmPaymentArgs = {
+  code: v.string(),
+  paymentId: v.string(),
+  paymentStatus: v.union(v.string(), v.null()),
+  paymentAmountCents: v.optional(v.number()),
+  // ISO currency of the provider payment (e.g. "BRL").
+  paymentCurrency: v.optional(v.string()),
+  paymentTypeId: v.optional(v.string()),
+  paymentMethodId: v.optional(v.string()),
+};
+
+/**
+ * Whether an approved payment is really for this Voucher's base price in BRL.
+ * Embedded (Bricks) vouchers require both facts to be present. Checkout Pro
+ * vouchers check whatever the notification carries, so a deploy that reaches
+ * Convex before its Next.js caller cannot break payments already in flight.
+ */
+function paymentMatchesVoucher(
+  voucher: Doc<"vouchers">,
+  args: { paymentAmountCents?: number; paymentCurrency?: string },
+) {
+  const isEmbedded =
+    voucher.preferenceId === undefined && voucher.initPoint === undefined;
+  if (isEmbedded) {
+    return (
+      args.paymentAmountCents === voucher.priceCents &&
+      args.paymentCurrency === "BRL"
+    );
+  }
+  return (
+    (args.paymentAmountCents === undefined ||
+      args.paymentAmountCents === voucher.priceCents) &&
+    (args.paymentCurrency === undefined || args.paymentCurrency === "BRL")
+  );
+}
+
+async function applyPaymentConfirmation(
+  ctx: MutationCtx,
+  args: ObjectType<typeof confirmPaymentArgs>,
+) {
     const voucher = await ctx.db
       .query("vouchers")
       .withIndex("by_code", (q) => q.eq("code", args.code))
@@ -1527,6 +1546,7 @@ export const confirmPayment = internalMutation({
         voucher.status === "pending" &&
         voucher.deletedAt === undefined &&
         voucher.expiresAt > Date.now() &&
+        paymentMatchesVoucher(voucher, args) &&
         (!existingOfficialPayment ||
           existingOfficialPayment.paymentId === args.paymentId);
 
@@ -1612,6 +1632,17 @@ export const confirmPayment = internalMutation({
       };
     }
 
+    // A late "pending"/"in_process" update must never undo an approval that
+    // was already recorded (it would drop the Official Payment or the duty to
+    // refund an Excess Payment). Only reversal statuses, handled above, may.
+    if (existingPayment?.status === "approved") {
+      return {
+        outcome: "already_processed" as const,
+        becameValid: false,
+        isTest: voucher.isTest,
+      };
+    }
+
     // Non-approved payment (e.g. in_process, pending, rejected)
     if (existingPayment) {
       await ctx.db.patch(existingPayment._id, {
@@ -1640,6 +1671,42 @@ export const confirmPayment = internalMutation({
       becameValid: false,
       isTest: voucher.isTest,
     };
+}
+
+export const confirmPayment = internalMutation({
+  args: confirmPaymentArgs,
+  returns: v.union(
+    v.object({
+      outcome: v.union(
+        v.literal("redeemed"),
+        v.literal("already_processed"),
+        v.literal("updated"),
+        v.literal("reversed"),
+      ),
+      becameValid: v.boolean(),
+      isTest: v.boolean(),
+    }),
+    v.object({ outcome: v.literal("not_found") }),
+  ),
+  handler: async (ctx, args) => {
+    const result = await applyPaymentConfirmation(ctx, args);
+    // Keep the embedded checkout's Payment Attempt in step with the provider.
+    if (args.paymentStatus !== null) {
+      const attempt = await ctx.db
+        .query("paymentAttempts")
+        .withIndex("by_paymentId", (q) => q.eq("paymentId", args.paymentId))
+        .unique();
+      if (attempt?.voucherCode === args.code) {
+        const status = attemptStatusFromProvider(args.paymentStatus);
+        if (status !== "uncertain" && status !== attempt.status) {
+          await ctx.db.patch("paymentAttempts", attempt._id, {
+            status,
+            updatedAt: Date.now(),
+          });
+        }
+      }
+    }
+    return result;
   },
 });
 

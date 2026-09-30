@@ -62,6 +62,9 @@ vi.mock("./lib/voucherCode", async (importOriginal) => {
 let codeSequence = 0;
 
 beforeEach(() => {
+  // The fixtures use a fixed visit date; keep "today" just before it.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-01T12:00:00-03:00"));
   mpFake = createMercadoPagoFake();
   createCheckoutPreference.mockReset();
   createCheckoutPreference.mockImplementation(
@@ -79,7 +82,10 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
+});
 
 const visitDateMs = new Date("2026-09-10T12:00:00-03:00").getTime();
 

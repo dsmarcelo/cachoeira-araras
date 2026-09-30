@@ -211,7 +211,7 @@ describe("vouchers: cancel pending purchase", () => {
       id: "pay-race-provider",
       status: "pending",
       externalReference: "WIN02",
-      amount: 123.45,
+      amount: 100,
       refundedAmount: 0,
     });
     fake.approveOnCancel("pay-race-provider");

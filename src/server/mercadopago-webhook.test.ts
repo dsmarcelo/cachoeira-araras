@@ -380,6 +380,26 @@ await test("forwards the observed payment amount as integer cents", async () => 
   assert.equal(receivedAmount, 12345);
 });
 
+await test("forwards the payment currency so the base price can be verified", async () => {
+  let received: { paymentCurrency?: string } = {};
+  await processMercadoPagoPaymentWebhook({
+    dataId,
+    type: "payment",
+    getPayment: async () => ({
+      external_reference: "abcd",
+      status: "approved",
+      currency_id: "BRL",
+    }),
+    processVoucherPayment: async (input) => {
+      received = input;
+      return { outcome: "updated", shouldSendConversionEvents: false };
+    },
+    logger: silentLogger,
+  });
+
+  assert.equal(received.paymentCurrency, "BRL");
+});
+
 await test("forwards Mercado Pago's payment type and method", async () => {
   let received: { paymentTypeId?: string; paymentMethodId?: string } = {};
   await processMercadoPagoPaymentWebhook({

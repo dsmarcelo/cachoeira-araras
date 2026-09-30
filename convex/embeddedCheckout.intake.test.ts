@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
 import { createConvexTest } from "./test.setup";
 
-const createCheckoutPreference = vi.fn();
+const createCheckoutPreference = vi.fn<(...args: unknown[]) => unknown>();
 vi.mock("./lib/mercadopago", () => ({
   createCheckoutPreference: (...args: unknown[]) =>
     createCheckoutPreference(...args),
