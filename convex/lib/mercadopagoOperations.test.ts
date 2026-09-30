@@ -314,7 +314,7 @@ test("creating a card charge sends the token and installments, keeps the base am
       creq: "creq-value",
     },
   });
-  const body = JSON.parse(String(calls[0]!.init.body)) as Record<
+  const body = JSON.parse(calls[0]!.init.body as string) as Record<
     string,
     unknown
   >;

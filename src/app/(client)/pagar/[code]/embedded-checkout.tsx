@@ -12,6 +12,7 @@ import { capturePaymentFlowException } from "@/lib/sentry/payment";
 import { getCachedManagementToken } from "@/lib/voucher/management-token-cache";
 import { formatToBRL, getErrorMessage } from "@/lib/utils";
 import { api } from "../../../../../convex/_generated/api";
+import { CardChallenge } from "./card-challenge";
 import { PixPanel } from "./pix-panel";
 
 const RECONCILE_INTERVAL_MS = 15_000;
@@ -80,7 +81,9 @@ function PurchaseSummary({ voucher }: { voucher: Summary }) {
         Visita em {day}/{month}/{year}
       </p>
       <p>{parts.join(", ")}</p>
-      <p className="text-xl font-bold">{formatToBRL(voucher.priceCents / 100)}</p>
+      <p className="text-xl font-bold">
+        {formatToBRL(voucher.priceCents / 100)}
+      </p>
     </section>
   );
 }
@@ -107,6 +110,7 @@ export function EmbeddedCheckout({
     managementToken ? { code, managementToken } : "skip",
   );
   const submitPix = useAction(api.paymentAttempts.submitPixPayment);
+  const submitCard = useAction(api.paymentAttempts.submitCardPayment);
   const reconcile = useAction(api.voucherReconciliation.reconcileMine);
   const now = useNow();
 
@@ -120,7 +124,9 @@ export function EmbeddedCheckout({
   const isEmbeddedPending =
     data?.kind === "ok" && data.embedded && data.voucher.status === "pending";
   const attemptStatus = data?.kind === "ok" ? data.attempt?.status : undefined;
+  // `approved` still waits for the server's verified confirmation of the Voucher.
   const isAwaitingProvider =
+    attemptStatus === "approved" ||
     attemptStatus === "pending" ||
     attemptStatus === "in_process" ||
     attemptStatus === "uncertain" ||
@@ -156,9 +162,24 @@ export function EmbeddedCheckout({
     () => ({ amount: priceCents / 100 }),
     [priceCents],
   );
+  const pixOpen =
+    data?.kind !== "ok" || data.pixCutoffAt === null || now < data.pixCutoffAt;
+  const cardOpen =
+    data?.kind !== "ok" ||
+    data.cardCutoffAt === null ||
+    now < data.cardCutoffAt;
+  // Only credit card and Pix: boleto, debit and Mercado Pago account/credit
+  // (which redirect the buyer) are left out. Installment limits are not set,
+  // so the account's own conditions apply.
   const brickCustomization = useMemo(
-    () => ({ paymentMethods: { bankTransfer: ["pix"] } }),
-    [],
+    () => ({
+      paymentMethods: cardOpen
+        ? pixOpen
+          ? { creditCard: "all" as const, bankTransfer: ["pix"] }
+          : { creditCard: "all" as const }
+        : { bankTransfer: ["pix"] },
+    }),
+    [cardOpen, pixOpen],
   );
 
   if (!ready || (managementToken && data === undefined)) {
@@ -169,8 +190,8 @@ export function EmbeddedCheckout({
       <Notice title="Não foi possível abrir esta compra">
         <p>
           O pagamento só pode ser feito no navegador onde a compra foi iniciada.
-          Se você trocou de navegador ou aparelho, volte ao original ou fale
-          com a nossa equipe.
+          Se você trocou de navegador ou aparelho, volte ao original ou fale com
+          a nossa equipe.
         </p>
         <Button asChild variant="brand">
           <Link href="/meus-vouchers">Ver meus vouchers</Link>
@@ -185,7 +206,8 @@ export function EmbeddedCheckout({
       </Notice>
     );
   }
-  if (isPaid) return <Notice title="Pagamento aprovado! Abrindo seu voucher..." />;
+  if (isPaid)
+    return <Notice title="Pagamento aprovado! Abrindo seu voucher..." />;
 
   const { voucher, attempt, pixCutoffAt } = data;
   if (!data.embedded) {
@@ -203,6 +225,9 @@ export function EmbeddedCheckout({
 
   async function handleSubmit(formData: {
     payment_method_id?: string;
+    token?: string;
+    installments?: number;
+    issuer_id?: string | number;
     payer?: {
       email?: string;
       identification?: { type?: string; number?: string };
@@ -212,24 +237,36 @@ export function EmbeddedCheckout({
     setSubmitError("");
     requestId.current ??= newRequestId();
     const identification = formData.payer?.identification;
+    const charge = {
+      code,
+      managementToken,
+      requestId: requestId.current,
+      paymentMethodId: formData.payment_method_id ?? "",
+      payer: {
+        email: formData.payer?.email ?? "",
+        ...(identification?.type && identification.number
+          ? {
+              identification: {
+                type: identification.type,
+                number: identification.number,
+              },
+            }
+          : {}),
+      },
+    };
     try {
-      const result = await submitPix({
-        code,
-        managementToken,
-        requestId: requestId.current,
-        paymentMethodId: formData.payment_method_id ?? "",
-        payer: {
-          email: formData.payer?.email ?? "",
-          ...(identification?.type && identification.number
-            ? {
-                identification: {
-                  type: identification.type,
-                  number: identification.number,
-                },
-              }
-            : {}),
-        },
-      });
+      // The card number and CVV stay inside the Brick: only its token is sent.
+      const result =
+        charge.paymentMethodId === "pix"
+          ? await submitPix(charge)
+          : await submitCard({
+              ...charge,
+              token: formData.token ?? "",
+              installments: formData.installments ?? 1,
+              ...(formData.issuer_id !== undefined
+                ? { issuerId: String(formData.issuer_id) }
+                : {}),
+            });
       if (result.status === "rejected") {
         requestId.current = null;
         throw new Error(result.message ?? "Pagamento recusado.");
@@ -255,7 +292,10 @@ export function EmbeddedCheckout({
         {unpayable}
       </p>
     );
-  } else if (attempt?.status === "creating" || attempt?.status === "uncertain") {
+  } else if (
+    attempt?.status === "creating" ||
+    attempt?.status === "uncertain"
+  ) {
     payment = (
       <p role="status">
         Estamos verificando o seu pagamento. Não pague de novo: se o resultado
@@ -263,14 +303,40 @@ export function EmbeddedCheckout({
         com a nossa equipe informando o código {voucher.code}.
       </p>
     );
-  } else if (attempt?.status === "in_process") {
+  } else if (
+    attempt?.status === "pending" &&
+    attempt.challenge &&
+    attempt.paymentId
+  ) {
+    payment = (
+      <CardChallenge
+        code={code}
+        paymentId={attempt.paymentId}
+        challenge={attempt.challenge}
+      />
+    );
+  } else if (
+    attempt?.status === "in_process" ||
+    (attempt?.status === "pending" && attempt.method === "card")
+  ) {
     payment = (
       <p role="status">
-        Seu pagamento está em análise. Assim que for concluído, mostraremos seu
-        voucher aqui.
+        Seu pagamento está em análise. Não pague de novo: assim que for
+        concluído, mostraremos seu voucher aqui.
       </p>
     );
-  } else if (attempt?.status === "pending" && attempt.pix) {
+  } else if (attempt?.status === "approved") {
+    payment = (
+      <p role="status">
+        Pagamento aprovado! Estamos confirmando sua compra e abrindo o seu
+        voucher.
+      </p>
+    );
+  } else if (
+    attempt?.status === "pending" &&
+    attempt.pix &&
+    attempt.expiresAt !== undefined
+  ) {
     payment =
       now < attempt.expiresAt ? (
         <PixPanel
@@ -285,11 +351,11 @@ export function EmbeddedCheckout({
           reservada; a geração de um novo código estará disponível em breve.
         </p>
       );
-  } else if (pixCutoffAt !== null && now >= pixCutoffAt) {
+  } else if (!pixOpen && !cardOpen) {
     payment = (
       <p role="alert" className="text-warning-text">
-        Para visitas de hoje, o Pix só pode ser gerado até as 16h30. Escolha
-        outra data de visita em uma nova compra.
+        Para visitas de hoje, o Pix só pode ser gerado até as 16h30 e o cartão é
+        aceito até as 17h. Escolha outra data de visita em uma nova compra.
       </p>
     );
   } else {
@@ -297,12 +363,16 @@ export function EmbeddedCheckout({
       <div className="grid gap-3">
         {pixCutoffAt !== null && (
           <p className="text-sm text-fg-muted">
-            Para visitas de hoje, o Pix só pode ser gerado até as 16h30.
+            {pixOpen
+              ? "Para visitas de hoje, o Pix só pode ser gerado até as 16h30 e o cartão é aceito até as 17h."
+              : "Para visitas de hoje, o Pix só pode ser gerado até as 16h30. O cartão continua disponível até as 17h."}
           </p>
         )}
-        {attempt?.status === "rejected" && (
-          <p className="text-sm text-fg-muted">
-            O pagamento anterior não foi concluído. Você pode tentar novamente.
+        {attempt?.status === "rejected" && !submitError && (
+          <p role="alert" className="text-sm text-warning-text">
+            {attempt.message ??
+              "O pagamento anterior não foi concluído. Você pode tentar novamente."}{" "}
+            Sua compra continua reservada com o mesmo valor.
           </p>
         )}
         {submitError && (
@@ -346,7 +416,9 @@ export function EmbeddedCheckout({
               onReady={() => setBrickReady(true)}
               onError={(error) => {
                 capturePaymentFlowException(error, "load_brick", { code });
-                setBrickFailed(true);
+                // Field problems are explained by the Brick itself, next to
+                // the field, and keep the rest of the form.
+                if (error.type === "critical") setBrickFailed(true);
               }}
               onSubmit={({ formData }) => handleSubmit(formData)}
             />
@@ -358,12 +430,14 @@ export function EmbeddedCheckout({
 
   return (
     <div className="mx-auto grid w-full max-w-lg gap-4 p-4 text-fg">
-      <h1 className="text-2xl font-bold">Pagamento do voucher {voucher.code}</h1>
+      <h1 className="text-2xl font-bold">
+        Pagamento do voucher {voucher.code}
+      </h1>
       {!savedToken && (
         <p role="alert" className="text-warning-text">
           Não foi possível salvar esta compra neste navegador. Anote o código{" "}
-          <strong>{voucher.code}</strong> e finalize o pagamento sem fechar
-          esta página.
+          <strong>{voucher.code}</strong> e finalize o pagamento sem fechar esta
+          página.
         </p>
       )}
       <PurchaseSummary voucher={voucher} />

@@ -553,6 +553,7 @@ const publicAttemptValidator = v.object({
   expiresAt: v.optional(v.number()),
   createdAt: v.number(),
   pix: v.optional(v.object({ qrCode: v.string(), qrCodeBase64: v.string() })),
+  paymentId: v.optional(v.string()),
   // Bank authentication to complete, only while the charge is still pending.
   challenge: v.optional(
     v.object({ externalResourceUrl: v.string(), creq: v.string() }),
@@ -631,6 +632,7 @@ export const getCheckout = query({
         expiresAt: latest.expiresAt,
         createdAt: latest.createdAt,
         pix: latest.pix,
+        paymentId: latest.paymentId,
         challenge: latest.status === "pending" ? latest.challenge : undefined,
         message:
           latest.method === "card" && latest.status === "rejected"
