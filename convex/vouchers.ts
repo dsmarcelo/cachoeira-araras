@@ -17,6 +17,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireRole } from "./lib/auth";
+import { isEmbeddedVoucher } from "./lib/embeddedVoucher";
 import { attemptStatusFromProvider } from "./paymentAttempts";
 import { recoverUnsettledAttempt } from "./voucherReconciliation";
 import { rateLimiter } from "./lib/rateLimiter";
@@ -424,9 +425,7 @@ export const resumePayment = mutation({
     // 4. Still pending and payable
     if (voucher.status === "pending") {
       // Embedded (Bricks) purchases have no Pro checkout: pay on our own page.
-      const isEmbedded =
-        voucher.preferenceId === undefined && voucher.initPoint === undefined;
-      const checkoutUrl = isEmbedded
+      const checkoutUrl = isEmbeddedVoucher(voucher)
         ? `/pagar/${voucher.code}`
         : (voucher.initPoint ??
           (args.savedInitPoint?.startsWith("https://")
@@ -642,8 +641,12 @@ export const clearCancellationIntent = internalMutation({
       .withIndex("by_code", (q) => q.eq("code", args.code))
       .unique();
 
-    // Also after an approval won the race: the intent must not outlive it.
-    if (voucher?.cancellationStartedAt !== undefined) {
+    // Embedded purchases also clear it after an approval won the race: the
+    // intent must not outlive it. Pro Vouchers only clear while still pending.
+    if (
+      voucher?.cancellationStartedAt !== undefined &&
+      (voucher.status === "pending" || isEmbeddedVoucher(voucher))
+    ) {
       await patchVoucher(ctx, voucher, {
         cancellationStartedAt: undefined,
       });
@@ -720,11 +723,17 @@ export const cancelPendingPurchase = action({
       // A charge whose creation result was lost may not show in the provider's
       // search yet: find it through its own operation, and never cancel while
       // it is still unknown (it could be approved after the cancellation).
-      const recovered = await recoverUnsettledAttempt(ctx, args.code);
+      // Embedded purchases only: Pro Vouchers have no Payment Attempts.
+      const isEmbedded = prep.preferenceId === undefined;
+      const recovered = isEmbedded
+        ? await recoverUnsettledAttempt(ctx, args.code)
+        : undefined;
       if (
-        await ctx.runQuery(internal.voucherReconciliation.hasUnresolvedAttempt, {
-          code: args.code,
-        })
+        isEmbedded &&
+        (await ctx.runQuery(
+          internal.voucherReconciliation.hasUnresolvedAttempt,
+          { code: args.code },
+        ))
       ) {
         await ctx.runMutation(internal.vouchers.clearCancellationIntent, {
           code: args.code,
@@ -1194,10 +1203,8 @@ function paymentMatchesVoucher(
   voucher: Doc<"vouchers">,
   args: { paymentAmountCents?: number; paymentCurrency?: string },
 ) {
-  const isEmbedded =
-    voucher.preferenceId === undefined && voucher.initPoint === undefined;
   return (
-    !isEmbedded ||
+    !isEmbeddedVoucher(voucher) ||
     (args.paymentAmountCents === voucher.priceCents &&
       args.paymentCurrency === "BRL")
   );
@@ -1500,10 +1507,10 @@ async function applyPaymentConfirmation(
       };
     }
 
-    // A late "pending"/"in_process" update must never undo an approval that
-    // was already recorded (it would drop the Official Payment or the duty to
-    // refund an Excess Payment). Only reversal statuses, handled above, may.
-    if (existingPayment?.status === "approved") {
+    // Embedded only: a late "pending"/"in_process" update must never undo an
+    // approval that was already recorded (it would drop the Official Payment or
+    // the duty to refund an Excess Payment). Only reversal statuses may.
+    if (isEmbeddedVoucher(voucher) && existingPayment?.status === "approved") {
       return {
         outcome: "already_processed" as const,
         becameValid: false,

@@ -15,6 +15,7 @@ import {
   RECOVERY_MIN_AGE_MS,
   recoverUnsettledAttempt,
 } from "./voucherReconciliation";
+import { isEmbeddedVoucher } from "./lib/embeddedVoucher";
 import { describeCardRejection } from "./lib/cardRejection";
 import {
   planPix,
@@ -71,7 +72,7 @@ function whyNotPayable(
   if (voucher.status === "refunded")
     return "Esta compra foi estornada e não pode mais ser paga.";
   if (voucher.status === "redeemed") return "Este voucher já foi resgatado.";
-  if (voucher.preferenceId !== undefined)
+  if (!isEmbeddedVoucher(voucher))
     return "Esta compra usa outro checkout. Retome o pagamento pelo endereço original.";
   return null;
 }
@@ -840,8 +841,7 @@ export const getCheckout = query({
         priceCents: voucher.priceCents,
         cancelling: voucher.cancellationStartedAt !== undefined,
       },
-      embedded:
-        voucher.preferenceId === undefined && voucher.initPoint === undefined,
+      embedded: isEmbeddedVoucher(voucher),
       lateApproval:
         voucher.status === "cancelled" && latest?.status === "approved",
       pixCutoffAt: sameDayPixCutoffMs(voucher.visitDate, Date.now()),
