@@ -1,6 +1,8 @@
 # Recoverable Mercado Pago operations
 
-Preference invalidation, payment discovery, cancellation and full refunds record
+Preference invalidation, payment discovery, cancellation, full refunds and
+embedded charge creation (`createPayment`, whose persisted body is resent
+unchanged on every retry) record
 an immutable intent before contacting Mercado Pago. The owning transaction keeps
 that intent's identifier and reuses it for retries; a fresh payment discovery
 needs a fresh intent because completed results are snapshots.
