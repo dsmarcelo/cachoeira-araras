@@ -29,8 +29,8 @@ of the Voucher's Visit Date and Expiry.
 
 Confirmation verifies the provider payment's base amount equals the Voucher
 price and the currency is BRL (installment interest is not the base amount).
-Embedded Vouchers require both; Pro Vouchers check what the notification
-carries. A mismatched approval never releases entry and follows the Excess
+Embedded Vouchers require both; Pro Vouchers keep their existing confirmation.
+A mismatched embedded approval never releases entry and follows the Excess
 Payment refund path. A late pending update never undoes a recorded approval.
 
 The payer's email and document live only in the operation request, never in

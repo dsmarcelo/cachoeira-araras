@@ -150,9 +150,11 @@ export function EmbeddedCheckout({
     return () => clearInterval(id);
   }, [isEmbeddedPending, isAwaitingProvider, managementToken, code, reconcile]);
 
+  const priceCents = data?.kind === "ok" ? data.voucher.priceCents : 0;
+  // Stable across reactive updates so the Brick is not re-initialized.
   const brickInitialization = useMemo(
-    () => ({ amount: (data?.kind === "ok" ? data.voucher.priceCents : 0) / 100 }),
-    [data],
+    () => ({ amount: priceCents / 100 }),
+    [priceCents],
   );
   const brickCustomization = useMemo(
     () => ({ paymentMethods: { bankTransfer: ["pix"] } }),
@@ -256,8 +258,9 @@ export function EmbeddedCheckout({
   } else if (attempt?.status === "creating" || attempt?.status === "uncertain") {
     payment = (
       <p role="status">
-        Estamos verificando o seu pagamento. Isso pode levar alguns instantes;
-        não é necessário pagar de novo. Esta página será atualizada sozinha.
+        Estamos verificando o seu pagamento. Não pague de novo: se o resultado
+        não aparecer em alguns minutos, volte a esta página mais tarde ou fale
+        com a nossa equipe informando o código {voucher.code}.
       </p>
     );
   } else if (attempt?.status === "in_process") {

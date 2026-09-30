@@ -148,11 +148,15 @@ export const beginPixAttempt = internalMutation({
     const blocked = whyNotPayable(voucher, now, official !== null);
     if (blocked) throw new ConvexError(blocked);
 
-    const attempts = await ctx.db
+    // Only the newest attempt can still be in progress: a new one is never
+    // created while the previous one is.
+    const latest = await ctx.db
       .query("paymentAttempts")
       .withIndex("by_voucherCode", (q) => q.eq("voucherCode", voucher.code))
-      .take(100);
-    const active = attempts.find((a) => blockingStatuses.has(a.status));
+      .order("desc")
+      .first();
+    const active =
+      latest && blockingStatuses.has(latest.status) ? latest : undefined;
     if (active)
       throw new ConvexError(
         active.status === "creating" || active.status === "uncertain"

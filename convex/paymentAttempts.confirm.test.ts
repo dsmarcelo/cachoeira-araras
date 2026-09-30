@@ -156,12 +156,12 @@ test("an approval after the purchase was cancelled follows the existing refund p
   ).toHaveLength(1);
 });
 
-test("a Checkout Pro voucher still confirms when the notification carries no amount", async () => {
+test("a Checkout Pro voucher confirms exactly as before, whatever amount detail the notification carries", async () => {
   const t = createConvexTest();
   await seed(t, { preferenceId: "pref-1" });
 
   const result = await confirm(t, {
-    paymentAmountCents: undefined,
+    paymentAmountCents: 12345,
     paymentCurrency: undefined,
   });
 

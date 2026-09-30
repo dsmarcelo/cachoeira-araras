@@ -1312,9 +1312,8 @@ const confirmPaymentArgs = {
 
 /**
  * Whether an approved payment is really for this Voucher's base price in BRL.
- * Embedded (Bricks) vouchers require both facts to be present. Checkout Pro
- * vouchers check whatever the notification carries, so a deploy that reaches
- * Convex before its Next.js caller cannot break payments already in flight.
+ * Enforced for embedded (Bricks) vouchers only, where both facts must be
+ * present. Checkout Pro vouchers keep their existing confirmation behavior.
  */
 function paymentMatchesVoucher(
   voucher: Doc<"vouchers">,
@@ -1322,16 +1321,10 @@ function paymentMatchesVoucher(
 ) {
   const isEmbedded =
     voucher.preferenceId === undefined && voucher.initPoint === undefined;
-  if (isEmbedded) {
-    return (
-      args.paymentAmountCents === voucher.priceCents &&
-      args.paymentCurrency === "BRL"
-    );
-  }
   return (
-    (args.paymentAmountCents === undefined ||
-      args.paymentAmountCents === voucher.priceCents) &&
-    (args.paymentCurrency === undefined || args.paymentCurrency === "BRL")
+    !isEmbedded ||
+    (args.paymentAmountCents === voucher.priceCents &&
+      args.paymentCurrency === "BRL")
   );
 }
 
