@@ -1,50 +1,8 @@
 export const dynamic = "force-dynamic";
 import { env } from "@/env";
 import { db } from "@/server/db";
+import { runVoucherMaintenance } from "@/server/voucher-maintenance";
 import { NextResponse } from "next/server";
-
-function getSaoPauloNow() {
-  return new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
-  );
-}
-
-async function updateExpiredVouchers(now: Date) {
-  const result = await db.voucher.updateMany({
-    where: {
-      expires_at: {
-        lte: now,
-      },
-      valid: true,
-      status: "valid",
-      deletedAt: null,
-    },
-    data: {
-      valid: false,
-      status: "expired",
-    },
-  });
-
-  return result.count;
-}
-
-async function deleteExpiredPendingVouchers(now: Date) {
-  const result = await db.voucher.updateMany({
-    where: {
-      expires_at: {
-        lte: now,
-      },
-      valid: false,
-      status: "pending",
-      deletedAt: null,
-    },
-    data: {
-      deletedAt: now,
-    },
-  });
-
-  return result.count;
-}
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -56,9 +14,8 @@ export async function GET(request: Request) {
   console.log("Running cron job");
 
   try {
-    const now = getSaoPauloNow();
-    const expiredVouchers = await updateExpiredVouchers(now);
-    const softDeletedPendingVouchers = await deleteExpiredPendingVouchers(now);
+    const { expiredVouchers, softDeletedPendingVouchers } =
+      await runVoucherMaintenance((args) => db.voucher.updateMany(args));
 
     return NextResponse.json({
       success: true,

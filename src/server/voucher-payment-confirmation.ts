@@ -1,4 +1,5 @@
 import type { Prisma, Voucher } from "@prisma/client";
+import { isVoucherExpired } from "./voucher-expiry.ts";
 
 export type ConfirmVoucherPaymentInput = {
   code: string;
@@ -42,10 +43,9 @@ export async function confirmVoucherPayment(
     };
   }
   const approved = paymentStatus === "approved";
-  // A pending voucher may already be expired before scheduled maintenance runs.
+  // A pending voucher may already be past its visit date before scheduled maintenance runs.
   // Record its payment without changing its status or validity.
-  const expired =
-    voucher.expires_at !== null && voucher.expires_at.getTime() <= Date.now();
+  const expired = isVoucherExpired(voucher.expires_at, new Date());
   if (expired && voucher.payment_id === paymentId) {
     return {
       outcome: "already_processed",
@@ -78,7 +78,7 @@ export async function confirmVoucherPayment(
   }
   return {
     outcome: result.count ? "updated" : "already_processed",
-    shouldSendConversionEvents: approved && result.count > 0,
+    shouldSendConversionEvents: approved && !expired && result.count > 0,
     voucher: updatedVoucher,
   };
 }
