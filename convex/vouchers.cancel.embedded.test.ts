@@ -153,9 +153,7 @@ test("an approval arriving after the purchase was cancelled is refunded in full"
   });
 
   expect((await voucherOf(t))?.status).toBe("cancelled");
-  const [payment] = await t.run((ctx) =>
-    ctx.db.query("payments").collect(),
-  );
+  const [payment] = await t.run((ctx) => ctx.db.query("payments").collect());
   expect(payment).toMatchObject({ owesRefund: true, isOfficial: false });
   const checkout = await t.query(api.paymentAttempts.getCheckout, {
     code: "BRICK1",

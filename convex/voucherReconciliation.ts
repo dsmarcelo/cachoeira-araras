@@ -51,11 +51,12 @@ export const claim = internalMutation({
     const previousOperation = voucher.paymentReconciliationOpId
       ? await ctx.db.get(voucher.paymentReconciliationOpId)
       : null;
-    const operationId = previousOperation && previousOperation.result === undefined
-      ? previousOperation._id
-      : await ctx.db.insert("paymentOperations", {
-          request: { kind: "search", externalReference: voucher.code },
-        });
+    const operationId =
+      previousOperation && previousOperation.result === undefined
+        ? previousOperation._id
+        : await ctx.db.insert("paymentOperations", {
+            request: { kind: "search", externalReference: voucher.code },
+          });
     await patchVoucher(ctx, voucher, {
       paymentReconciliationCheckedAt: now,
       paymentReconciliationOpId: operationId,
@@ -148,10 +149,13 @@ async function reconcile(
   code: string,
   managementToken?: string,
 ): Promise<"checked" | "updated" | "skipped"> {
-  const operationId = await ctx.runMutation(internal.voucherReconciliation.claim, {
-    code,
-    managementToken,
-  });
+  const operationId = await ctx.runMutation(
+    internal.voucherReconciliation.claim,
+    {
+      code,
+      managementToken,
+    },
+  );
   if (!operationId) return "skipped";
 
   // Recovered first, so an approval it uncovers goes through the same
@@ -190,8 +194,7 @@ export const reconcileMine = action({
     v.literal("updated"),
     v.literal("skipped"),
   ),
-  handler: async (ctx, args) =>
-    reconcile(ctx, args.code, args.managementToken),
+  handler: async (ctx, args) => reconcile(ctx, args.code, args.managementToken),
 });
 
 /** Admin table checks its visible pending vouchers in bounded batches. */

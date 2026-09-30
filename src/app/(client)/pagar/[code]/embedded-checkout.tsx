@@ -127,6 +127,8 @@ export function EmbeddedCheckout({
   const submitPix = useAction(api.paymentAttempts.submitPixPayment);
   const submitCard = useAction(api.paymentAttempts.submitCardPayment);
   const reconcile = useAction(api.voucherReconciliation.reconcileMine);
+  const releaseCharge = useAction(api.paymentAttempts.releaseCharge);
+  const cancelPurchase = useAction(api.vouchers.cancelPendingPurchase);
   const now = useNow();
 
   const [brickReady, setBrickReady] = useState(false);
@@ -138,6 +140,10 @@ export function EmbeddedCheckout({
   const [checkFailed, setCheckFailed] = useState(false);
   // One identity per submission: a resend keeps it, a refusal starts a new one.
   const requestId = useRef<string | null>(null);
+  // Closing the open charge (renew, switch method) or cancelling the purchase.
+  const [busy, setBusy] = useState<"release" | "cancel" | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   const isEmbeddedPending =
     data?.kind === "ok" && data.embedded && data.voucher.status === "pending";
@@ -253,7 +259,53 @@ export function EmbeddedCheckout({
   }
   const unpayable = voucher.cancelling
     ? "Esta compra está em processo de cancelamento e não pode ser paga."
-    : terminalMessages[voucher.status];
+    : data.lateApproval
+      ? "Esta compra foi cancelada, mas recebemos um pagamento depois do cancelamento. Ele será estornado integralmente."
+      : terminalMessages[voucher.status];
+
+  /** Closes the open charge at the provider so another way to pay can be offered. */
+  async function handleRelease() {
+    if (!managementToken) return;
+    setBusy("release");
+    setActionError("");
+    try {
+      const result = await releaseCharge({ code, managementToken });
+      if (result.kind === "blocked") setActionError(result.message);
+      else requestId.current = null;
+    } catch (error) {
+      capturePaymentFlowException(error, "release_charge", { code });
+      setActionError(
+        getErrorMessage(
+          error,
+          "Não foi possível encerrar o pagamento anterior. Tente novamente.",
+        ),
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleCancel() {
+    if (!managementToken) return;
+    setBusy("cancel");
+    setActionError("");
+    try {
+      const result = await cancelPurchase({ code, managementToken });
+      if (result.kind === "error" || result.kind === "unauthorized")
+        setActionError(result.message);
+      setConfirmingCancel(false);
+    } catch (error) {
+      capturePaymentFlowException(error, "cancel_purchase", { code });
+      setActionError(
+        getErrorMessage(
+          error,
+          "Não foi possível cancelar a compra agora. Tente novamente em instantes.",
+        ),
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function handleSubmit(formData: {
     payment_method_id?: string;
@@ -335,6 +387,19 @@ export function EmbeddedCheckout({
         com a nossa equipe informando o código {voucher.code}.
       </p>
     );
+    payment = (
+      <div className="grid gap-3">
+        {payment}
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy !== null}
+          onClick={() => void handleRelease()}
+        >
+          Verificar novamente
+        </Button>
+      </div>
+    );
   } else if (
     attempt?.status === "pending" &&
     attempt.challenge &&
@@ -371,17 +436,38 @@ export function EmbeddedCheckout({
   ) {
     payment =
       now < attempt.expiresAt ? (
-        <PixPanel
-          qrCode={attempt.pix.qrCode}
-          qrCodeBase64={attempt.pix.qrCodeBase64}
-          expiresAt={attempt.expiresAt}
-          now={now}
-        />
+        <div className="grid gap-3">
+          <PixPanel
+            qrCode={attempt.pix.qrCode}
+            qrCodeBase64={attempt.pix.qrCodeBase64}
+            expiresAt={attempt.expiresAt}
+            now={now}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy !== null}
+            onClick={() => void handleRelease()}
+          >
+            Trocar forma de pagamento
+          </Button>
+        </div>
       ) : (
-        <p role="alert" className="text-warning-text">
-          O código Pix venceu e não pode mais ser pago. Sua compra continua
-          reservada; a geração de um novo código estará disponível em breve.
-        </p>
+        <div className="grid gap-3">
+          <p role="alert" className="text-warning-text">
+            O código Pix venceu e não pode mais ser pago. Sua compra continua
+            reservada com o mesmo valor: gere um novo código ou pague com
+            cartão.
+          </p>
+          <Button
+            type="button"
+            variant="brand"
+            disabled={busy !== null}
+            onClick={() => void handleRelease()}
+          >
+            {busy === "release" ? "Encerrando..." : "Gerar novo código"}
+          </Button>
+        </div>
       );
   } else if (!pixOpen && !cardOpen) {
     payment = (
@@ -398,6 +484,12 @@ export function EmbeddedCheckout({
             {pixOpen
               ? "Para visitas de hoje, o Pix só pode ser gerado até as 16h30 e o cartão é aceito até as 17h."
               : "Para visitas de hoje, o Pix só pode ser gerado até as 16h30. O cartão continua disponível até as 17h."}
+          </p>
+        )}
+        {attempt?.status === "cancelled" && !submitError && (
+          <p role="status" className="text-sm text-fg-muted">
+            O pagamento anterior foi encerrado e nada será cobrado dele. Escolha
+            como pagar: sua compra continua reservada com o mesmo valor.
           </p>
         )}
         {attempt?.status === "rejected" && !submitError && (
@@ -479,7 +571,51 @@ export function EmbeddedCheckout({
           automaticamente; não é preciso pagar outra vez.
         </p>
       )}
+      {actionError && (
+        <p role="alert" className="text-warning-text">
+          {actionError}
+        </p>
+      )}
       {payment}
+      {!unpayable && (
+        <div className="grid gap-2 border-t border-border pt-4">
+          {confirmingCancel ? (
+            <>
+              <p>
+                Cancelar a compra encerra qualquer pagamento em aberto e libera
+                o voucher {voucher.code}. Deseja mesmo cancelar?
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={busy !== null}
+                  onClick={() => void handleCancel()}
+                >
+                  {busy === "cancel" ? "Cancelando..." : "Sim, cancelar compra"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy !== null}
+                  onClick={() => setConfirmingCancel(false)}
+                >
+                  Voltar
+                </Button>
+              </div>
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={busy !== null}
+              onClick={() => setConfirmingCancel(true)}
+            >
+              Cancelar compra
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

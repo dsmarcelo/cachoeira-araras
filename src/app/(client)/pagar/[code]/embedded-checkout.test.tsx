@@ -36,6 +36,8 @@ const mocks = vi.hoisted(() => ({
   submit: vi.fn(),
   submitCard: vi.fn(),
   reconcile: vi.fn(),
+  release: vi.fn(),
+  cancel: vi.fn(),
   replace: vi.fn(),
   brick: { current: null as null | BrickProps },
   statusScreen: { current: null as null | StatusScreenProps },
@@ -47,6 +49,8 @@ vi.mock("convex/react", () => ({
     const name = getFunctionName(ref);
     if (name.endsWith("submitPixPayment")) return mocks.submit;
     if (name.endsWith("submitCardPayment")) return mocks.submitCard;
+    if (name.endsWith("releaseCharge")) return mocks.release;
+    if (name.endsWith("cancelPendingPurchase")) return mocks.cancel;
     return mocks.reconcile;
   },
 }));
@@ -95,6 +99,7 @@ function checkout(overrides: Record<string, unknown> = {}) {
     embedded: true,
     pixCutoffAt: null,
     cardCutoffAt: null,
+    lateApproval: false,
     attempt: null,
     ...overrides,
   };
@@ -292,6 +297,58 @@ describe("EmbeddedCheckout", () => {
       expect(screen.getByText("Maria Souza")).toBeTruthy();
     });
 
+    it("renews an expired Pix only through the server, and shows the payment form once it is closed", async () => {
+      vi.setSystemTime(EXPIRES_AT + 1000);
+      mocks.release.mockResolvedValue({ kind: "released" });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const view = renderPage();
+
+      await user.click(screen.getByRole("button", { name: "Gerar novo código" }));
+
+      expect(mocks.release).toHaveBeenCalledWith({
+        code: "BRICK1",
+        managementToken: "token-1",
+      });
+      // The page clock alone never offers the form: only the closed attempt does.
+      expect(screen.queryByText("brick-ready")).toBeNull();
+      mocks.checkout = checkout({
+        attempt: { ...pixAttempt, status: "cancelled" },
+      });
+      view.rerender(<EmbeddedCheckout code="BRICK1" publicKey="TEST-key" />);
+      expect(screen.getByText("brick-ready")).toBeTruthy();
+      expect(screen.getByText(/mesmo valor/)).toBeTruthy();
+    });
+
+    it("keeps the purchase blocked and explains when the old charge cannot be closed", async () => {
+      vi.setSystemTime(EXPIRES_AT + 1000);
+      mocks.release.mockResolvedValue({
+        kind: "blocked",
+        message: "Não conseguimos confirmar o encerramento do pagamento anterior.",
+      });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderPage();
+
+      await user.click(screen.getByRole("button", { name: "Gerar novo código" }));
+
+      expect(await screen.findByText(/confirmar o encerramento/)).toBeTruthy();
+      expect(screen.queryByText("brick-ready")).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Gerar novo código" }),
+      ).toBeTruthy();
+    });
+
+    it("lets the buyer switch payment method from a live Pix", async () => {
+      mocks.release.mockResolvedValue({ kind: "released" });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderPage();
+
+      await user.click(
+        screen.getByRole("button", { name: "Trocar forma de pagamento" }),
+      );
+
+      expect(mocks.release).toHaveBeenCalledTimes(1);
+    });
+
     it("keeps checking the payment while the Pix is pending", async () => {
       renderPage();
 
@@ -314,6 +371,80 @@ describe("EmbeddedCheckout", () => {
       screen.getByText(/Estamos verificando o seu pagamento/),
     ).toBeTruthy();
     expect(screen.queryByText("brick-ready")).toBeNull();
+  });
+
+  it("offers a new check, never a new charge, while the result is uncertain", async () => {
+    mocks.release.mockResolvedValue({
+      kind: "blocked",
+      message: "Ainda estamos verificando o resultado do pagamento anterior.",
+    });
+    mocks.checkout = checkout({
+      attempt: { ...pixAttempt, status: "uncertain", pix: undefined },
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Verificar novamente" }));
+
+    expect(mocks.release).toHaveBeenCalledTimes(1);
+    expect((await screen.findByRole("alert")).textContent).toMatch(
+      /Ainda estamos verificando/,
+    );
+    expect(screen.queryByText("brick-ready")).toBeNull();
+    expect(mocks.submit).not.toHaveBeenCalled();
+  });
+
+  describe("cancelling the purchase", () => {
+    it("asks for confirmation and sends nothing until the buyer confirms", async () => {
+      mocks.cancel.mockResolvedValue({ kind: "cancelled", message: "ok" });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderPage();
+
+      await user.click(screen.getByRole("button", { name: "Cancelar compra" }));
+      expect(mocks.cancel).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("button", { name: "Voltar" }));
+      expect(mocks.cancel).not.toHaveBeenCalled();
+
+      await user.click(screen.getByRole("button", { name: "Cancelar compra" }));
+      await user.click(
+        screen.getByRole("button", { name: "Sim, cancelar compra" }),
+      );
+      expect(mocks.cancel).toHaveBeenCalledWith({
+        code: "BRICK1",
+        managementToken: "token-1",
+      });
+    });
+
+    it("shows a readable message and keeps the purchase when cancelling fails", async () => {
+      mocks.cancel.mockResolvedValue({
+        kind: "error",
+        message: "Ainda estamos verificando o resultado do seu pagamento.",
+      });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderPage();
+
+      await user.click(screen.getByRole("button", { name: "Cancelar compra" }));
+      await user.click(
+        screen.getByRole("button", { name: "Sim, cancelar compra" }),
+      );
+
+      expect((await screen.findByRole("alert")).textContent).toMatch(
+        /verificando o resultado/,
+      );
+      expect(screen.getByText("Maria Souza")).toBeTruthy();
+    });
+
+    it("explains that a payment approved after cancelling is refunded", () => {
+      mocks.checkout = checkout({
+        voucher: { ...checkout().voucher, status: "cancelled" },
+        lateApproval: true,
+        attempt: { ...pixAttempt, status: "approved" },
+      });
+      renderPage();
+
+      expect(screen.getByRole("alert").textContent).toMatch(/estornado/);
+      expect(screen.queryByRole("button", { name: "Cancelar compra" })).toBeNull();
+    });
   });
 
   it("checks an uncertain charge on arrival and shows the recovered Pix without a new charge", async () => {

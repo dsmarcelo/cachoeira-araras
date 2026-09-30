@@ -12,6 +12,8 @@ type PaymentFlowStep =
   | "create_payment"
   | "load_brick"
   | "three_ds_challenge"
+  | "release_charge"
+  | "cancel_purchase"
   | "webhook";
 
 const sensitiveKeyPattern =
