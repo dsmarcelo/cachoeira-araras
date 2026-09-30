@@ -15,10 +15,9 @@ called, so a repeated `requestId` reuses the same attempt and idempotency key.
 Two tabs cannot create two charges.
 
 A timeout or lost response leaves the attempt `uncertain`, blocking any other
-charge. Only a definite provider refusal (4xx except 408/409/425/429) marks it
-`rejected` and allows a new request. Reconciliation recovers an uncertain
-attempt by re-running its own operation (same idempotency key: the provider
-returns the original charge); a failed recovery leaves it uncertain.
+charge; only a definite provider refusal (4xx except 408/409/425/429) marks it
+`rejected`. Reconciliation recovers an uncertain attempt by re-running its own
+operation (same idempotency key); a failed recovery leaves it uncertain.
 
 Pix is payable for 30 minutes (sent with a few seconds of margin, as Mercado
 Pago requires at least 30). For a Visit Date equal to today in
