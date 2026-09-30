@@ -7,6 +7,9 @@
     "node": "24.x"
   },
   "scripts": {
+    "vouchers:backup": "node --env-file=.env.local scripts/voucher-backup/run.ts backup",
+    "vouchers:restore": "node --env-file=.env.local scripts/voucher-backup/run.ts restore",
+    "test:voucher-backup": "node --test scripts/voucher-backup/format.test.ts",
     "admin:hash": "node --disable-warning=ExperimentalWarning scripts/generateAdminPasswordHash.ts",
     "build": "next build",
     "db:generate": "prisma migrate dev",
