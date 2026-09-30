@@ -215,7 +215,7 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
           ))}
         </div>
       )}
-      {voucher?.status === "pending" && entry.initPoint && (
+      {voucher?.status === "pending" && (
         <Button
           variant="cta"
           disabled={isResuming}

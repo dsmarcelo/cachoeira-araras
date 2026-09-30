@@ -1,0 +1,370 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAction, useQuery } from "convex/react";
+import { initMercadoPago, Payment } from "@mercadopago/sdk-react";
+
+import { useSavedVouchers } from "@/app/_components/saved-vouchers-provider";
+import { Button } from "@/components/ui/button";
+import { capturePaymentFlowException } from "@/lib/sentry/payment";
+import { getCachedManagementToken } from "@/lib/voucher/management-token-cache";
+import { formatToBRL, getErrorMessage } from "@/lib/utils";
+import { api } from "../../../../../convex/_generated/api";
+import { PixPanel } from "./pix-panel";
+
+const RECONCILE_INTERVAL_MS = 15_000;
+
+const terminalMessages: Record<string, string> = {
+  cancelled: "Esta compra foi cancelada e não pode mais ser paga.",
+  expired: "Esta compra expirou e não pode mais ser paga.",
+  refunded: "Esta compra foi estornada e não pode mais ser paga.",
+  redeemed: "Este voucher já foi utilizado.",
+};
+
+function useNow(intervalMs = 1000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
+function newRequestId() {
+  return crypto.randomUUID();
+}
+
+function Notice({
+  title,
+  children,
+}: {
+  title: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="mx-auto grid w-full max-w-lg gap-3 p-6 text-center text-fg">
+      <h1 className="text-2xl font-bold">{title}</h1>
+      {children}
+    </div>
+  );
+}
+
+type Summary = {
+  name: string;
+  visitDate: string;
+  adults: number;
+  elderly: number;
+  adultsPool: number;
+  elderlyPool: number;
+  priceCents: number;
+};
+
+function PurchaseSummary({ voucher }: { voucher: Summary }) {
+  const [year, month, day] = voucher.visitDate.split("-");
+  const parts = [
+    voucher.adults > 0 && `${voucher.adults} inteiras`,
+    voucher.elderly > 0 && `${voucher.elderly} meias`,
+    voucher.adultsPool > 0 && `${voucher.adultsPool} piscina`,
+    voucher.elderlyPool > 0 && `${voucher.elderlyPool} meias com piscina`,
+  ].filter(Boolean);
+  return (
+    <section
+      aria-label="Resumo da compra"
+      className="grid gap-1 rounded-xl border border-border p-4"
+    >
+      <h2 className="text-lg font-bold">Resumo da compra</h2>
+      <p>{voucher.name}</p>
+      <p>
+        Visita em {day}/{month}/{year}
+      </p>
+      <p>{parts.join(", ")}</p>
+      <p className="text-xl font-bold">{formatToBRL(voucher.priceCents / 100)}</p>
+    </section>
+  );
+}
+
+/**
+ * The internal payment page of an embedded (Bricks) purchase, opened with the
+ * Voucher Code. Payment is only ever requested with the management token this
+ * browser saved when the purchase began; the server decides price, deadlines
+ * and whether a charge may start, and this page reflects that state reactively.
+ */
+export function EmbeddedCheckout({
+  code,
+  publicKey,
+}: {
+  code: string;
+  publicKey: string | undefined;
+}) {
+  const router = useRouter();
+  const { vouchers, ready } = useSavedVouchers();
+  const savedToken = vouchers.find((v) => v.code === code)?.managementToken;
+  const managementToken = savedToken ?? getCachedManagementToken(code);
+  const data = useQuery(
+    api.paymentAttempts.getCheckout,
+    managementToken ? { code, managementToken } : "skip",
+  );
+  const submitPix = useAction(api.paymentAttempts.submitPixPayment);
+  const reconcile = useAction(api.voucherReconciliation.reconcileMine);
+  const now = useNow();
+
+  const [brickReady, setBrickReady] = useState(false);
+  const [brickFailed, setBrickFailed] = useState(false);
+  const [brickKey, setBrickKey] = useState(0);
+  const [submitError, setSubmitError] = useState("");
+  // One identity per submission: a resend keeps it, a refusal starts a new one.
+  const requestId = useRef<string | null>(null);
+
+  const isEmbeddedPending =
+    data?.kind === "ok" && data.embedded && data.voucher.status === "pending";
+  const attemptStatus = data?.kind === "ok" ? data.attempt?.status : undefined;
+  const isAwaitingProvider =
+    attemptStatus === "pending" ||
+    attemptStatus === "in_process" ||
+    attemptStatus === "uncertain" ||
+    attemptStatus === "creating";
+  const isPaid =
+    data?.kind === "ok" &&
+    (data.voucher.status === "valid" || data.voucher.status === "redeemed");
+
+  useEffect(() => {
+    if (publicKey) initMercadoPago(publicKey, { locale: "pt-BR" });
+  }, [publicKey]);
+
+  useEffect(() => {
+    if (isPaid) router.replace(`/pagamento?external_reference=${code}`);
+  }, [isPaid, router, code]);
+
+  // Webhooks cannot always reach this environment, so the originating browser
+  // also asks the server (throttled there) to confirm a pending charge.
+  useEffect(() => {
+    if (!isEmbeddedPending || !isAwaitingProvider || !managementToken) return;
+    const check = () =>
+      void reconcile({ code, managementToken }).catch((error) =>
+        capturePaymentFlowException(error, "confirm_voucher", { code }),
+      );
+    check();
+    const id = setInterval(check, RECONCILE_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [isEmbeddedPending, isAwaitingProvider, managementToken, code, reconcile]);
+
+  const brickInitialization = useMemo(
+    () => ({ amount: (data?.kind === "ok" ? data.voucher.priceCents : 0) / 100 }),
+    [data],
+  );
+  const brickCustomization = useMemo(
+    () => ({ paymentMethods: { bankTransfer: ["pix"] } }),
+    [],
+  );
+
+  if (!ready || (managementToken && data === undefined)) {
+    return <Notice title="Carregando sua compra..." />;
+  }
+  if (!managementToken || data?.kind === "unauthorized") {
+    return (
+      <Notice title="Não foi possível abrir esta compra">
+        <p>
+          O pagamento só pode ser feito no navegador onde a compra foi iniciada.
+          Se você trocou de navegador ou aparelho, volte ao original ou fale
+          com a nossa equipe.
+        </p>
+        <Button asChild variant="brand">
+          <Link href="/meus-vouchers">Ver meus vouchers</Link>
+        </Button>
+      </Notice>
+    );
+  }
+  if (data?.kind !== "ok") {
+    return (
+      <Notice title="Compra não encontrada">
+        <p>Confira o endereço ou consulte seus vouchers.</p>
+      </Notice>
+    );
+  }
+  if (isPaid) return <Notice title="Pagamento aprovado! Abrindo seu voucher..." />;
+
+  const { voucher, attempt, pixCutoffAt } = data;
+  if (!data.embedded) {
+    return (
+      <Notice title="Esta compra usa outro checkout">
+        <Button asChild variant="brand">
+          <Link href="/meus-vouchers">Retomar pelos meus vouchers</Link>
+        </Button>
+      </Notice>
+    );
+  }
+  const unpayable = voucher.cancelling
+    ? "Esta compra está em processo de cancelamento e não pode ser paga."
+    : terminalMessages[voucher.status];
+
+  async function handleSubmit(formData: {
+    payment_method_id?: string;
+    payer?: {
+      email?: string;
+      identification?: { type?: string; number?: string };
+    };
+  }) {
+    if (!managementToken) return;
+    setSubmitError("");
+    requestId.current ??= newRequestId();
+    const identification = formData.payer?.identification;
+    try {
+      const result = await submitPix({
+        code,
+        managementToken,
+        requestId: requestId.current,
+        paymentMethodId: formData.payment_method_id ?? "",
+        payer: {
+          email: formData.payer?.email ?? "",
+          ...(identification?.type && identification.number
+            ? {
+                identification: {
+                  type: identification.type,
+                  number: identification.number,
+                },
+              }
+            : {}),
+        },
+      });
+      if (result.status === "rejected") {
+        requestId.current = null;
+        throw new Error(result.message ?? "Pagamento recusado.");
+      }
+    } catch (error) {
+      capturePaymentFlowException(error, "create_payment", { code });
+      setSubmitError(
+        error instanceof Error && !("data" in error)
+          ? error.message
+          : getErrorMessage(
+              error,
+              "Não foi possível gerar o pagamento. Tente novamente.",
+            ),
+      );
+      throw error;
+    }
+  }
+
+  let payment: React.ReactNode;
+  if (unpayable) {
+    payment = (
+      <p role="alert" className="text-warning-text">
+        {unpayable}
+      </p>
+    );
+  } else if (attempt?.status === "creating" || attempt?.status === "uncertain") {
+    payment = (
+      <p role="status">
+        Estamos verificando o seu pagamento. Isso pode levar alguns instantes;
+        não é necessário pagar de novo. Esta página será atualizada sozinha.
+      </p>
+    );
+  } else if (attempt?.status === "in_process") {
+    payment = (
+      <p role="status">
+        Seu pagamento está em análise. Assim que for concluído, mostraremos seu
+        voucher aqui.
+      </p>
+    );
+  } else if (attempt?.status === "pending" && attempt.pix) {
+    payment =
+      now < attempt.expiresAt ? (
+        <PixPanel
+          qrCode={attempt.pix.qrCode}
+          qrCodeBase64={attempt.pix.qrCodeBase64}
+          expiresAt={attempt.expiresAt}
+          now={now}
+        />
+      ) : (
+        <p role="alert" className="text-warning-text">
+          O código Pix venceu e não pode mais ser pago. Sua compra continua
+          reservada; a geração de um novo código estará disponível em breve.
+        </p>
+      );
+  } else if (pixCutoffAt !== null && now >= pixCutoffAt) {
+    payment = (
+      <p role="alert" className="text-warning-text">
+        Para visitas de hoje, o Pix só pode ser gerado até as 16h30. Escolha
+        outra data de visita em uma nova compra.
+      </p>
+    );
+  } else {
+    payment = (
+      <div className="grid gap-3">
+        {pixCutoffAt !== null && (
+          <p className="text-sm text-fg-muted">
+            Para visitas de hoje, o Pix só pode ser gerado até as 16h30.
+          </p>
+        )}
+        {attempt?.status === "rejected" && (
+          <p className="text-sm text-fg-muted">
+            O pagamento anterior não foi concluído. Você pode tentar novamente.
+          </p>
+        )}
+        {submitError && (
+          <p role="alert" className="text-warning-text">
+            {submitError}
+          </p>
+        )}
+        {!publicKey ? (
+          <p role="alert" className="text-warning-text">
+            O pagamento pelo site está indisponível no momento. Tente novamente
+            mais tarde.
+          </p>
+        ) : brickFailed ? (
+          <div role="alert" className="grid gap-2 text-warning-text">
+            <p>
+              Não foi possível carregar o formulário de pagamento. Sua compra
+              continua salva.
+            </p>
+            <Button
+              type="button"
+              variant="brand"
+              onClick={() => {
+                setBrickFailed(false);
+                setBrickReady(false);
+                setBrickKey((key) => key + 1);
+              }}
+            >
+              Tentar novamente
+            </Button>
+          </div>
+        ) : (
+          <>
+            {!brickReady && (
+              <p role="status">Carregando o formulário de pagamento...</p>
+            )}
+            <Payment
+              key={brickKey}
+              locale="pt-BR"
+              initialization={brickInitialization}
+              customization={brickCustomization}
+              onReady={() => setBrickReady(true)}
+              onError={(error) => {
+                capturePaymentFlowException(error, "load_brick", { code });
+                setBrickFailed(true);
+              }}
+              onSubmit={({ formData }) => handleSubmit(formData)}
+            />
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto grid w-full max-w-lg gap-4 p-4 text-fg">
+      <h1 className="text-2xl font-bold">Pagamento do voucher {voucher.code}</h1>
+      {!savedToken && (
+        <p role="alert" className="text-warning-text">
+          Não foi possível salvar esta compra neste navegador. Anote o código{" "}
+          <strong>{voucher.code}</strong> e finalize o pagamento sem fechar
+          esta página.
+        </p>
+      )}
+      <PurchaseSummary voucher={voucher} />
+      {payment}
+    </div>
+  );
+}

@@ -102,7 +102,7 @@ export function VoucherInfoCard({
           { label: "Gerado em", value: formatDateWeekDay(new Date(data.createdAt)) },
           { label: "Origem", value: data.referrer ? formatReferrer(data.referrer.source) : "—" },
           { label: "Pagamento", value: data.paymentId ?? "Nenhum pagamento", copy: data.paymentId ?? null },
-          { label: "Preferência", value: data.preferenceId, copy: data.preferenceId },
+          { label: "Preferência", value: data.preferenceId ?? "Sem preferência (pagamento no site)", copy: data.preferenceId ?? null },
         ]}
       />
 

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FieldError } from "@/components/ui/field-error";
 import { useRouter } from "next/navigation";
+import { env } from "@/env";
 import { createVoucherFormSchema } from "@/lib/voucher/types";
 import { cn, formatPhone, getErrorMessage } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -30,6 +31,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { addDaysToDateKey, getSaoPauloDateKey } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
+import { setCachedManagementToken } from "@/lib/voucher/management-token-cache";
 import {
   getCachedLookupToken,
   setCachedLookupToken,
@@ -64,6 +66,9 @@ export default function VoucherForm({
   // The public settings query includes prices from the Convex environment.
   const settings = useQuery(convexApi.settings.getAll);
   const startCheckout = useAction(convexApi.vouchers.startCheckout);
+  const startEmbeddedPurchase = useAction(
+    convexApi.embeddedCheckout.startPurchase,
+  );
 
   // Exchanges `code` for the opaque, rate-limited lookup capability needed
   // by both `save()` (below) and the reactive status subscription. Called
@@ -195,7 +200,7 @@ export default function VoucherForm({
       setIsLoading(true);
       setCheckoutFailed(false);
       setPersistenceWarning("");
-      const checkout = await startCheckout({
+      const purchase = {
         name: data.name,
         phone: data.phone,
         adults: data.adults,
@@ -205,7 +210,12 @@ export default function VoucherForm({
         visitDateMs: data.intendedDate.getTime(),
         testMode,
         referrerUrl: referrerURL,
-      });
+      };
+      // Embedded purchases have no Checkout Pro address: they pay on /pagar.
+      const embedded = env.NEXT_PUBLIC_EMBEDDED_CHECKOUT;
+      const checkout = embedded
+        ? { ...(await startEmbeddedPurchase(purchase)), initPoint: "" }
+        : await startCheckout(purchase);
       setCode(checkout.code);
       setInitPoint(checkout.initPoint);
       try {
@@ -220,6 +230,12 @@ export default function VoucherForm({
         });
       } catch {
         setPersistenceWarning("Não foi possível salvar seu voucher neste navegador. Anote o código antes de sair.");
+      }
+      if (embedded) {
+        // Keeps this tab able to pay even if browser storage refused the save.
+        setCachedManagementToken(checkout.code, checkout.managementToken);
+        router.push(`/pagar/${checkout.code}`);
+        return;
       }
       try {
         await addCookieVoucher(checkout.code, checkout.initPoint);

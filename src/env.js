@@ -49,6 +49,15 @@ export const env = createEnv({
       z.coerce.number().positive().default(70),
     ),
     NEXT_PUBLIC_FACEBOOK_PIXEL_ID: z.string().optional(),
+    // Mercado Pago public key for the embedded (Bricks) checkout. Public by
+    // design; use the test key together with the test access token.
+    NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY: z.string().optional(),
+    // Only the literal "true" sends new purchases to the embedded checkout
+    // (development/testing until it replaces Checkout Pro).
+    NEXT_PUBLIC_EMBEDDED_CHECKOUT: z
+      .enum(["true", "false", ""])
+      .default("false")
+      .transform((value) => value === "true"),
     // Toggle Vercel Analytics on/off at runtime (off reduces /_vercel/insights requests).
     // Only the literal "true" enables it; z.coerce.boolean() would treat "false" as true.
     NEXT_PUBLIC_ENABLE_ANALYTICS: z
@@ -107,6 +116,9 @@ export const env = createEnv({
     NEXT_PUBLIC_VOUCHER_PRICE: process.env.NEXT_PUBLIC_VOUCHER_PRICE,
     NEXT_PUBLIC_POOL_VOUCHER_PRICE: process.env.NEXT_PUBLIC_POOL_VOUCHER_PRICE,
     NEXT_PUBLIC_FACEBOOK_PIXEL_ID: process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID,
+    NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY:
+      process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY,
+    NEXT_PUBLIC_EMBEDDED_CHECKOUT: process.env.NEXT_PUBLIC_EMBEDDED_CHECKOUT,
     NEXT_PUBLIC_ENABLE_ANALYTICS: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
