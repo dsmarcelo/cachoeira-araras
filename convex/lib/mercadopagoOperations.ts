@@ -78,6 +78,13 @@ const paymentResponse = z
     status_detail: z.string().nullish(),
     currency_id: z.string().nullish(),
     date_of_expiration: z.string().datetime({ offset: true }).nullish(),
+    three_ds_info: z
+      .object({
+        external_resource_url: z.string().min(1),
+        creq: z.string().min(1),
+      })
+      .partial()
+      .nullish(),
     point_of_interaction: z
       .object({
         transaction_data: z
@@ -108,7 +115,16 @@ const paymentResponse = z
       ? {
           pix: {
             qrCode: p.point_of_interaction.transaction_data.qr_code,
-            qrCodeBase64: p.point_of_interaction.transaction_data.qr_code_base64,
+            qrCodeBase64:
+              p.point_of_interaction.transaction_data.qr_code_base64,
+          },
+        }
+      : {}),
+    ...(p.three_ds_info?.external_resource_url && p.three_ds_info.creq
+      ? {
+          challenge: {
+            externalResourceUrl: p.three_ds_info.external_resource_url,
+            creq: p.three_ds_info.creq,
           },
         }
       : {}),
@@ -234,12 +250,22 @@ export async function createPayment(
       payment_method_id: input.paymentMethodId,
       external_reference: input.externalReference,
       payer: input.payer,
-      date_of_expiration: new Date(input.expiresAt).toISOString(),
+      ...(input.card
+        ? {
+            token: input.card.token,
+            installments: input.card.installments,
+            ...(input.card.issuerId ? { issuer_id: input.card.issuerId } : {}),
+            three_d_secure_mode: "optional",
+          }
+        : {}),
+      ...(input.expiresAt !== undefined
+        ? { date_of_expiration: new Date(input.expiresAt).toISOString() }
+        : {}),
       notification_url: buildMercadoPagoWebhookUrl(siteUrl),
       statement_descriptor: "Cachoeira das Araras",
     }),
   );
-  if (created.status === "pending" && created.pix === undefined)
+  if (!input.card && created.status === "pending" && created.pix === undefined)
     throw new Error("Pix charge response is missing its QR code");
   return created;
 }

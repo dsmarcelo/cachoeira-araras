@@ -275,3 +275,55 @@ test("a Pix response without its QR code is not accepted as a created charge", a
 
   await expect(createPayment(pixRequest, intent)).rejects.toThrow();
 });
+
+test("creating a card charge sends the token and installments, keeps the base amount and exposes the 3DS challenge", async () => {
+  replies = [
+    {
+      ...payment,
+      status: "pending",
+      status_detail: "pending_challenge",
+      transaction_amount: 70.5,
+      currency_id: "BRL",
+      payment_method_id: "visa",
+      payment_type_id: "credit_card",
+      three_ds_info: {
+        external_resource_url: "https://bank.example/3ds",
+        creq: "creq-value",
+      },
+    },
+  ];
+
+  const created = await createPayment(
+    {
+      kind: "createPayment",
+      externalReference: "ABC123",
+      amountCents: 7050,
+      description: "Voucher ABC123",
+      paymentMethodId: "visa",
+      payer: { email: "visitante@example.com" },
+      card: { token: "card-token", installments: 3, issuerId: "24" },
+    },
+    intent,
+  );
+
+  expect(created).toMatchObject({
+    status: "pending",
+    amount: 70.5,
+    challenge: {
+      externalResourceUrl: "https://bank.example/3ds",
+      creq: "creq-value",
+    },
+  });
+  const body = JSON.parse(calls[0]!.init.body as string) as Record<
+    string,
+    unknown
+  >;
+  expect(body).toMatchObject({
+    transaction_amount: 70.5,
+    token: "card-token",
+    installments: 3,
+    issuer_id: "24",
+    three_d_secure_mode: "optional",
+  });
+  expect(body).not.toHaveProperty("date_of_expiration");
+});

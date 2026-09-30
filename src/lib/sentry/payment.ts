@@ -11,6 +11,7 @@ type PaymentFlowStep =
   | "confirm_voucher"
   | "create_payment"
   | "load_brick"
+  | "three_ds_challenge"
   | "webhook";
 
 const sensitiveKeyPattern =

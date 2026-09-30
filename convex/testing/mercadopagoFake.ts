@@ -83,18 +83,30 @@ export function createMercadoPagoFake() {
         const previous = createdByKey.get(intent.idempotencyKey);
         if (previous) return previous;
         const id = `pay-${payments.size + 1}`;
+        // Installment interest changes what the buyer pays, never the base
+        // transaction amount, so card charges keep the Voucher price.
+        const method: Partial<PaymentSnapshot> = input.card
+          ? {
+              status: "approved",
+              statusDetail: "accredited",
+              paymentTypeId: "credit_card",
+            }
+          : {
+              status: "pending",
+              statusDetail: "pending_waiting_transfer",
+              paymentTypeId: "bank_transfer",
+              expiresAt: input.expiresAt,
+              pix: { qrCode: `000201pix-${id}`, qrCodeBase64: "iVBORw0KGgo=" },
+            };
         const created: PaymentSnapshot = {
           id,
           status: "pending",
-          statusDetail: "pending_waiting_transfer",
           externalReference: input.externalReference,
           amount: input.amountCents / 100,
           refundedAmount: 0,
           currency: "BRL",
           paymentMethodId: input.paymentMethodId,
-          paymentTypeId: "bank_transfer",
-          expiresAt: input.expiresAt,
-          pix: { qrCode: `000201pix-${id}`, qrCodeBase64: "iVBORw0KGgo=" },
+          ...method,
           ...nextCreated,
         };
         nextCreated = {};
