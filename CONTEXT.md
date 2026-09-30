@@ -56,8 +56,9 @@ record and terminal; any payment approved later is automatically refunded.
 **Voucher Purchase Intake**:
 The server-side flow that starts a customer voucher purchase. It owns the initial
 purchase rules: validating quantities and Visit Date, deriving the authoritative
-price from the server environment, generating the Voucher Code, creating the Checkout Pro
-preference (Pro purchases only), persisting the Pending Voucher, and recording optional
+price from the server environment, generating the Voucher Code, persisting the Pending
+Voucher (without a Checkout Pro preference; payment starts later as a Payment
+Attempt), and recording optional
 Referrer attribution. Callers never supply server-owned state such as price or
 status.
 

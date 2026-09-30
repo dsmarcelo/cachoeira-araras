@@ -10,13 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FieldError } from "@/components/ui/field-error";
 import { useRouter } from "next/navigation";
-import { env } from "@/env";
 import { createVoucherFormSchema } from "@/lib/voucher/types";
 import { cn, formatPhone, getErrorMessage } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  addCookieVoucher,
-} from "../lib";
 import { useSavedVouchers } from "./saved-vouchers-provider";
 import VoucherCreatedCard from "./voucher-created-card";
 import PendingPurchaseDialog from "./pending-purchase-dialog";
@@ -71,10 +67,7 @@ export default function VoucherForm({
 
   // The public settings query includes prices from the Convex environment.
   const settings = useQuery(convexApi.settings.getAll);
-  const startCheckout = useAction(convexApi.vouchers.startCheckout);
-  const startEmbeddedPurchase = useAction(
-    convexApi.embeddedCheckout.startPurchase,
-  );
+  const startPurchase = useAction(convexApi.embeddedCheckout.startPurchase);
 
   // Exchanges `code` for the opaque, rate-limited lookup capability needed
   // by both `save()` (below) and the reactive status subscription. Called
@@ -235,38 +228,26 @@ export default function VoucherForm({
         testMode,
         referrerUrl: referrerURL,
       };
-      // Embedded purchases have no Checkout Pro address: they pay on /pagar.
-      const embedded = env.NEXT_PUBLIC_EMBEDDED_CHECKOUT;
-      const checkout = embedded
-        ? { ...(await startEmbeddedPurchase(purchase)), initPoint: "" }
-        : await startCheckout(purchase);
+      const checkout = await startPurchase(purchase);
       setCode(checkout.code);
-      setInitPoint(checkout.initPoint);
+      // New purchases pay on the site's own page: there is no external address.
+      setInitPoint("");
       try {
         const authorization = await authorizeLookup(checkout.code);
         if (authorization.kind !== "authorized")
           throw new Error("Voucher not found");
         save({
           code: checkout.code,
-          initPoint: checkout.initPoint,
+          initPoint: "",
           createdAt: authorization.voucher.createdAt,
           managementToken: checkout.managementToken,
         });
       } catch {
         setPersistenceWarning("Não foi possível salvar seu voucher neste navegador. Anote o código antes de sair.");
       }
-      if (embedded) {
-        // Keeps this tab able to pay even if browser storage refused the save.
-        setCachedManagementToken(checkout.code, checkout.managementToken);
-        router.push(`/pagar/${checkout.code}`);
-        return;
-      }
-      try {
-        await addCookieVoucher(checkout.code, checkout.initPoint);
-      } catch {
-        setPersistenceWarning("Não foi possível guardar o retorno do pagamento neste navegador. Anote o código do voucher antes de continuar.");
-      }
-      setIsLoading(false);
+      // Keeps this tab able to pay even if browser storage refused the save.
+      setCachedManagementToken(checkout.code, checkout.managementToken);
+      router.push(`/pagar/${checkout.code}`);
     } catch (error) {
       const message = getErrorMessage(
         error,

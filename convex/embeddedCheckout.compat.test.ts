@@ -2,7 +2,7 @@
 import { expect, test } from "vitest";
 
 import { api } from "./_generated/api";
-import { createConvexTest } from "./test.setup";
+import { createConvexTest, withAuth } from "./test.setup";
 
 const managementToken = crypto.randomUUID();
 
@@ -65,4 +65,39 @@ test("a Checkout Pro voucher keeps resuming through its saved checkout address",
     kind: "resumed",
     checkoutUrl: "https://mercadopago.example/PRO001",
   });
+});
+
+test("a Test Voucher bought through the payment page stays with the staff and off the operational lists", async () => {
+  const t = createConvexTest();
+  const purchase = {
+    name: "--TESTE--",
+    phone: "11999992222",
+    adults: 1,
+    elderly: 0,
+    adultsPool: 0,
+    elderlyPool: 0,
+    visitDateMs: Date.now() + 24 * 60 * 60 * 1000,
+    testMode: true,
+  };
+
+  // Test pricing is a staff privilege, not something a visitor can ask for.
+  await expect(
+    t.action(api.embeddedCheckout.startPurchase, purchase),
+  ).rejects.toThrow(/equipe autorizada/);
+
+  const asStaff = await withAuth(t, "employee");
+  const bought = await asStaff.action(
+    api.embeddedCheckout.startPurchase,
+    purchase,
+  );
+  expect(bought.priceCents).toBe(1);
+
+  const asAdmin = await withAuth(t, "admin");
+  const list = await asAdmin.query(api.vouchers.listAdmin, {
+    paginationOpts: { numItems: 50, cursor: null },
+  });
+  expect(list.page).toEqual([]);
+  expect(
+    await asAdmin.query(api.vouchers.listPendingCodes, {}),
+  ).not.toContain(bought.code);
 });

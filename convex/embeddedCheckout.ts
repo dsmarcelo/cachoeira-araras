@@ -12,9 +12,8 @@ type InsertPendingVoucherResult =
   | { ok: false; reason: "code_collision" | "pending_conflict" };
 
 /**
- * Starts a purchase for the embedded (Bricks) checkout: same server-owned
- * rules as Checkout Pro (price, quantities, Visit Date, phone ceiling, rate
- * limits) but no Mercado Pago preference. Payment is requested later, through
+ * Starts every new purchase: server-owned rules (price, quantities, Visit
+ * Date, phone ceiling, rate limits) and no Mercado Pago preference. Payment is requested later, through
  * a Payment Attempt on the Voucher this creates. The returned
  * `managementToken` is the browser's only capability to pay, resume or cancel.
  */

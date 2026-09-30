@@ -34,19 +34,7 @@ export async function requireAdmin() {
   return user;
 }
 
-const VOUCHER_COOKIE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 40;
-
-/** Keeps the latest checkout as the fallback for payment returns without a code. */
-export async function addCookieVoucher(code: string, initPoint: string) {
-  // Next.js 16 exposes request cookies asynchronously. Resolve the store once
-  // per server action so future cookie option changes stay centralized here.
-  const cookieStore = await cookies();
-
-  const expires = new Date(Date.now() + VOUCHER_COOKIE_MAX_AGE_MS);
-  cookieStore.set("voucher", code, { expires });
-  cookieStore.set("voucher_init_point", initPoint, { expires });
-}
-
+/** Reads the fallback cookie left by Checkout Pro purchases; new purchases no longer set it. */
 export async function getCookieVoucher(): Promise<{
   code: string;
   initPoint: string;

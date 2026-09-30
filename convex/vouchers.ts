@@ -6,7 +6,7 @@ import { ConvexError, v, type ObjectType } from "convex/values";
 
 import { endOfSaoPauloDayMs, getSaoPauloDateKey } from "../src/lib/utils/date";
 import { internal } from "./_generated/api";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Doc } from "./_generated/dataModel";
 import {
   action,
   internalMutation,
@@ -17,18 +17,9 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireRole } from "./lib/auth";
-import { createCheckoutPreference } from "./lib/mercadopago";
-import {
-  formatVoucherCheckoutDescription,
-  generateVoucherCode,
-} from "./lib/voucherCode";
 import { attemptStatusFromProvider } from "./paymentAttempts";
 import { recoverUnsettledAttempt } from "./voucherReconciliation";
 import { rateLimiter } from "./lib/rateLimiter";
-import {
-  pendingPurchaseMessage,
-  prepareVoucherIntake,
-} from "./lib/voucherIntake";
 import { countsAsRealVoucher } from "./lib/financeSummary";
 import { patchVoucher } from "./lib/voucherWrites";
 import { normalizeSearchQuery, voucherSearchText } from "./lib/voucherSearch";
@@ -937,140 +928,9 @@ export const getVoucherForImage = internalQuery({
   },
 });
 
-const maxVoucherCodeAttempts = 10;
-
 export const referrerValidator = v.object({
   source: v.string(),
   url: v.string(),
-});
-
-/**
- * A voucher purchase: derive the price from the server environment (never
- * from client input), generate a short unique code, create the Mercado Pago
- * checkout preference, then hand off to `insertPendingVoucher` — which
- * re-checks code uniqueness and inserts in one transaction. A collision
- * there (two concurrent checkouts landing on the same code) retries this
- * whole loop with a fresh code and a fresh preference, rather than erroring
- * out on the loser.
- */
-export const startCheckout = action({
-  args: {
-    name: v.string(),
-    phone: v.string(),
-    adults: v.number(),
-    elderly: v.number(),
-    adultsPool: v.number(),
-    elderlyPool: v.number(),
-    // The visitor's chosen visit date, as a client timestamp (ms). Converted
-    // to a Sao Paulo calendar date server-side via getSaoPauloDateKey, the
-    // one place that conversion happens.
-    visitDateMs: v.number(),
-    testMode: v.optional(v.boolean()),
-    referrerUrl: v.optional(v.union(v.string(), v.null())),
-  },
-  returns: v.object({
-    code: v.string(),
-    preferenceId: v.string(),
-    initPoint: v.string(),
-    priceCents: v.number(),
-    managementToken: v.string(),
-  }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    code: string;
-    preferenceId: string;
-    initPoint: string;
-    priceCents: number;
-    managementToken: string;
-  }> => {
-    const { priceCents, visitDate, expiresAt, isTest, referrer, firstName, surname } =
-      await prepareVoucherIntake(ctx, args);
-
-    type InsertPendingVoucherResult =
-      | { ok: true; managementToken: string }
-      | { ok: false; reason: "code_collision" }
-      | {
-          ok: false;
-          reason: "pending_conflict";
-          operationId?: Id<"paymentOperations">;
-        };
-
-    for (let attempt = 1; attempt <= maxVoucherCodeAttempts; attempt += 1) {
-      const code = generateVoucherCode();
-      const managementToken = crypto.randomUUID();
-
-      const preference = await createCheckoutPreference({
-        code,
-        description: formatVoucherCheckoutDescription({
-          adults: args.adults,
-          elderly: args.elderly,
-          adultsPool: args.adultsPool,
-          elderlyPool: args.elderlyPool,
-          phone: args.phone,
-          code,
-        }),
-        priceCents,
-        name: firstName,
-        surname,
-        phone: args.phone,
-      });
-
-      const result: InsertPendingVoucherResult = await ctx.runMutation(
-        internal.vouchers.insertPendingVoucher,
-        {
-          code,
-          managementToken,
-          name: args.name,
-          phone: args.phone,
-          adults: args.adults,
-          elderly: args.elderly,
-          adultsPool: args.adultsPool,
-          elderlyPool: args.elderlyPool,
-          priceCents,
-          visitDate,
-          expiresAt,
-          preferenceId: preference.id,
-          initPoint: preference.initPoint,
-          referrer,
-          isTest,
-        },
-      );
-
-      if (result.ok) {
-        return {
-          code,
-          preferenceId: preference.id,
-          initPoint: preference.initPoint,
-          priceCents,
-          managementToken: result.managementToken,
-        };
-      }
-
-      if (result.reason === "pending_conflict") {
-        if (result.operationId) {
-          try {
-            await ctx.runAction(internal.paymentOperations.execute, {
-              id: result.operationId,
-            });
-          } catch {
-            // Failure is observable on paymentOperations (reconcile records lastError);
-            // background retry is already scheduled.
-          }
-        }
-
-        throw new ConvexError(pendingPurchaseMessage);
-      }
-
-      // Code collision: retry with a fresh code and a fresh preference
-      // rather than surfacing an error to the loser.
-    }
-
-    throw new ConvexError(
-      "Não foi possível gerar um código de voucher disponível.",
-    );
-  },
 });
 
 /**
@@ -1185,9 +1045,9 @@ export const findForPaymentEnrichment = internalQuery({
 /**
  * Re-checks code uniqueness and phone pending-purchase limit, then inserts
  * the Pending voucher in one transaction, closing the time-of-check/time-of-use
- * race. If the phone already holds a live pending voucher, creates an invalidation
- * intent for the losing preference, schedules retry, and returns pending_conflict.
+ * race. If the phone already holds a live pending voucher, returns pending_conflict.
  * If code collides, returns code_collision so checkout can retry with a fresh code.
+ * New purchases never carry a Checkout Pro preference.
  */
 export const insertPendingVoucher = internalMutation({
   args: {
@@ -1202,9 +1062,6 @@ export const insertPendingVoucher = internalMutation({
     priceCents: v.number(),
     visitDate: v.string(),
     expiresAt: v.number(),
-    // Absent for embedded (Bricks) purchases, which have no Pro preference.
-    preferenceId: v.optional(v.string()),
-    initPoint: v.optional(v.string()),
     referrer: v.optional(referrerValidator),
     isTest: v.boolean(),
     now: v.optional(v.number()),
@@ -1218,7 +1075,6 @@ export const insertPendingVoucher = internalMutation({
     v.object({
       ok: v.literal(false),
       reason: v.literal("pending_conflict"),
-      operationId: v.optional(v.id("paymentOperations")),
     }),
   ),
   handler: async (ctx, args) => {
@@ -1243,27 +1099,7 @@ export const insertPendingVoucher = internalMutation({
     );
 
     if (hasLivePending) {
-      if (args.preferenceId === undefined) {
-        return { ok: false as const, reason: "pending_conflict" as const };
-      }
-      const operationId = await ctx.db.insert("paymentOperations", {
-        request: {
-          kind: "invalidatePreference",
-          preferenceId: args.preferenceId,
-        },
-      });
-
-      await ctx.scheduler.runAfter(
-        0,
-        internal.paymentOperations.executeWithRetry,
-        { id: operationId },
-      );
-
-      return {
-        ok: false as const,
-        reason: "pending_conflict" as const,
-        operationId,
-      };
+      return { ok: false as const, reason: "pending_conflict" as const };
     }
 
     const managementToken = args.managementToken ?? crypto.randomUUID();
@@ -1281,8 +1117,6 @@ export const insertPendingVoucher = internalMutation({
       status: "pending",
       visitDate: args.visitDate,
       expiresAt: args.expiresAt,
-      preferenceId: args.preferenceId,
-      initPoint: args.initPoint,
       referrer: args.referrer,
       isTest: args.isTest,
       purchasedAt: Date.now(),

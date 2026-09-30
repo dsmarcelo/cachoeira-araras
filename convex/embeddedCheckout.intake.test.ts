@@ -1,16 +1,9 @@
 /// <reference types="vite/client" />
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 import { api } from "./_generated/api";
 import { createConvexTest } from "./test.setup";
 
-const createCheckoutPreference = vi.fn<(...args: unknown[]) => unknown>();
-vi.mock("./lib/mercadopago", () => ({
-  createCheckoutPreference: (...args: unknown[]) =>
-    createCheckoutPreference(...args),
-}));
-
-beforeEach(() => createCheckoutPreference.mockReset());
 afterEach(() => vi.unstubAllEnvs());
 
 const inAWeek = () => Date.now() + 7 * 24 * 60 * 60 * 1000;
@@ -33,7 +26,6 @@ test("starting an embedded purchase creates a Pending voucher without a Pro pref
 
   const result = await t.action(api.embeddedCheckout.startPurchase, purchase());
 
-  expect(createCheckoutPreference).not.toHaveBeenCalled();
   const stored = await t.run((ctx) =>
     ctx.db
       .query("vouchers")

@@ -1,6 +1,6 @@
 # Pagamento de vouchers dentro do site
 
-Status: accepted; implementation pending
+Status: implemented
 
 Novas compras usam Mercado Pago Payment Brick em uma página do próprio site,
 com resumo da compra, Pix e cartão de crédito. Conta Mercado Pago e Linha de

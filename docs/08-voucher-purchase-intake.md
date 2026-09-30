@@ -1,5 +1,7 @@
 # 08 — Voucher Purchase Intake
 
+> Historico: descreve o fluxo Checkout Pro anterior. Novas compras nao criam preferencia; veja `docs/internals/embedded-checkout.md` e `docs/operations/embedded-checkout-activation.md`.
+
 ## Objetivo
 
 Centralizar o inicio da compra de voucher em um modulo server-side profundo.

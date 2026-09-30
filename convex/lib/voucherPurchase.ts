@@ -12,7 +12,7 @@ import type { SettingValueMap } from "./settings";
  * window including disabled days — are each a direct unit test rather than
  * a scenario that needs a Mercado Pago stub to reach.
  *
- * The Convex action (`convex/vouchers.ts` `startCheckout`) is the only
+ * The Convex action (`convex/lib/voucherIntake.ts`) is the only
  * caller; it supplies settings with prices from the environment and the price this
  * function returns is what actually gets charged, never a client-sent price.
  */

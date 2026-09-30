@@ -1,5 +1,7 @@
 # 07 — Sentry e Monitoramento do Fluxo de Pagamento
 
+> Historico: descreve o fluxo Checkout Pro anterior. Novas compras nao criam preferencia; veja `docs/internals/embedded-checkout.md` e `docs/operations/embedded-checkout-activation.md`.
+
 Este documento descreve a integração do **Sentry** adicionada ao projeto, com foco principal no fluxo de pagamento via **Mercado Pago**.
 
 ## Objetivo
