@@ -17,6 +17,7 @@ import { type CompleteVoucherSchema } from "@/lib/voucher/types"
 import { formatVoucherStatus } from "@/lib/voucher"
 import { Copy } from "lucide-react"
 import { api } from "@/trpc/react"
+import { useAdminVoucherDetails } from "@/hooks/use-vouchers"
 import { formatPaymentStatus, formatPaymentStatusDetail, formatPaymentType } from "@/lib/mercadopago"
 import { toast } from "@/components/ui/use-toast"
 import { activateVoucher, redeemVoucher } from "../lib"
@@ -28,21 +29,15 @@ interface props {
   open: boolean
 }
 
-export function VoucherInfoCard({ data, onClose, open }: props) {
-  function getReferrer() {
-    const res = api.referrer.findByCode.useQuery(data.code)
-    return res.data?.referrer ?? ''
-  }
-  const referrer = getReferrer()
+export function VoucherInfoCard({ data: initialData, onClose, open }: props) {
+  const details = useAdminVoucherDetails(initialData.id, open);
+  const data = details.data?.voucher ?? initialData;
+  const referrerQuery = api.referrer.findByCode.useQuery(data.code, { enabled: open });
+  const referrer = referrerQuery.data?.referrer ?? '';
+  const payment = details.data?.payment;
 
   function paymentInfo() {
-    const { payment_id } = data
-    if (!payment_id) return null
-
-    const paymentInfo = api.mercadopago.getPayment.useQuery({ payment_id })
-    if (!paymentInfo) return null
-    const payment = paymentInfo.data
-    if (!payment) return null
+    if (!payment) return null;
     return (
       <div className="flex flex-col gap-1">
         <hr className="border-t border-gray-300 my-4" />
@@ -101,6 +96,11 @@ export function VoucherInfoCard({ data, onClose, open }: props) {
     <Drawer open={open} onClose={onClose} preventScrollRestoration={true} shouldScaleBackground={true} >
       <DrawerContent>
         <DrawerHeader className="text-left max-h-[80dvh] overflow-y-scroll">
+          {details.isLoading && <p>Atualizando pagamento...</p>}
+          {(details.error ?? details.data?.syncWarning) && <p role="alert">
+            {details.error?.message ?? details.data?.syncWarning}
+            <Button variant="outline" onClick={() => void details.refresh()}>Tentar novamente</Button>
+          </p>}
           <DrawerTitle onClick={() => navigator.clipboard.writeText(data.code ?? '')}>{`Voucher ${data.code}`}</DrawerTitle>
           <DrawerDescription className="hover:bg-slate-100 rounded-md" onClick={() => navigator.clipboard.writeText(data.payment_id ?? '')}>
             {data.payment_id ? `ID de pagamento: ${data.payment_id}` : 'Nenhum pagamento'}

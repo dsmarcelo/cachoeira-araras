@@ -2,7 +2,9 @@
 import React from 'react'
 import { VoucherTable } from './voucher-table'
 import { columns } from "./columns"
-import { api } from '@/trpc/react'
+import { useAdminVoucherPage } from '@/hooks/use-vouchers'
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import { Button } from '@/components/ui/button'
 
 export default function DataTable() {
   const [page, setPage] = React.useState(1)
@@ -10,11 +12,12 @@ export default function DataTable() {
   const [status, setStatus] = React.useState('all')
   const [search, setSearch] = React.useState('')
 
-  const { data, isLoading, isError, isFetching } = api.voucher.findAdminPage.useQuery({
+  const debouncedSearch = useDebouncedValue(search)
+  const { data, isLoading, isError, isFetching, refresh } = useAdminVoucherPage({
     page,
     pageSize,
     status,
-    search,
+    search: debouncedSearch,
     sortBy: 'id',
     sortDirection: 'desc',
   })
@@ -25,6 +28,7 @@ export default function DataTable() {
 
   return (
     <div className='w-full'>
+      {data?.syncWarning && <p role="alert">{data.syncWarning} <Button variant="outline" onClick={() => void refresh()}>Tentar novamente</Button></p>}
       <VoucherTable
         columns={columns}
         data={(data?.items ?? [])}

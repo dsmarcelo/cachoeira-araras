@@ -6,13 +6,13 @@ import {
   staffProcedure,
 } from "@/server/api/trpc";
 import { voucherSchema } from "@/lib/voucher/types";
-import type { Prisma } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { getAllSettings } from "@/lib/settings";
 import { validateVoucherPurchase } from "@/server/voucher-purchase";
 import { formatPaymentUrl } from "@/lib/utils";
-import { searchMercadoPagoPaymentsByExternalReference } from "@/server/mercadopago";
-import { confirmVoucherPaymentByCode } from "@/server/voucher";
+import { getMercadoPagoPayment } from "@/server/mercadopago";
+import { syncVoucherPayment, syncDisplayedVouchers } from "@/server/voucher-payment-sync";
 import { startVoucherCheckout } from "@/server/voucher-purchase-intake";
 
 function getTodayRange() {
@@ -44,7 +44,7 @@ const adminVoucherListInput = z.object({
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(100).default(10),
   status: z.string().optional(),
-  search: z.string().trim().optional(),
+  search: z.string().trim().max(100).optional(),
   from: z.date().optional(),
   to: z.date().optional(),
   sortBy: z.enum(["id", "createdAt", "expires_at", "status", "name"]).default("id"),
@@ -116,6 +116,33 @@ function getAdminVoucherWhere(input: z.infer<typeof adminVoucherSummaryInput>): 
   };
 }
 
+const todayPageInput = z.object({
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(10),
+  search: z.string().trim().max(100).optional(),
+  status: z.string().optional(),
+});
+
+async function getTodayPage(db: PrismaClient, input: z.infer<typeof todayPageInput>) {
+  const where: Prisma.VoucherWhereInput = {
+    AND: [getTodayVoucherWhere(), getAdminVoucherWhere({ search: input.search, status: input.status })],
+  };
+  const [items, total] = await db.$transaction([
+    db.voucher.findMany({ where, orderBy: [{ name: "asc" }, { id: "asc" }],
+      skip: (input.page - 1) * input.pageSize, take: input.pageSize }),
+    db.voucher.count({ where }),
+  ]);
+  const synced = await syncDisplayedVouchers(items);
+  const updatedCount = items.length - synced.items.length + synced.items.filter((item) => item.status !== items.find((original) => original.id === item.id)?.status).length;
+  const refreshedTotal = updatedCount ? await db.voucher.count({ where }) : total;
+  return { ...synced,
+    items: synced.items.filter((item) => !item.deletedAt && ["pending", "valid"].includes(item.status) &&
+      (!input.status || input.status === "all" || item.status === input.status)),
+    updatedCount, total: refreshedTotal, page: input.page, pageSize: input.pageSize,
+    pageCount: Math.max(Math.ceil(refreshedTotal / input.pageSize), 1),
+  };
+}
+
 export const voucherRouter = createTRPCRouter({
   startCheckout: publicProcedure
     .input(startVoucherCheckoutInput)
@@ -177,83 +204,18 @@ export const voucherRouter = createTRPCRouter({
     .input(z.object({ code: z.string().min(3).max(4) }))
     .query(async ({ ctx, input }) => {
       const voucher = await ctx.db.voucher.findFirst({
-        where: {
-          code: input.code,
-          deletedAt: null,
-        },
-        select: {
-          code: true,
-          payment_id: true,
-          preference_id: true,
-          status: true,
-        },
+        where: { code: input.code, deletedAt: null },
       });
-
-      if (!voucher) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Voucher não encontrado.",
-        });
-      }
-
-      if (voucher.status !== "pending" && voucher.payment_id) {
-        return {
-          checkoutUrl: null,
-          status: "paid" as const,
-          successUrl: formatPaymentUrl(voucher.preference_id, voucher.payment_id),
-        };
-      }
-
-      const payments =
-        await searchMercadoPagoPaymentsByExternalReference(voucher.code);
-      const approvedPayments = payments.filter(
-        (payment) => payment.status === "approved",
-      );
-
-      if (approvedPayments.length === 0) {
-        return {
-          checkoutUrl: null,
-          status: "pending" as const,
-          successUrl: null,
-        };
-      }
-
-      const [firstApprovedPayment, ...duplicateApprovedPayments] = approvedPayments;
-      if (!firstApprovedPayment) {
-        return {
-          checkoutUrl: null,
-          status: "pending" as const,
-          successUrl: null,
-        };
-      }
-
-      if (duplicateApprovedPayments.length > 0) {
-        console.warn("Multiple approved payments found for voucher", {
-          code: voucher.code,
-          paymentIds: approvedPayments.map((payment) => payment.id),
-        });
-      }
-
-      const result = await confirmVoucherPaymentByCode({
-        code: voucher.code,
-        paymentId: firstApprovedPayment.id,
-        paymentStatus: "approved",
-      });
-
-      if (result.outcome === "not_found") {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Voucher não encontrado.",
-        });
-      }
-
+      if (!voucher) throw new TRPCError({ code: "NOT_FOUND", message: "Voucher não encontrado." });
+      const result = await syncVoucherPayment(voucher, undefined, true);
+      const paid = result.voucher.status !== "pending" && result.voucher.payment_id;
       return {
         checkoutUrl: null,
-        status: "paid" as const,
-        successUrl: formatPaymentUrl(
-          result.voucher.preference_id,
-          firstApprovedPayment.id,
-        ),
+        status: paid ? "paid" as const : "pending" as const,
+        successUrl: paid && result.voucher.payment_id
+          ? formatPaymentUrl(result.voucher.preference_id, result.voucher.payment_id)
+          : null,
+        syncWarning: result.syncError ? "Não foi possível atualizar o pagamento. Tente novamente." : null,
       };
     }),
 
@@ -269,66 +231,58 @@ export const voucherRouter = createTRPCRouter({
       const [items, total] = await ctx.db.$transaction([
         ctx.db.voucher.findMany({
           where,
-          orderBy,
+          orderBy: [orderBy, { id: input.sortDirection }],
           skip,
           take: input.pageSize,
         }),
         ctx.db.voucher.count({ where }),
       ]);
 
+      const synced = await syncDisplayedVouchers(items);
+      const updatedCount = items.length - synced.items.length + synced.items.filter((item) => item.status !== items.find((original) => original.id === item.id)?.status).length;
+      // Recount after recovery without loading/reconciling a replacement page.
+      const refreshedTotal = updatedCount ? await ctx.db.voucher.count({ where }) : total;
       return {
-        items,
-        total,
+        ...synced,
+        items: synced.items.filter((item) => !item.deletedAt && (!input.status || input.status === "all" || item.status === input.status)),
+        updatedCount,
+        total: refreshedTotal,
         page: input.page,
         pageSize: input.pageSize,
-        pageCount: Math.max(Math.ceil(total / input.pageSize), 1),
+        pageCount: Math.max(Math.ceil(refreshedTotal / input.pageSize), 1),
       };
     }),
 
   getAdminVoucherSummary: adminProcedure
     .input(adminVoucherSummaryInput)
     .query(async ({ ctx, input }) => {
-      const vouchers = await ctx.db.voucher.findMany({
-        where: getAdminVoucherWhere(input),
-        select: {
-          status: true,
-          payment_id: true,
-          price: true,
-          adults: true,
-          elderly: true,
-          adults_pool: true,
-          elderly_pool: true,
-        },
-      });
-
-      const paidVouchers = vouchers.filter((voucher) => voucher.payment_id !== null);
-      const totalSales = paidVouchers.reduce((total, voucher) => total + voucher.price, 0);
-      const totalAdults = paidVouchers.reduce((total, voucher) => total + voucher.adults, 0);
-      const totalElderly = paidVouchers.reduce((total, voucher) => total + voucher.elderly, 0);
-      const totalAdultsPool = paidVouchers.reduce((total, voucher) => total + voucher.adults_pool, 0);
-      const totalElderlyPool = paidVouchers.reduce((total, voucher) => total + voucher.elderly_pool, 0);
-
+      const where = getAdminVoucherWhere(input);
+      const [total, paid, grouped] = await Promise.all([
+        ctx.db.voucher.count({ where }),
+        ctx.db.voucher.aggregate({
+          where: { AND: [where, { payment_id: { not: null }, status: { not: "pending" } }] },
+          _count: true,
+          _sum: { price: true, adults: true, elderly: true, adults_pool: true, elderly_pool: true },
+        }),
+        ctx.db.voucher.groupBy({ by: ["status"], where, _count: true }),
+      ]);
+      const totalAdults = paid._sum.adults ?? 0;
+      const totalElderly = paid._sum.elderly ?? 0;
+      const totalAdultsPool = paid._sum.adults_pool ?? 0;
+      const totalElderlyPool = paid._sum.elderly_pool ?? 0;
+      const totalSales = paid._sum.price ?? 0;
+      const countStatus = (...statuses: string[]) => grouped.reduce(
+        (sum, group) => sum + (statuses.includes(group.status) ? group._count : 0), 0,
+      );
       return {
-        total: vouchers.length,
-        paidCount: paidVouchers.length,
-        totalSales,
-        totalAdults,
-        totalElderly,
-        totalAdultsPool,
-        totalElderlyPool,
+        total, paidCount: paid._count, totalSales, totalAdults, totalElderly,
+        totalAdultsPool, totalElderlyPool,
         visitorsCount: totalAdults + totalElderly + totalAdultsPool + totalElderlyPool,
-        averageVoucherValue: paidVouchers.length > 0 ? totalSales / paidVouchers.length : 0,
-        averagePeoplePerVoucher:
-          paidVouchers.length > 0
-            ? (totalAdults + totalElderly) / paidVouchers.length
-            : 0,
+        averageVoucherValue: paid._count ? totalSales / paid._count : 0,
+        averagePeoplePerVoucher: paid._count ? (totalAdults + totalElderly) / paid._count : 0,
         statusCounts: {
-          valid: vouchers.filter((voucher) => voucher.status === "valid").length,
-          pending: vouchers.filter((voucher) => voucher.status === "pending").length,
-          redeemed: vouchers.filter(
-            (voucher) => voucher.status === "redeemed" || voucher.status === "used",
-          ).length,
-          expired: vouchers.filter((voucher) => voucher.status === "expired").length,
+          valid: countStatus("valid"), pending: countStatus("pending"),
+          redeemed: countStatus("redeemed", "used"), expired: countStatus("expired"),
         },
       };
     }),
@@ -336,71 +290,33 @@ export const voucherRouter = createTRPCRouter({
   getAdminSalesSummary: adminProcedure
     .input(adminSalesSummaryInput)
     .query(async ({ ctx, input }) => {
-      const vouchers = await ctx.db.voucher.findMany({
-        where: {
-          deletedAt: null,
-          payment_id: { not: null },
-          ...(input.from !== undefined || input.to !== undefined
-            ? {
-                createdAt: {
-                  ...(input.from ? { gte: input.from } : {}),
-                  ...(input.to ? { lte: getEndOfDay(input.to) } : {}),
-                },
-              }
-            : {}),
-        },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          createdAt: true,
-          price: true,
-          adults: true,
-          elderly: true,
-        },
-      });
-
-      const dailySales = vouchers.reduce(
-        (acc, voucher) => {
-          const day = voucher.createdAt.toISOString().slice(0, 10);
-          acc[day] ??= {
-            date: day,
-            revenue: 0,
-            vouchers: 0,
-            visitors: 0,
-            adults: 0,
-            elderly: 0,
-          };
-          acc[day].revenue += voucher.price;
-          acc[day].vouchers += 1;
-          acc[day].visitors += voucher.adults + voucher.elderly;
-          acc[day].adults += voucher.adults;
-          acc[day].elderly += voucher.elderly;
-          return acc;
-        },
-        {} as Record<
-          string,
-          {
-            date: string;
-            revenue: number;
-            vouchers: number;
-            visitors: number;
-            adults: number;
-            elderly: number;
-          }
-        >,
-      );
-
-      const totalRevenue = vouchers.reduce((total, voucher) => total + voucher.price, 0);
-      const totalInteiras = vouchers.reduce((total, voucher) => total + voucher.adults, 0);
-      const totalMeias = vouchers.reduce((total, voucher) => total + voucher.elderly, 0);
-
+      // PostgreSQL aggregates by UTC day, matching the previous toISOString()
+      // grouping without materializing every paid voucher in application memory.
+      const dailySalesData = await ctx.db.$queryRaw<Array<{
+        date: string; revenue: number; vouchers: number; visitors: number;
+        adults: number; elderly: number;
+      }>>(Prisma.sql`
+        SELECT to_char("createdAt", 'YYYY-MM-DD') AS date,
+          SUM(price)::double precision AS revenue,
+          COUNT(*)::integer AS vouchers,
+          SUM(adults + elderly)::integer AS visitors,
+          SUM(adults)::integer AS adults,
+          SUM(elderly)::integer AS elderly
+        FROM "Voucher"
+        WHERE "deletedAt" IS NULL AND payment_id IS NOT NULL AND status <> 'pending'
+          ${input.from ? Prisma.sql`AND "createdAt" >= ${input.from}` : Prisma.empty}
+          ${input.to ? Prisma.sql`AND "createdAt" <= ${getEndOfDay(input.to)}` : Prisma.empty}
+        GROUP BY to_char("createdAt", 'YYYY-MM-DD')
+        ORDER BY date ASC
+      `);
+      const totalRevenue = dailySalesData.reduce((sum, day) => sum + day.revenue, 0);
+      const paidCount = dailySalesData.reduce((sum, day) => sum + day.vouchers, 0);
       return {
-        totalRevenue,
-        paidCount: vouchers.length,
-        averageTicket: vouchers.length > 0 ? totalRevenue / vouchers.length : 0,
-        totalInteiras,
-        totalMeias,
-        dailySalesData: Object.values(dailySales),
+        totalRevenue, paidCount,
+        averageTicket: paidCount ? totalRevenue / paidCount : 0,
+        totalInteiras: dailySalesData.reduce((sum, day) => sum + day.adults, 0),
+        totalMeias: dailySalesData.reduce((sum, day) => sum + day.elderly, 0),
+        dailySalesData,
       };
     }),
 
@@ -418,25 +334,52 @@ export const voucherRouter = createTRPCRouter({
     return await ctx.db.voucher.findMany();
   }),
 
+  getAdminDetails: adminProcedure.input(z.object({ id: z.number().int().positive() })).query(async ({ ctx, input }) => {
+    const voucher = await ctx.db.voucher.findFirst({ where: { id: input.id, deletedAt: null } });
+    if (!voucher) throw new TRPCError({ code: "NOT_FOUND", message: "Voucher não encontrado." });
+    const result = await syncVoucherPayment(voucher, undefined, true);
+    if (result.voucher.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "Voucher não encontrado." });
+    let payment = result.payment;
+    let paymentError = false;
+    if (!payment && result.voucher.payment_id) {
+      payment = await getMercadoPagoPayment(result.voucher.payment_id).catch(() => {
+        paymentError = true;
+        return null;
+      });
+    }
+    return {
+      voucher: result.voucher, payment,
+      updated: result.voucher.status !== voucher.status,
+      syncWarning: result.syncError || paymentError
+        ? "Não foi possível atualizar o pagamento. Tente novamente em instantes." : null,
+    };
+  }),
+
   findById: adminProcedure
     .input(z.number().int())
     .query(async ({ ctx, input }) => {
-      return await ctx.db.voucher.findFirst({
+      const voucher = await ctx.db.voucher.findFirst({
         where: {
           id: input,
         },
       });
+      return voucher ? (await syncVoucherPayment(voucher, undefined, true)).voucher : null;
     }),
 
   findByCode: staffProcedure
     .input(z.object({ code: z.string().min(3).max(4) }))
     .query(async ({ ctx, input }) => {
-      return await ctx.db.voucher.findFirst({
+      const voucher = await ctx.db.voucher.findFirst({
         where: {
           code: input.code,
           deletedAt: null,
         },
       });
+      if (!voucher) return null;
+      const result = await syncVoucherPayment(voucher, undefined, true);
+      return { ...result.voucher, syncWarning: result.syncError
+        ? "Não foi possível atualizar o pagamento. Tente novamente em instantes." : null };
+
     }),
 
   redeemByCode: staffProcedure
@@ -531,6 +474,32 @@ export const voucherRouter = createTRPCRouter({
         },
       });
     }),
+
+  getTodayPage: adminProcedure.input(todayPageInput).query(({ ctx, input }) => getTodayPage(ctx.db, input)),
+
+  getTodayOperationalPage: staffProcedure.input(todayPageInput).query(async ({ ctx, input }) => {
+    const result = await getTodayPage(ctx.db, input);
+    return {
+      ...result,
+      items: result.items.map(({ id, name, phone, code, adults, elderly, adults_pool, elderly_pool,
+        valid, status, expires_at, createdAt, updatedAt }) => ({
+        id, name, phone, code, adults, elderly, adults_pool, elderly_pool,
+        valid, status, expires_at, createdAt, updatedAt,
+      })),
+    };
+  }),
+
+  getTodaySummary: adminProcedure.query(async ({ ctx }) => {
+    const where = { ...getTodayVoucherWhere(), status: "valid", valid: true, payment_id: { not: null } };
+    const result = await ctx.db.voucher.aggregate({
+      where, _count: true, _sum: { price: true, adults: true, elderly: true },
+    });
+    return {
+      paidCount: result._count, totalSales: result._sum.price ?? 0,
+      totalAdults: result._sum.adults ?? 0, totalElderly: result._sum.elderly ?? 0,
+      visitorsCount: (result._sum.adults ?? 0) + (result._sum.elderly ?? 0),
+    };
+  }),
 
   getTodayVouchers: adminProcedure.query(async ({ ctx }) => {
     return await ctx.db.voucher.findMany({

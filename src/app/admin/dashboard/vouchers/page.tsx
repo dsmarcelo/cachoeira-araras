@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { api } from "@/trpc/react";
+import { useAdminVoucherPage } from "@/hooks/use-vouchers";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
   Card,
   CardContent,
@@ -68,15 +70,16 @@ export default function VouchersPage() {
       : { from: startOfMonth(today), to: today };
   }, [fromParam, toParam]);
 
+  const debouncedSearch = useDebouncedValue(searchQuery);
   const queryFilters = useMemo(() => ({
     status: statusFilter,
-    search: searchQuery,
+    search: debouncedSearch,
     from: dateRange.from,
     to: dateRange.to,
-  }), [dateRange.from, dateRange.to, searchQuery, statusFilter]);
+  }), [dateRange.from, dateRange.to, debouncedSearch, statusFilter]);
 
-  const { data: vouchersPage, isLoading: isLoadingVouchers } =
-    api.voucher.findAdminPage.useQuery({
+  const { data: vouchersPage, isLoading: isLoadingVouchers, error: vouchersError, refresh } =
+    useAdminVoucherPage({
       ...queryFilters,
       page,
       pageSize,
@@ -115,6 +118,10 @@ export default function VouchersPage() {
 
   return (
     <div className="px-8 py-6">
+      {(vouchersError ?? vouchersPage?.syncWarning) && <p role="alert">
+        {vouchersError?.message ?? vouchersPage?.syncWarning}
+        <Button variant="outline" onClick={() => void refresh()}>Tentar novamente</Button>
+      </p>}
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Gerenciamento de Vouchers</h1>
         <Button variant="outline">
@@ -133,6 +140,7 @@ export default function VouchersPage() {
           <Input
             placeholder="Buscar por nome, telefone ou código"
             className="pl-8"
+            maxLength={100}
             value={searchQuery}
             onChange={(event) => handleSearchChange(event.target.value)}
           />
@@ -305,7 +313,7 @@ export default function VouchersPage() {
                       <TableCell>{formatDate(voucher.createdAt)}</TableCell>
                       <TableCell>{voucher.expires_at ? formatDate(voucher.expires_at) : "N/A"}</TableCell>
                       <TableCell>
-                        {voucher.payment_id ? (
+                        {voucher.payment_id && voucher.status !== "pending" ? (
                           <span className="inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">
                             <Check className="mr-1 h-3 w-3" />
                             Confirmado

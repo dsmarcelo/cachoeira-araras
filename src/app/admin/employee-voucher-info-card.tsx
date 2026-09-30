@@ -20,7 +20,7 @@ import { toast } from "@/components/ui/use-toast";
 import type { RouterOutputs } from "@/trpc/react";
 
 type EmployeeVoucher =
-  RouterOutputs["voucher"]["getTodayOperationalVouchers"][number];
+  RouterOutputs["voucher"]["getTodayOperationalPage"]["items"][number];
 
 function formatVoucherDate(date: Date | null | undefined) {
   if (!date) {

@@ -167,6 +167,7 @@ export function VoucherTable<TData, TValue>({
             <Input
               className="h-8 w-full pl-8 sm:w-72"
               placeholder="Buscar por nome, telefone ou código"
+              maxLength={100}
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
             />

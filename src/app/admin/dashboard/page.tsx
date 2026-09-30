@@ -33,6 +33,10 @@ import {
 import { ptBR } from "date-fns/locale";
 import { DollarSign, Ticket, Users } from "lucide-react";
 import type { Voucher } from "@/types/voucher";
+import { useTodayVoucherPage } from "@/hooks/use-vouchers";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import VoucherPageControls from "../_components/voucher-page-controls";
+import { Button } from "@/components/ui/button";
 
 // Date filter options
 
@@ -52,47 +56,14 @@ export default function DashboardPage() {
   // State for search
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Get today's vouchers (visitors expected today)
-  const { data: todayVouchers, isLoading } =
-    api.voucher.getTodayVouchers.useQuery<Voucher[]>() as {
-      data: Voucher[] | undefined;
-      isLoading: boolean;
-    };
-
-  // Ensure todayVouchers is an array before processing to avoid unsafe access
-  const todayVouchersData: Voucher[] = Array.isArray(todayVouchers)
-    ? todayVouchers
-    : [];
-
-  // Process the vouchers safely, converting undefined to null as required by the Voucher type
-  const filteredTodayVouchers: Voucher[] = todayVouchersData
-    .map((voucher: Voucher) => ({
-      ...voucher,
-      payment_id: voucher.payment_id ?? null,
-      expires_at: voucher.expires_at ?? null,
-      deletedAt: voucher.deletedAt ?? null,
-    }))
-    .filter((voucher: Voucher) => voucher.valid && voucher.payment_id !== null);
-
-  // Calculate metrics - only count paid vouchers (payment_id !== null)
-  const calculateTotalRevenue = (vouchers: Voucher[]): number => {
-    if (!vouchers || vouchers.length === 0) return 0;
-    // Only count vouchers with confirmed payment
-    const paidVouchers = vouchers.filter((voucher) => voucher.payment_id !== null);
-    return paidVouchers.reduce((total, voucher) => total + voucher.price, 0);
-  };
-
-  const calculateTotalVisitors = (vouchers: Voucher[]): number => {
-    if (!vouchers || vouchers.length === 0) return 0;
-    // Filter vouchers that are confirmed (valid) and paid (payment_id exists)
-    const confirmedPaid = vouchers.filter(
-      (voucher) => voucher.valid && voucher.payment_id !== null,
-    );
-    return confirmedPaid.reduce(
-      (total, voucher) => total + voucher.adults + voucher.elderly,
-      0,
-    );
-  };
+  const [page, setPage] = useState(1);
+  const [activeTab, setActiveTab] = useState("overview");
+  const debouncedSearch = useDebouncedValue(searchQuery);
+  const { data, isLoading, error, refresh } = useTodayVoucherPage({
+    page, pageSize: 10, search: debouncedSearch, status: statusFilter,
+  }, activeTab === "detailed");
+  const { data: summary } = api.voucher.getTodaySummary.useQuery();
+  const filteredTodayVouchers: Voucher[] = data?.items ?? [];
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -105,11 +76,13 @@ export default function DashboardPage() {
   return (
     <div className="space-y-4 px-8 py-6">
       <h1 className="mb-6 text-2xl font-bold">Visão Geral de Hoje</h1>
+      {(error ?? data?.syncWarning) && <p role="alert">{error?.message ?? data?.syncWarning} <Button onClick={() => void refresh()}>Tentar novamente</Button></p>}
+      {activeTab === "detailed" && <VoucherPageControls page={page} pageCount={data?.pageCount ?? 1} onPageChange={setPage} />}
 
       {/* Filters */}
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(1); }}>
             <SelectTrigger>
               <SelectValue placeholder="Filtrar por status" />
             </SelectTrigger>
@@ -129,12 +102,13 @@ export default function DashboardPage() {
           <Input
             placeholder="Buscar por nome, telefone ou código"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            maxLength={100}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
           />
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-6">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="detailed">Detalhado</TabsTrigger>
@@ -153,10 +127,10 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {formatCurrency(calculateTotalRevenue(filteredTodayVouchers))}
+                  {formatCurrency((summary?.totalSales ?? 0))}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {filteredTodayVouchers.filter((v: Voucher) => v.payment_id !== null).length} vouchers pagos
+                  {(summary?.paidCount ?? 0)} vouchers pagos
                 </p>
               </CardContent>
             </Card>
@@ -171,17 +145,10 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {calculateTotalVisitors(filteredTodayVouchers)}
+                  {(summary?.visitorsCount ?? 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {filteredTodayVouchers
-                    .filter((v: Voucher) => v.payment_id !== null)
-                    .reduce((total, v: Voucher) => total + v.adults, 0)}{" "}
-                  inteiras,{" "}
-                  {filteredTodayVouchers
-                    .filter((v: Voucher) => v.payment_id !== null)
-                    .reduce((total, v: Voucher) => total + v.elderly, 0)}{" "}
-                  meias
+                  {summary?.totalAdults ?? 0} inteiras, {summary?.totalElderly ?? 0} meias
                 </p>
               </CardContent>
             </Card>
@@ -196,10 +163,10 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {calculateTotalVisitors(filteredTodayVouchers)}
+                  {(summary?.visitorsCount ?? 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {filteredTodayVouchers.filter((v: Voucher) => v.payment_id !== null).length} vouchers pagos para hoje
+                  {(summary?.paidCount ?? 0)} vouchers pagos para hoje
                 </p>
               </CardContent>
             </Card>
@@ -214,7 +181,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {filteredTodayVouchers.length}
+                  {(summary?.paidCount ?? 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Vouchers disponíveis para uso

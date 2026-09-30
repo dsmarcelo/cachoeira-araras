@@ -8,10 +8,14 @@ import { useState } from "react";
 import EmployeeVoucherInfoCard from "../employee-voucher-info-card";
 import { formatQuantity } from "@/lib/voucher";
 import { getBrazilianDate } from "@/lib/utils/date";
-import { api, type RouterOutputs } from "@/trpc/react";
+import { type RouterOutputs } from "@/trpc/react";
+import { useTodayOperationalPage } from "@/hooks/use-vouchers";
 
 type EmployeeVoucher =
-  RouterOutputs["voucher"]["getTodayOperationalVouchers"][number];
+  RouterOutputs["voucher"]["getTodayOperationalPage"]["items"][number];
+
+import VoucherPageControls from "./voucher-page-controls";
+import { Button } from "@/components/ui/button";
 
 function VoucherCard({
   voucher,
@@ -58,8 +62,10 @@ export default function EmployeeTodayVouchers() {
   const [selectedVoucher, setSelectedVoucher] =
     useState<EmployeeVoucher | null>(null);
   const today = getBrazilianDate();
-  const { data: vouchers, isLoading } =
-    api.voucher.getTodayOperationalVouchers.useQuery();
+  const [page, setPage] = useState(1);
+  const { data, isLoading, error, refresh } = useTodayOperationalPage({ page, pageSize: 10 });
+  const vouchers = data?.items;
+  const selectedData = vouchers?.find((voucher) => voucher.id === selectedVoucher?.id) ?? selectedVoucher;
 
   if (isLoading) {
     return (
@@ -69,21 +75,18 @@ export default function EmployeeTodayVouchers() {
     );
   }
 
-  if (!vouchers?.length) {
-    return (
-      <div className="py-8 text-center">
-        <p className="text-lg text-slate-500">Nenhum voucher para hoje</p>
-      </div>
-    );
-  }
+  if (error) return <p role="alert">Erro ao carregar vouchers. <Button onClick={() => void refresh()}>Tentar novamente</Button></p>;
 
-  const validVouchers = vouchers.filter((voucher) => voucher.status === "valid");
-  const pendingVouchers = vouchers.filter(
+
+  const validVouchers = (vouchers ?? []).filter((voucher) => voucher.status === "valid");
+  const pendingVouchers = (vouchers ?? []).filter(
     (voucher) => voucher.status === "pending",
   );
 
   return (
     <div className="w-full rounded-lg border p-4">
+      {data?.syncWarning && <p role="alert">{data.syncWarning} <Button variant="outline" onClick={() => void refresh()}>Tentar novamente</Button></p>}
+      {!vouchers?.length && <p className="text-center">Nenhum voucher nesta página.</p>}
       <div className="space-y-8">
         <h2 className="text-center text-xl font-semibold">
           Vouchers para hoje:{" "}
@@ -121,9 +124,10 @@ export default function EmployeeTodayVouchers() {
         )}
       </div>
 
-      {selectedVoucher && (
+      <VoucherPageControls page={page} pageCount={data?.pageCount ?? 1} onPageChange={setPage} />
+      {selectedData && (
         <EmployeeVoucherInfoCard
-          data={selectedVoucher}
+          data={selectedData}
           open={!!selectedVoucher}
           onClose={() => setSelectedVoucher(null)}
         />
