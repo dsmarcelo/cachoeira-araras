@@ -26,15 +26,22 @@ export const operationRequest = v.union(
     // date_of_expiration (epoch ms) of a Pix charge.
     expiresAt: v.optional(v.number()),
     // Card charge: the Brick's single-use token (never the card number or CVV).
+    // Dropped once the operation is settled (see `withoutCardToken`).
     card: v.optional(
       v.object({
-        token: v.string(),
+        token: v.optional(v.string()),
         installments: v.number(),
         issuerId: v.optional(v.string()),
       }),
     ),
   }),
 );
+
+/** The request without its single-use card token, for a settled operation. */
+export function withoutCardToken(request: OperationRequest): OperationRequest {
+  if (request.kind !== "createPayment" || !request.card) return request;
+  return { ...request, card: { ...request.card, token: undefined } };
+}
 
 export const paymentSnapshot = v.object({
   id: v.string(),

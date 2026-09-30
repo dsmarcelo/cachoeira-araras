@@ -9,6 +9,7 @@ import schema from "./schema";
 import {
   operationRequest,
   operationResult,
+  withoutCardToken,
   type OperationResult,
 } from "./lib/paymentOperation";
 import {
@@ -71,6 +72,8 @@ export const reconcile = internalMutation({
       result !== undefined
         ? {
             result,
+            // A settled charge is never resent, so its single-use token goes.
+            request: withoutCardToken(intent.request),
             completedAt: Date.now(),
             lastError: undefined,
             lastHttpStatus: undefined,

@@ -243,6 +243,8 @@ export async function createPayment(
   input: CreatePaymentRequest,
   intent: ProviderIntent,
 ) {
+  if (input.card && input.card.token === undefined)
+    throw new Error("Card token is no longer available for this charge");
   const created = paymentResponse.parse(
     await request("/v1/payments", intent, "POST", {
       transaction_amount: input.amountCents / 100,

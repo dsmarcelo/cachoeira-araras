@@ -203,6 +203,41 @@ test("a failed bank authentication ends the attempt and frees a new one", async 
   expect((await payByCard(t)).status).toBe("approved");
 });
 
+const storedCardTokens = (t: ReturnType<typeof createConvexTest>) =>
+  t.run(async (ctx) =>
+    (await ctx.db.query("paymentOperations").collect()).map((operation) =>
+      operation.request.kind === "createPayment"
+        ? (operation.request.card?.token ?? null)
+        : null,
+    ),
+  );
+
+test("the single-use card token is not kept once the charge is settled", async () => {
+  const t = createConvexTest();
+  await seedVoucher(t);
+
+  await payByCard(t);
+  expect(await storedCardTokens(t)).toEqual([null]);
+});
+
+test("the card token is not kept after the provider refuses the request", async () => {
+  const t = createConvexTest();
+  await seedVoucher(t);
+  mpFake.respondWith("createPayment", "badRequest");
+
+  expect((await payByCard(t)).status).toBe("rejected");
+  expect(await storedCardTokens(t)).toEqual([null]);
+});
+
+test("the card token is kept while the result is unknown, so recovery can resend the same request", async () => {
+  const t = createConvexTest();
+  await seedVoucher(t);
+  mpFake.respondWith("createPayment", "lostResponse");
+
+  expect((await payByCard(t)).status).toBe("uncertain");
+  expect(await storedCardTokens(t)).toEqual(["card-token-1"]);
+});
+
 test("a card under review is not declined and blocks another charge", async () => {
   const t = createConvexTest();
   await seedVoucher(t);

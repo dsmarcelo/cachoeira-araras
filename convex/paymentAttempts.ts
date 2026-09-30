@@ -10,7 +10,11 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { paymentSnapshot, type PaymentSnapshot } from "./lib/paymentOperation";
+import {
+  paymentSnapshot,
+  withoutCardToken,
+  type PaymentSnapshot,
+} from "./lib/paymentOperation";
 import {
   RECOVERY_MIN_AGE_MS,
   recoverUnsettledAttempt,
@@ -410,10 +414,14 @@ export const settleAttempt = internalMutation({
         "paymentOperations",
         attempt.operationId,
       );
-      if (isDefiniteRefusal(operation?.lastHttpStatus)) {
+      if (operation && isDefiniteRefusal(operation.lastHttpStatus)) {
+        // Refused for good: nothing will be resent, so the card token goes.
+        await ctx.db.patch("paymentOperations", operation._id, {
+          request: withoutCardToken(operation.request),
+        });
         await ctx.db.patch("paymentAttempts", attemptId, {
           status: "rejected",
-          statusDetail: operation?.lastProviderCode ?? "provider_refused",
+          statusDetail: operation.lastProviderCode ?? "provider_refused",
           updatedAt: now,
         });
         return {
