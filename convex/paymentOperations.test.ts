@@ -16,6 +16,8 @@ vi.mock("./lib/mercadopagoOperations", () => ({
   ) => fake.api.findPaymentsByExternalReference(...args),
   cancelPayment: (...args: Parameters<typeof fake.api.cancelPayment>) =>
     fake.api.cancelPayment(...args),
+  createPayment: (...args: Parameters<typeof fake.api.createPayment>) =>
+    fake.api.createPayment(...args),
 }));
 
 const requests: OperationRequest[] = [
@@ -23,6 +25,15 @@ const requests: OperationRequest[] = [
   { kind: "invalidatePreference", preferenceId: "pref-1" },
   { kind: "search", externalReference: "ABC123" },
   { kind: "cancel", paymentId: "456" },
+  {
+    kind: "createPayment",
+    externalReference: "ABC123",
+    amountCents: 5000,
+    description: "Voucher ABC123",
+    paymentMethodId: "pix",
+    payer: { email: "visitante@example.com" },
+    expiresAt: 1_800_000_000_000,
+  },
 ];
 
 for (const request of requests) {
@@ -78,6 +89,11 @@ for (const request of requests) {
         expect(fake.refunds.size).toBe(1);
       } else if (request.kind === "search") {
         expect(result).toMatchObject([{ id: "123" }, { id: "456" }]);
+      } else if (request.kind === "createPayment") {
+        expect(result).toMatchObject({ status: "pending", amount: 50 });
+        // A lost response must not leave a second charge behind.
+        expect(fake.createdByKey.size).toBe(1);
+        expect(fake.payments.size).toBe(3);
       } else if (request.kind === "cancel") {
         expect(result).toMatchObject({ id: "456", status: "cancelled" });
       } else {

@@ -31,7 +31,8 @@ Crie um arquivo `.env` na raiz do projeto usando `.env.example` como base. O sch
 
 | Key | Uso |
 | --- | --- |
-| `MERCADOPAGO_TOKEN` | Access token do Mercado Pago usado para criar preferencias e consultar pagamentos. |
+| `MERCADOPAGO_TOKEN` | Access token do Mercado Pago (apenas servidor) usado para criar e consultar pagamentos. |
+| `NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY` | Public key da mesma aplicacao e do mesmo ambiente (teste ou producao) do token; usada pela pagina de pagamento. |
 | `NEXT_PUBLIC_CONVEX_URL` | URL `.convex.cloud` do deployment remoto de desenvolvimento. |
 | `NEXT_PUBLIC_CONVEX_SITE_URL` | URL `.convex.site` do mesmo deployment, usada pelo proxy do Better Auth. |
 | `MERCADOPAGO_WEBHOOK_SERVICE_SECRET` | Segredo compartilhado com o deployment Convex para confirmar pagamentos pelo webhook. |

@@ -56,8 +56,9 @@ record and terminal; any payment approved later is automatically refunded.
 **Voucher Purchase Intake**:
 The server-side flow that starts a customer voucher purchase. It owns the initial
 purchase rules: validating quantities and Visit Date, deriving the authoritative
-price from the server environment, generating the Voucher Code, creating the Mercado Pago
-checkout preference, persisting the Pending Voucher, and recording optional
+price from the server environment, generating the Voucher Code, persisting the Pending
+Voucher (without a Checkout Pro preference; payment starts later as a Payment
+Attempt), and recording optional
 Referrer attribution. Callers never supply server-owned state such as price or
 status.
 
@@ -66,6 +67,12 @@ The marketing channel a purchase arrived from, captured once at purchase and
 belonging to the Voucher it describes.
 
 ### Payment
+
+**Payment Attempt**:
+One charge request for a Voucher on the embedded checkout. Its status follows the
+payment provider and is distinct from the Voucher status: a rejected, pending or
+expired attempt never cancels the purchase, and only one attempt may be in progress
+at a time. See `docs/internals/embedded-checkout.md`.
 
 **Official Payment**:
 The first approved payment attached to a Voucher. It is the only payment that may

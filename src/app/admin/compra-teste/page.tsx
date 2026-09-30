@@ -8,8 +8,8 @@ import { PageShell } from "../_components/admin-ui";
 
 /**
  * The one predictable place staff buy an R$0,01 voucher to exercise the real
- * Mercado Pago path (production credentials, webhook signature, notification
- * URL) end to end. Test-mode pricing and the resulting voucher's Test
+ * Mercado Pago path (credentials, webhook signature, notification URL) end
+ * to end. Test-mode pricing and the resulting voucher's Test
  * Voucher flag are both authorised server-side from the caller's verified
  * role (convex/vouchers.ts `startCheckout`) — this page is reachable by any
  * signed-in staff member, matching who can already use test mode there, but

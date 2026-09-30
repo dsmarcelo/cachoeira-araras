@@ -1,38 +1,16 @@
 /// <reference types="vite/client" />
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { createConvexTest } from "./test.setup";
 
-interface CheckoutPreferenceStubInput {
-  code: string;
-}
-
-interface CheckoutPreferenceStubResult {
-  id: string;
-  initPoint: string;
-}
-
-const createCheckoutPreference =
-  vi.fn<
-    (
-      input: CheckoutPreferenceStubInput,
-    ) => Promise<CheckoutPreferenceStubResult>
-  >();
-vi.mock("./lib/mercadopago", () => ({
-  createCheckoutPreference: (input: CheckoutPreferenceStubInput) =>
-    createCheckoutPreference(input),
-}));
-
 beforeEach(() => {
-  createCheckoutPreference.mockReset();
-  createCheckoutPreference.mockImplementation(
-    async (input: { code: string }) => ({
-      id: `pref-${input.code}`,
-      initPoint: `https://mercadopago.example/${input.code}`,
-    }),
-  );
+  // The fixtures use a fixed visit date; keep "today" just before it.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-01T12:00:00-03:00"));
 });
+
+afterEach(() => vi.useRealTimers());
 
 const visitDateMs = new Date("2026-09-10T12:00:00-03:00").getTime();
 
@@ -52,7 +30,7 @@ function validArgs(overrides: Record<string, unknown> = {}) {
 test("checkout returns an opaque, high-entropy management capability stored on the voucher", async () => {
   const t = createConvexTest();
 
-  const checkout = await t.action(api.vouchers.startCheckout, validArgs());
+  const checkout = await t.action(api.embeddedCheckout.startPurchase, validArgs());
 
   expect(checkout.managementToken).toBeTruthy();
   // Validates high-entropy UUID v4 format

@@ -9,6 +9,7 @@ import schema from "./schema";
 import {
   operationRequest,
   operationResult,
+  withoutCardToken,
   type OperationResult,
 } from "./lib/paymentOperation";
 import {
@@ -16,6 +17,7 @@ import {
   invalidatePreference,
   findPaymentsByExternalReference,
   cancelPayment,
+  createPayment,
 } from "./lib/mercadopagoOperations";
 import { MercadoPagoApiError } from "./lib/mercadopagoError";
 
@@ -70,6 +72,8 @@ export const reconcile = internalMutation({
       result !== undefined
         ? {
             result,
+            // A settled charge is never resent, so its single-use token goes.
+            request: withoutCardToken(intent.request),
             completedAt: Date.now(),
             lastError: undefined,
             lastHttpStatus: undefined,
@@ -107,6 +111,9 @@ export const execute = internalAction({
           break;
         case "cancel":
           result = await cancelPayment(request.paymentId, providerIntent);
+          break;
+        case "createPayment":
+          result = await createPayment(request, providerIntent);
           break;
         case "search":
           result = await findPaymentsByExternalReference(

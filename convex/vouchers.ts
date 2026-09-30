@@ -2,11 +2,11 @@ import {
   paginationOptsValidator,
   paginationResultValidator,
 } from "convex/server";
-import { ConvexError, v } from "convex/values";
+import { ConvexError, v, type ObjectType } from "convex/values";
 
 import { endOfSaoPauloDayMs, getSaoPauloDateKey } from "../src/lib/utils/date";
-import { api, internal } from "./_generated/api";
-import type { Doc, Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import {
   action,
   internalMutation,
@@ -16,24 +16,15 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { getRole, requireRole } from "./lib/auth";
-import { createCheckoutPreference } from "./lib/mercadopago";
-import {
-  formatRetryAfter,
-  MAX_PENDING_VOUCHERS_PER_PHONE,
-  rateLimiter,
-} from "./lib/rateLimiter";
-import type { SettingValueMap } from "./lib/settings";
-import {
-  classifyReferrer,
-  formatVoucherCheckoutDescription,
-  generateVoucherCode,
-  splitCustomerName,
-} from "./lib/voucherCode";
+import { requireRole } from "./lib/auth";
+import { isMercadoPagoCheckoutUrl } from "../src/lib/mercadopago/checkout-url";
+import { isEmbeddedVoucher } from "./lib/embeddedVoucher";
+import { attemptStatusFromProvider } from "./paymentAttempts";
+import { recoverUnsettledAttempt } from "./voucherReconciliation";
+import { rateLimiter } from "./lib/rateLimiter";
 import { countsAsRealVoucher } from "./lib/financeSummary";
 import { patchVoucher } from "./lib/voucherWrites";
 import { normalizeSearchQuery, voucherSearchText } from "./lib/voucherSearch";
-import { validateVoucherPurchase } from "./lib/voucherPurchase";
 import type { PaymentSnapshot } from "./lib/paymentOperation";
 
 export { countsAsRealVoucher };
@@ -434,7 +425,14 @@ export const resumePayment = mutation({
 
     // 4. Still pending and payable
     if (voucher.status === "pending") {
-      const checkoutUrl = voucher.initPoint ?? args.savedInitPoint;
+      // Embedded (Bricks) purchases have no Pro checkout: pay on our own page.
+      const checkoutUrl = isEmbeddedVoucher(voucher)
+        ? `/pagar/${voucher.code}`
+        : (voucher.initPoint ??
+          (args.savedInitPoint &&
+          isMercadoPagoCheckoutUrl(args.savedInitPoint)
+            ? args.savedInitPoint
+            : undefined));
       if (!checkoutUrl) {
         throw new ConvexError("Endereço de checkout não disponível.");
       }
@@ -465,7 +463,7 @@ export const prepareCancellation = internalMutation({
       stage: v.literal("proceed"),
       searchOpId: v.id("paymentOperations"),
       invalidateOpId: v.optional(v.id("paymentOperations")),
-      preferenceId: v.string(),
+      preferenceId: v.optional(v.string()),
       voucherId: v.id("vouchers"),
     }),
     v.object({
@@ -619,6 +617,19 @@ export const finalizeCancellation = internalMutation({
       }
     }
 
+    // Charges of the embedded checkout were closed at the provider by now.
+    const attempts = await ctx.db
+      .query("paymentAttempts")
+      .withIndex("by_voucherCode", (q) => q.eq("voucherCode", voucher.code))
+      .take(50);
+    for (const attempt of attempts) {
+      if (attempt.status === "pending" || attempt.status === "in_process")
+        await ctx.db.patch("paymentAttempts", attempt._id, {
+          status: "cancelled",
+          updatedAt: Date.now(),
+        });
+    }
+
     return { outcome: "cancelled" as const };
   },
 });
@@ -632,7 +643,12 @@ export const clearCancellationIntent = internalMutation({
       .withIndex("by_code", (q) => q.eq("code", args.code))
       .unique();
 
-    if (voucher?.status === "pending") {
+    // Embedded purchases also clear it after an approval won the race: the
+    // intent must not outlive it. Pro Vouchers only clear while still pending.
+    if (
+      voucher?.cancellationStartedAt !== undefined &&
+      (voucher.status === "pending" || isEmbeddedVoucher(voucher))
+    ) {
       await patchVoucher(ctx, voucher, {
         cancellationStartedAt: undefined,
       });
@@ -706,10 +722,37 @@ export const cancelPendingPurchase = action({
     }
 
     try {
-      const searchResult = (await ctx.runAction(
-        internal.paymentOperations.execute,
-        { id: prep.searchOpId },
-      )) as PaymentSnapshot[];
+      // A charge whose creation result was lost may not show in the provider's
+      // search yet: find it through its own operation, and never cancel while
+      // it is still unknown (it could be approved after the cancellation).
+      // Embedded purchases only: Pro Vouchers have no Payment Attempts.
+      const isEmbedded = prep.preferenceId === undefined;
+      const recovered = isEmbedded
+        ? await recoverUnsettledAttempt(ctx, args.code)
+        : undefined;
+      if (
+        isEmbedded &&
+        (await ctx.runQuery(
+          internal.voucherReconciliation.hasUnresolvedAttempt,
+          { code: args.code },
+        ))
+      ) {
+        await ctx.runMutation(internal.vouchers.clearCancellationIntent, {
+          code: args.code,
+        });
+        return {
+          kind: "error" as const,
+          message:
+            "Ainda estamos verificando o resultado do seu pagamento. Aguarde alguns instantes e tente cancelar novamente.",
+        };
+      }
+      const found = (await ctx.runAction(internal.paymentOperations.execute, {
+        id: prep.searchOpId,
+      })) as PaymentSnapshot[];
+      const searchResult =
+        recovered && !found.some((payment) => payment.id === recovered.id)
+          ? [...found, recovered]
+          : found;
 
       const approvedPayment = searchResult.find((p) => p.status === "approved");
 
@@ -718,6 +761,8 @@ export const cancelPendingPurchase = action({
           code: args.code,
           paymentId: approvedPayment.id,
           paymentStatus: "approved",
+          paymentAmountCents: Math.round(approvedPayment.amount * 100),
+          paymentCurrency: approvedPayment.currency,
           paymentTypeId: approvedPayment.paymentTypeId,
           paymentMethodId: approvedPayment.paymentMethodId,
         });
@@ -761,6 +806,7 @@ export const cancelPendingPurchase = action({
             paymentId: cancelledPayment.id,
             paymentStatus: "approved",
             paymentAmountCents: Math.round(cancelledPayment.amount * 100),
+            paymentCurrency: cancelledPayment.currency,
             paymentTypeId: cancelledPayment.paymentTypeId,
             paymentMethodId: cancelledPayment.paymentMethodId,
           });
@@ -893,202 +939,9 @@ export const getVoucherForImage = internalQuery({
   },
 });
 
-const maxVoucherCodeAttempts = 10;
-
 export const referrerValidator = v.object({
   source: v.string(),
   url: v.string(),
-});
-
-function buildReferrer(
-  referrerUrl: string | null | undefined,
-): { source: string; url: string } | undefined {
-  const normalized = referrerUrl?.trim();
-  if (!normalized) {
-    return undefined;
-  }
-  return { source: classifyReferrer(normalized), url: normalized };
-}
-
-/**
- * A voucher purchase: derive the price from the server environment (never
- * from client input), generate a short unique code, create the Mercado Pago
- * checkout preference, then hand off to `insertPendingVoucher` — which
- * re-checks code uniqueness and inserts in one transaction. A collision
- * there (two concurrent checkouts landing on the same code) retries this
- * whole loop with a fresh code and a fresh preference, rather than erroring
- * out on the loser.
- */
-export const startCheckout = action({
-  args: {
-    name: v.string(),
-    phone: v.string(),
-    adults: v.number(),
-    elderly: v.number(),
-    adultsPool: v.number(),
-    elderlyPool: v.number(),
-    // The visitor's chosen visit date, as a client timestamp (ms). Converted
-    // to a Sao Paulo calendar date server-side via getSaoPauloDateKey, the
-    // one place that conversion happens.
-    visitDateMs: v.number(),
-    testMode: v.optional(v.boolean()),
-    referrerUrl: v.optional(v.union(v.string(), v.null())),
-  },
-  returns: v.object({
-    code: v.string(),
-    preferenceId: v.string(),
-    initPoint: v.string(),
-    priceCents: v.number(),
-    managementToken: v.string(),
-  }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    code: string;
-    preferenceId: string;
-    initPoint: string;
-    priceCents: number;
-    managementToken: string;
-  }> => {
-    const role = await getRole(ctx);
-    const canUseTestMode = role === "admin" || role === "employee";
-
-    const settings: SettingValueMap = await ctx.runQuery(
-      api.settings.getAll,
-      {},
-    );
-    const visitDate = getSaoPauloDateKey(new Date(args.visitDateMs));
-
-    const { priceCents } = validateVoucherPurchase(
-      {
-        adults: args.adults,
-        elderly: args.elderly,
-        adultsPool: args.adultsPool,
-        elderlyPool: args.elderlyPool,
-        visitDate,
-        testMode: args.testMode,
-      },
-      { canUseTestMode, settings },
-    );
-
-    type InsertPendingVoucherResult =
-      | { ok: true; managementToken: string }
-      | { ok: false; reason: "code_collision" }
-      | {
-          ok: false;
-          reason: "pending_conflict";
-          operationId: Id<"paymentOperations">;
-        };
-
-    // Ceiling on unexpired Pending Vouchers per phone, checked before any
-    // rate-limit token is spent: an abandoned pending checkout should send
-    // the customer back to finish that one, not toward "wait and retry".
-    const pendingCount: number = await ctx.runQuery(
-      internal.vouchers.countUnexpiredPendingByPhone,
-      { phone: args.phone, now: Date.now() },
-    );
-    if (pendingCount >= MAX_PENDING_VOUCHERS_PER_PHONE) {
-      throw new ConvexError(
-        "Você já tem uma compra pendente com este telefone. Finalize o pagamento pendente (verifique o código enviado anteriormente) antes de iniciar uma nova compra.",
-      );
-    }
-
-    const phoneRateLimit = await rateLimiter.limit(ctx, "checkoutByPhone", {
-      key: args.phone,
-    });
-    if (!phoneRateLimit.ok) {
-      throw new ConvexError(
-        `Muitas tentativas de compra com este telefone. Aguarde ${formatRetryAfter(phoneRateLimit.retryAfter ?? 0)} e tente novamente.`,
-      );
-    }
-
-    const globalRateLimit = await rateLimiter.limit(ctx, "checkoutGlobal");
-    if (!globalRateLimit.ok) {
-      throw new ConvexError(
-        `O sistema está processando muitas compras no momento. Aguarde ${formatRetryAfter(globalRateLimit.retryAfter ?? 0)} e tente novamente.`,
-      );
-    }
-
-    const { firstName, surname } = splitCustomerName(args.name);
-    const referrer = buildReferrer(args.referrerUrl);
-    const isTest = args.testMode === true;
-    const expiresAt = endOfSaoPauloDayMs(visitDate);
-
-    for (let attempt = 1; attempt <= maxVoucherCodeAttempts; attempt += 1) {
-      const code = generateVoucherCode();
-      const managementToken = crypto.randomUUID();
-
-      const preference = await createCheckoutPreference({
-        code,
-        description: formatVoucherCheckoutDescription({
-          adults: args.adults,
-          elderly: args.elderly,
-          adultsPool: args.adultsPool,
-          elderlyPool: args.elderlyPool,
-          phone: args.phone,
-          code,
-        }),
-        priceCents,
-        name: firstName,
-        surname,
-        phone: args.phone,
-      });
-
-      const result: InsertPendingVoucherResult = await ctx.runMutation(
-        internal.vouchers.insertPendingVoucher,
-        {
-          code,
-          managementToken,
-          name: args.name,
-          phone: args.phone,
-          adults: args.adults,
-          elderly: args.elderly,
-          adultsPool: args.adultsPool,
-          elderlyPool: args.elderlyPool,
-          priceCents,
-          visitDate,
-          expiresAt,
-          preferenceId: preference.id,
-          initPoint: preference.initPoint,
-          referrer,
-          isTest,
-        },
-      );
-
-      if (result.ok) {
-        return {
-          code,
-          preferenceId: preference.id,
-          initPoint: preference.initPoint,
-          priceCents,
-          managementToken: result.managementToken,
-        };
-      }
-
-      if (result.reason === "pending_conflict") {
-        try {
-          await ctx.runAction(internal.paymentOperations.execute, {
-            id: result.operationId,
-          });
-        } catch {
-          // Failure is observable on paymentOperations (reconcile records lastError);
-          // background retry is already scheduled.
-        }
-
-        throw new ConvexError(
-          "Você já tem uma compra pendente com este telefone. Finalize o pagamento pendente (verifique o código enviado anteriormente) antes de iniciar uma nova compra.",
-        );
-      }
-
-      // Code collision: retry with a fresh code and a fresh preference
-      // rather than surfacing an error to the loser.
-    }
-
-    throw new ConvexError(
-      "Não foi possível gerar um código de voucher disponível.",
-    );
-  },
 });
 
 /**
@@ -1203,9 +1056,9 @@ export const findForPaymentEnrichment = internalQuery({
 /**
  * Re-checks code uniqueness and phone pending-purchase limit, then inserts
  * the Pending voucher in one transaction, closing the time-of-check/time-of-use
- * race. If the phone already holds a live pending voucher, creates an invalidation
- * intent for the losing preference, schedules retry, and returns pending_conflict.
+ * race. If the phone already holds a live pending voucher, returns pending_conflict.
  * If code collides, returns code_collision so checkout can retry with a fresh code.
+ * New purchases never carry a Checkout Pro preference.
  */
 export const insertPendingVoucher = internalMutation({
   args: {
@@ -1220,8 +1073,6 @@ export const insertPendingVoucher = internalMutation({
     priceCents: v.number(),
     visitDate: v.string(),
     expiresAt: v.number(),
-    preferenceId: v.string(),
-    initPoint: v.optional(v.string()),
     referrer: v.optional(referrerValidator),
     isTest: v.boolean(),
     now: v.optional(v.number()),
@@ -1235,7 +1086,6 @@ export const insertPendingVoucher = internalMutation({
     v.object({
       ok: v.literal(false),
       reason: v.literal("pending_conflict"),
-      operationId: v.id("paymentOperations"),
     }),
   ),
   handler: async (ctx, args) => {
@@ -1260,24 +1110,7 @@ export const insertPendingVoucher = internalMutation({
     );
 
     if (hasLivePending) {
-      const operationId = await ctx.db.insert("paymentOperations", {
-        request: {
-          kind: "invalidatePreference",
-          preferenceId: args.preferenceId,
-        },
-      });
-
-      await ctx.scheduler.runAfter(
-        0,
-        internal.paymentOperations.executeWithRetry,
-        { id: operationId },
-      );
-
-      return {
-        ok: false as const,
-        reason: "pending_conflict" as const,
-        operationId,
-      };
+      return { ok: false as const, reason: "pending_conflict" as const };
     }
 
     const managementToken = args.managementToken ?? crypto.randomUUID();
@@ -1295,8 +1128,6 @@ export const insertPendingVoucher = internalMutation({
       status: "pending",
       visitDate: args.visitDate,
       expiresAt: args.expiresAt,
-      preferenceId: args.preferenceId,
-      initPoint: args.initPoint,
       referrer: args.referrer,
       isTest: args.isTest,
       purchasedAt: Date.now(),
@@ -1354,29 +1185,37 @@ const negativeTerminalPaymentStatuses = new Set([
  * ("pix", "visa", "master", …); they are stored on the Voucher with the
  * Official Payment so the Financeiro report can split revenue by method.
  */
-export const confirmPayment = internalMutation({
-  args: {
-    code: v.string(),
-    paymentId: v.string(),
-    paymentStatus: v.union(v.string(), v.null()),
-    paymentAmountCents: v.optional(v.number()),
-    paymentTypeId: v.optional(v.string()),
-    paymentMethodId: v.optional(v.string()),
-  },
-  returns: v.union(
-    v.object({
-      outcome: v.union(
-        v.literal("redeemed"),
-        v.literal("already_processed"),
-        v.literal("updated"),
-        v.literal("reversed"),
-      ),
-      becameValid: v.boolean(),
-      isTest: v.boolean(),
-    }),
-    v.object({ outcome: v.literal("not_found") }),
-  ),
-  handler: async (ctx, args) => {
+const confirmPaymentArgs = {
+  code: v.string(),
+  paymentId: v.string(),
+  paymentStatus: v.union(v.string(), v.null()),
+  paymentAmountCents: v.optional(v.number()),
+  // ISO currency of the provider payment (e.g. "BRL").
+  paymentCurrency: v.optional(v.string()),
+  paymentTypeId: v.optional(v.string()),
+  paymentMethodId: v.optional(v.string()),
+};
+
+/**
+ * Whether an approved payment is really for this Voucher's base price in BRL.
+ * Enforced for embedded (Bricks) vouchers only, where both facts must be
+ * present. Checkout Pro vouchers keep their existing confirmation behavior.
+ */
+function paymentMatchesVoucher(
+  voucher: Doc<"vouchers">,
+  args: { paymentAmountCents?: number; paymentCurrency?: string },
+) {
+  return (
+    !isEmbeddedVoucher(voucher) ||
+    (args.paymentAmountCents === voucher.priceCents &&
+      args.paymentCurrency === "BRL")
+  );
+}
+
+async function applyPaymentConfirmation(
+  ctx: MutationCtx,
+  args: ObjectType<typeof confirmPaymentArgs>,
+) {
     const voucher = await ctx.db
       .query("vouchers")
       .withIndex("by_code", (q) => q.eq("code", args.code))
@@ -1584,6 +1423,7 @@ export const confirmPayment = internalMutation({
         voucher.status === "pending" &&
         voucher.deletedAt === undefined &&
         voucher.expiresAt > Date.now() &&
+        paymentMatchesVoucher(voucher, args) &&
         (!existingOfficialPayment ||
           existingOfficialPayment.paymentId === args.paymentId);
 
@@ -1669,6 +1509,17 @@ export const confirmPayment = internalMutation({
       };
     }
 
+    // Embedded only: a late "pending"/"in_process" update must never undo an
+    // approval that was already recorded (it would drop the Official Payment or
+    // the duty to refund an Excess Payment). Only reversal statuses may.
+    if (isEmbeddedVoucher(voucher) && existingPayment?.status === "approved") {
+      return {
+        outcome: "already_processed" as const,
+        becameValid: false,
+        isTest: voucher.isTest,
+      };
+    }
+
     // Non-approved payment (e.g. in_process, pending, rejected)
     if (existingPayment) {
       await ctx.db.patch(existingPayment._id, {
@@ -1697,6 +1548,42 @@ export const confirmPayment = internalMutation({
       becameValid: false,
       isTest: voucher.isTest,
     };
+}
+
+export const confirmPayment = internalMutation({
+  args: confirmPaymentArgs,
+  returns: v.union(
+    v.object({
+      outcome: v.union(
+        v.literal("redeemed"),
+        v.literal("already_processed"),
+        v.literal("updated"),
+        v.literal("reversed"),
+      ),
+      becameValid: v.boolean(),
+      isTest: v.boolean(),
+    }),
+    v.object({ outcome: v.literal("not_found") }),
+  ),
+  handler: async (ctx, args) => {
+    const result = await applyPaymentConfirmation(ctx, args);
+    // Keep the embedded checkout's Payment Attempt in step with the provider.
+    if (args.paymentStatus !== null) {
+      const attempt = await ctx.db
+        .query("paymentAttempts")
+        .withIndex("by_paymentId", (q) => q.eq("paymentId", args.paymentId))
+        .unique();
+      if (attempt?.voucherCode === args.code) {
+        const status = attemptStatusFromProvider(args.paymentStatus);
+        if (status !== "uncertain" && status !== attempt.status) {
+          await ctx.db.patch("paymentAttempts", attempt._id, {
+            status,
+            updatedAt: Date.now(),
+          });
+        }
+      }
+    }
+    return result;
   },
 });
 
@@ -1785,7 +1672,7 @@ const gateVoucherAdminValidator = v.object({
   expiresAt: v.number(),
   createdAt: v.number(),
   paymentId: v.optional(v.string()),
-  preferenceId: v.string(),
+  preferenceId: v.optional(v.string()),
   referrer: v.optional(referrerValidator),
   // The staff-visible warning set when a payment is reversed after the
   // Voucher was already redeemed (see `confirmPayment`). Undefined for

@@ -9,30 +9,6 @@ import { createConvexTest, withAuth } from "./test.setup";
 
 import { createMercadoPagoFake } from "./testing/mercadopagoFake";
 
-interface CheckoutPreferenceStubInput {
-  code: string;
-}
-
-interface CheckoutPreferenceStubResult {
-  id: string;
-  initPoint: string;
-}
-
-// Mercado Pago is stubbed at the module boundary (convex/lib/mercadopago.ts),
-// per the testing decision in the migration spec: nothing else is stubbed,
-// so checkout runs its real validation, code generation, and database work
-// against convex-test's in-memory backend.
-const createCheckoutPreference =
-  vi.fn<
-    (
-      input: CheckoutPreferenceStubInput,
-    ) => Promise<CheckoutPreferenceStubResult>
-  >();
-vi.mock("./lib/mercadopago", () => ({
-  createCheckoutPreference: (input: CheckoutPreferenceStubInput) =>
-    createCheckoutPreference(input),
-}));
-
 let mpFake: ReturnType<typeof createMercadoPagoFake>;
 vi.mock("./lib/mercadopagoOperations", () => ({
   refundPayment: (...args: Parameters<typeof mpFake.api.refundPayment>) =>
@@ -62,15 +38,10 @@ vi.mock("./lib/voucherCode", async (importOriginal) => {
 let codeSequence = 0;
 
 beforeEach(() => {
+  // The fixtures use a fixed visit date; keep "today" just before it.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-01T12:00:00-03:00"));
   mpFake = createMercadoPagoFake();
-  createCheckoutPreference.mockReset();
-  createCheckoutPreference.mockImplementation(
-    async (input: { code: string }) => ({
-      id: `pref-${input.code}`,
-      initPoint: `https://mercadopago.example/${input.code}`,
-    }),
-  );
-
   codeSequence = 0;
   generateVoucherCode.mockReset();
   generateVoucherCode.mockImplementation(() => {
@@ -79,7 +50,10 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
+});
 
 const visitDateMs = new Date("2026-09-10T12:00:00-03:00").getTime();
 
@@ -107,14 +81,11 @@ test("charges the environment price even when an old database price exists", asy
   });
 
   const result = await t.action(
-    api.vouchers.startCheckout,
+    api.embeddedCheckout.startPurchase,
     validArgs({ visitDateMs: Date.now() + 7 * 24 * 60 * 60 * 1000 }),
   );
 
   expect(result.priceCents).toBe(16000);
-  expect(createCheckoutPreference).toHaveBeenCalledWith(
-    expect.objectContaining({ priceCents: 16000 }),
-  );
 });
 
 test("publishes environment prices and prevents editing them as settings", async () => {
@@ -137,9 +108,8 @@ test("a past visit date is refused with an actionable reason", async () => {
   const past = new Date("2020-01-01T12:00:00-03:00").getTime();
 
   await expect(
-    t.action(api.vouchers.startCheckout, validArgs({ visitDateMs: past })),
+    t.action(api.embeddedCheckout.startPurchase, validArgs({ visitDateMs: past })),
   ).rejects.toThrow(/passado/);
-  expect(createCheckoutPreference).not.toHaveBeenCalled();
 });
 
 test("a visit date beyond the booking window is refused with an actionable reason", async () => {
@@ -152,7 +122,7 @@ test("a visit date beyond the booking window is refused with an actionable reaso
   const farFuture = new Date("2030-01-01T12:00:00-03:00").getTime();
 
   await expect(
-    t.action(api.vouchers.startCheckout, validArgs({ visitDateMs: farFuture })),
+    t.action(api.embeddedCheckout.startPurchase, validArgs({ visitDateMs: farFuture })),
   ).rejects.toThrow(/limite permitido/);
 });
 
@@ -166,7 +136,7 @@ test("a disabled day is refused with an actionable reason", async () => {
   });
 
   await expect(
-    t.action(api.vouchers.startCheckout, validArgs()),
+    t.action(api.embeddedCheckout.startPurchase, validArgs()),
   ).rejects.toThrow(/indisponível/);
 });
 
@@ -201,15 +171,11 @@ test("a phone holding only valid, redeemed, expired, or refunded vouchers can co
   }
 
   const result = await t.action(
-    api.vouchers.startCheckout,
+    api.embeddedCheckout.startPurchase,
     validArgs({ phone }),
   );
 
   expect(result.code).toBeTruthy();
-  expect(result.preferenceId).toBe(`pref-${result.code}`);
-  expect(createCheckoutPreference).toHaveBeenCalledWith(
-    expect.objectContaining({ phone }),
-  );
 });
 
 test("quantity limits and per-entry-type toggles from settings are honoured", async () => {
@@ -221,7 +187,7 @@ test("quantity limits and per-entry-type toggles from settings are honoured", as
   });
 
   await expect(
-    t.action(api.vouchers.startCheckout, validArgs()),
+    t.action(api.embeddedCheckout.startPurchase, validArgs()),
   ).rejects.toThrow(/desativada/);
 });
 
@@ -229,9 +195,8 @@ test("test mode is refused for an unauthenticated visitor, even though they asse
   const t = createConvexTest();
 
   await expect(
-    t.action(api.vouchers.startCheckout, validArgs({ testMode: true })),
+    t.action(api.embeddedCheckout.startPurchase, validArgs({ testMode: true })),
   ).rejects.toThrow(/equipe autorizada/);
-  expect(createCheckoutPreference).not.toHaveBeenCalled();
 
   const vouchers = await t.run(async (ctx) =>
     ctx.db.query("vouchers").collect(),
@@ -244,7 +209,7 @@ test("test mode charges one cent for a signed-in staff member, and the stored vo
   const asEmployee = await withAuth(t, "employee");
 
   const result = await asEmployee.action(
-    api.vouchers.startCheckout,
+    api.embeddedCheckout.startPurchase,
     validArgs({ testMode: true }),
   );
 
@@ -262,7 +227,7 @@ test("test mode charges one cent for a signed-in staff member, and the stored vo
 test("the voucher is left Pending with visitDate set to the day the customer chose", async () => {
   const t = createConvexTest();
 
-  const result = await t.action(api.vouchers.startCheckout, validArgs());
+  const result = await t.action(api.embeddedCheckout.startPurchase, validArgs());
 
   const stored = await t.run(async (ctx) =>
     ctx.db
@@ -298,12 +263,11 @@ test("a code collision retries with a fresh code instead of erroring, and produc
     });
   });
 
-  const result = await t.action(api.vouchers.startCheckout, validArgs());
+  const result = await t.action(api.embeddedCheckout.startPurchase, validArgs());
 
   // The loser (this checkout) gets a different code rather than an error.
   expect(result.code).not.toBe("code1");
   expect(generateVoucherCode).toHaveBeenCalledTimes(2);
-  expect(createCheckoutPreference).toHaveBeenCalledTimes(2);
 
   const vouchersWithCode1 = await t.run(async (ctx) =>
     ctx.db
@@ -323,7 +287,7 @@ test("a code collision retries with a fresh code instead of erroring, and produc
   expect(stored?.status).toBe("pending");
 });
 
-test("exceeding the per-phone rate limit blocks checkout without creating a preference or a partial voucher", async () => {
+test("exceeding the per-phone rate limit blocks checkout without a partial voucher", async () => {
   const t = createConvexTest();
   const phone = "11977776666";
 
@@ -332,7 +296,7 @@ test("exceeding the per-phone rate limit blocks checkout without creating a pref
   // check (a lower threshold) isn't what trips this test.
   for (let i = 0; i < 3; i += 1) {
     const result = await t.action(
-      api.vouchers.startCheckout,
+      api.embeddedCheckout.startPurchase,
       validArgs({ phone, visitDateMs: visitDateMs + i * 24 * 60 * 60 * 1000 }),
     );
     await t.run(async (ctx) => {
@@ -345,15 +309,13 @@ test("exceeding the per-phone rate limit blocks checkout without creating a pref
       }
     });
   }
-  createCheckoutPreference.mockClear();
 
   await expect(
     t.action(
-      api.vouchers.startCheckout,
+      api.embeddedCheckout.startPurchase,
       validArgs({ phone, visitDateMs: visitDateMs + 30 * 24 * 60 * 60 * 1000 }),
     ),
   ).rejects.toThrow(/Muitas tentativas de compra com este telefone/);
-  expect(createCheckoutPreference).not.toHaveBeenCalled();
 });
 
 test("reaching the pending-voucher ceiling for a phone blocks checkout and tells the customer to resume it", async () => {
@@ -381,9 +343,8 @@ test("reaching the pending-voucher ceiling for a phone blocks checkout and tells
   }
 
   await expect(
-    t.action(api.vouchers.startCheckout, validArgs({ phone })),
+    t.action(api.embeddedCheckout.startPurchase, validArgs({ phone })),
   ).rejects.toThrow(/Você já tem uma compra pendente/);
-  expect(createCheckoutPreference).not.toHaveBeenCalled();
 
   const vouchers = await t.run(async (ctx) =>
     ctx.db
@@ -418,7 +379,7 @@ test("an expired pending voucher does not count toward the pending ceiling", asy
     });
   }
 
-  const result = await t.action(api.vouchers.startCheckout, validArgs({ phone }));
+  const result = await t.action(api.embeddedCheckout.startPurchase, validArgs({ phone }));
   expect(result.code).toBeTruthy();
 });
 
@@ -427,150 +388,47 @@ test("exceeding the global rate limit blocks checkout even across different phon
 
   // Drive the shared global bucket to exhaustion with distinct phones (each
   // well under its own per-phone and pending-ceiling limits), then confirm
-  // the next attempt is refused before any preference is created.
+  // the next attempt is refused .
   for (let i = 0; i < 60; i += 1) {
     await t.action(
-      api.vouchers.startCheckout,
+      api.embeddedCheckout.startPurchase,
       validArgs({ phone: `1190000${String(i).padStart(4, "0")}` }),
     );
   }
-  createCheckoutPreference.mockClear();
 
   await expect(
     t.action(
-      api.vouchers.startCheckout,
+      api.embeddedCheckout.startPurchase,
       validArgs({ phone: "11900009999" }),
     ),
   ).rejects.toThrow(/O sistema está processando muitas compras/);
-  expect(createCheckoutPreference).not.toHaveBeenCalled();
 });
 
-test("two concurrent purchases for the same phone leave at most one pending voucher and return only one preference", async () => {
+test("two concurrent purchases for the same phone leave at most one pending voucher", async () => {
   const t = createConvexTest();
   const phone = "11987654321";
 
-  let releaseFirstPreference: () => void;
-  const firstPreferenceGate = new Promise<void>((resolve) => {
-    releaseFirstPreference = resolve;
-  });
+  const results = await Promise.allSettled([
+    t.action(api.embeddedCheckout.startPurchase, validArgs({ phone })),
+    t.action(api.embeddedCheckout.startPurchase, validArgs({ phone })),
+  ]);
 
-  let callCount = 0;
-  createCheckoutPreference.mockImplementation(
-    async (input: { code: string }) => {
-      callCount += 1;
-      if (callCount === 1) {
-        await firstPreferenceGate;
-      }
-      return {
-        id: `pref-${input.code}`,
-        initPoint: `https://mercadopago.example/${input.code}`,
-      };
-    },
+  const fulfilled = results.filter((r) => r.status === "fulfilled");
+  const rejected = results.filter((r) => r.status === "rejected");
+  expect(fulfilled).toHaveLength(1);
+  expect(rejected).toHaveLength(1);
+  const reason: unknown = rejected[0]?.reason;
+  expect(reason).toBeInstanceOf(ConvexError);
+  expect((reason as ConvexError<string>).data).toContain(
+    "Você já tem uma compra pendente",
   );
 
-  const p1 = t.action(api.vouchers.startCheckout, validArgs({ phone }));
-  await new Promise((resolve) => setTimeout(resolve, 15));
-
-  const p2 = t.action(api.vouchers.startCheckout, validArgs({ phone }));
-  await new Promise((resolve) => setTimeout(resolve, 15));
-
-  releaseFirstPreference!();
-
-  const [res1, res2] = await Promise.allSettled([p1, p2]);
-
-  const [winning, rejected] =
-    res1?.status === "fulfilled" ? [res1, res2] : [res2, res1];
-
-  expect(winning?.status).toBe("fulfilled");
-  expect(rejected?.status).toBe("rejected");
-
-  if (winning?.status === "fulfilled" && rejected?.status === "rejected") {
-    expect(winning.value.code).toBeTruthy();
-    expect(winning.value.preferenceId).toBeTruthy();
-
-    const rejectionReason: unknown = rejected.reason;
-    expect(rejectionReason).toBeInstanceOf(ConvexError);
-    expect((rejectionReason as ConvexError<string>).data).toContain(
-      "Você já tem uma compra pendente",
-    );
-
-    const storedVouchers = await t.run(async (ctx) =>
-      ctx.db
-        .query("vouchers")
-        .withIndex("by_phone", (q) => q.eq("phone", phone))
-        .collect(),
-    );
-    expect(storedVouchers).toHaveLength(1);
-    expect(storedVouchers[0]?.code).toBe(winning.value.code);
-
-    const loserCode = winning.value.code === "code1" ? "code2" : "code1";
-    expect(mpFake.invalidatedPreferences.has(`pref-${loserCode}`)).toBe(true);
-  }
-});
-
-test("when losing preference invalidation encounters a transient provider failure, it surfaces in paymentOperations and is retried", async () => {
-  const t = createConvexTest();
-  const phone = "11988889999";
-
-  mpFake.respondWith("invalidatePreference", "transientFailure");
-
-  let releaseFirst: () => void;
-  const gate = new Promise<void>((resolve) => {
-    releaseFirst = resolve;
-  });
-
-  let callCount = 0;
-  createCheckoutPreference.mockImplementation(
-    async (input: { code: string }) => {
-      callCount += 1;
-      if (callCount === 1) {
-        await gate;
-      }
-      return {
-        id: `pref-${input.code}`,
-        initPoint: `https://mercadopago.example/${input.code}`,
-      };
-    },
+  const stored = await t.run(async (ctx) =>
+    ctx.db
+      .query("vouchers")
+      .withIndex("by_phone", (q) => q.eq("phone", phone))
+      .collect(),
   );
-
-  const p1 = t.action(api.vouchers.startCheckout, validArgs({ phone }));
-  await new Promise((resolve) => setTimeout(resolve, 15));
-  const p2 = t.action(api.vouchers.startCheckout, validArgs({ phone }));
-  await new Promise((resolve) => setTimeout(resolve, 15));
-  releaseFirst!();
-
-  const [res1, res2] = await Promise.allSettled([p1, p2]);
-
-  expect([res1, res2].filter((r) => r.status === "fulfilled")).toHaveLength(1);
-  expect([res1, res2].filter((r) => r.status === "rejected")).toHaveLength(1);
-
-  const operations = await t.run(async (ctx) =>
-    ctx.db.query("paymentOperations").collect(),
-  );
-  expect(operations).toHaveLength(1);
-  const op = operations[0]!;
-  expect(op.request.kind).toBe("invalidatePreference");
-
-  expect(op.lastError).toContain("Transient provider failure");
-  expect(op.result).toBeUndefined();
-
-  vi.useFakeTimers();
-  try {
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
-  } finally {
-    vi.useRealTimers();
-  }
-
-  const resolvedOp = await t.run(async (ctx) => ctx.db.get(op._id));
-  expect(resolvedOp?.result).toMatchObject({
-    id: (op.request as { preferenceId: string }).preferenceId,
-    invalidated: true,
-  });
-  expect(resolvedOp?.lastError).toBeUndefined();
-
-  expect(
-    mpFake.invalidatedPreferences.has(
-      (op.request as { preferenceId: string }).preferenceId,
-    ),
-  ).toBe(true);
+  expect(stored).toHaveLength(1);
+  expect(stored[0]?.preferenceId).toBeUndefined();
 });

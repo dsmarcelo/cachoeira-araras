@@ -1,5 +1,7 @@
 # Checkout Pro: como testar com contas de teste (Mercado Pago)
 
+> Historico: descreve o fluxo Checkout Pro anterior. Novas compras nao criam preferencia; veja `docs/internals/embedded-checkout.md` e `docs/operations/embedded-checkout-activation.md`.
+
 Este guia cobre **somente Checkout Pro** e descreve o fluxo prático para validar pagamentos usando contas de teste no Mercado Pago.
 
 ## 1) Pré-requisitos

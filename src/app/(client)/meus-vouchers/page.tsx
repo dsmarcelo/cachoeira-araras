@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { useAction, useConvex, useMutation, useQuery } from "convex/react";
+import { useAction, useConvex, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useSavedVouchers } from "../../_components/saved-vouchers-provider";
 import type { SavedVoucher } from "@/lib/voucher/browser-storage";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { formatQuantity } from "@/lib/voucher";
 import { formatToBRL } from "@/lib/utils";
+import { useResumePayment } from "@/lib/voucher/use-resume-payment";
 import {
   getCachedLookupToken,
   setCachedLookupToken,
@@ -36,9 +37,8 @@ function formatVisitDate(visitDate: string) {
 function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
   const { touchEvent } = useSavedVouchers();
   const convex = useConvex();
-  const resumePayment = useMutation(api.vouchers.resumePayment);
+  const resumePayment = useResumePayment();
   const reconcilePayment = useAction(api.voucherReconciliation.reconcileMine);
-  const router = useRouter();
   const [isResuming, setIsResuming] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [reconciliationError, setReconciliationError] = useState<string | null>(null);
@@ -47,7 +47,7 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
     () => getCachedLookupToken(entry.code) ?? null,
   );
   const [lookupFailure, setLookupFailure] = useState<
-    "not_found" | "rate_limited" | null
+    "not_found" | "rate_limited" | "network" | null
   >(null);
   const voucher = useQuery(
     api.vouchers.getAuthorized,
@@ -97,7 +97,8 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
           setLookupFailure(authorization.kind);
         }
       } catch {
-        if (active) setLookupFailure("not_found");
+        // A failed request says nothing about whether the voucher exists.
+        if (active) setLookupFailure("network");
       }
     }
     void authorize();
@@ -146,32 +147,19 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
   async function handleResumePayment() {
     if (!entry.managementToken) {
       setResumeError(
-        "A autorização desta compra não está disponível neste navegador.",
+        "A autorização desta compra não está disponível neste navegador. Retome o pagamento pelo navegador onde ela foi iniciada ou fale com a nossa equipe.",
       );
       return;
     }
-    try {
-      setIsResuming(true);
-      setResumeError(null);
-      const result = await resumePayment({
-        code: entry.code,
-        managementToken: entry.managementToken,
-        savedInitPoint: entry.initPoint,
-      });
-      if (result.kind === "resumed") {
-        window.location.assign(result.checkoutUrl);
-      } else if (result.kind === "already_paid") {
-        router.push(result.redirectUrl);
-      } else {
-        setResumeError(result.message);
-      }
-    } catch {
-      setResumeError(
-        "Não foi possível verificar o pagamento agora. Tente novamente em instantes.",
-      );
-    } finally {
-      setIsResuming(false);
-    }
+    setIsResuming(true);
+    setResumeError(null);
+    const message = await resumePayment({
+      code: entry.code,
+      managementToken: entry.managementToken,
+      savedInitPoint: entry.initPoint,
+    });
+    setResumeError(message);
+    setIsResuming(false);
   }
 
   return (
@@ -184,6 +172,12 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
         <p>
           Muitas tentativas de consulta. Aguarde um instante e recarregue a
           página.
+        </p>
+      )}
+      {lookupFailure === "network" && (
+        <p role="alert">
+          Não foi possível consultar este voucher agora. Confira sua conexão e
+          recarregue a página.
         </p>
       )}
       {(voucher === null || lookupFailure === "not_found") && (
@@ -215,7 +209,7 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
           ))}
         </div>
       )}
-      {voucher?.status === "pending" && entry.initPoint && (
+      {voucher?.status === "pending" && (
         <Button
           variant="cta"
           disabled={isResuming}

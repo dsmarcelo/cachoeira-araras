@@ -39,6 +39,7 @@ http.route({
       paymentId,
       paymentStatus,
       paymentAmountCents,
+      paymentCurrency,
       paymentTypeId,
       paymentMethodId,
     } = body as Record<string, unknown>;
@@ -56,6 +57,9 @@ http.route({
     ) {
       return new Response("Bad Request", { status: 400 });
     }
+    if (paymentCurrency !== undefined && typeof paymentCurrency !== "string") {
+      return new Response("Bad Request", { status: 400 });
+    }
     if (
       (paymentTypeId !== undefined && typeof paymentTypeId !== "string") ||
       (paymentMethodId !== undefined && typeof paymentMethodId !== "string")
@@ -68,6 +72,9 @@ http.route({
       paymentId,
       paymentStatus,
       ...(typeof paymentAmountCents === "number" ? { paymentAmountCents } : {}),
+      ...(paymentCurrency
+        ? { paymentCurrency: paymentCurrency.slice(0, 8) }
+        : {}),
       ...(paymentTypeId ? { paymentTypeId: paymentTypeId.slice(0, 40) } : {}),
       ...(paymentMethodId ? { paymentMethodId: paymentMethodId.slice(0, 40) } : {}),
     });

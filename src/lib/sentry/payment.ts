@@ -9,6 +9,11 @@ type PaymentFlowStep =
   | "fetch_payment"
   | "payment_return"
   | "confirm_voucher"
+  | "create_payment"
+  | "load_brick"
+  | "three_ds_challenge"
+  | "release_charge"
+  | "cancel_purchase"
   | "webhook";
 
 const sensitiveKeyPattern =

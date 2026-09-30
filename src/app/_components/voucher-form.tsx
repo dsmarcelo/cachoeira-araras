@@ -13,9 +13,6 @@ import { useRouter } from "next/navigation";
 import { createVoucherFormSchema } from "@/lib/voucher/types";
 import { cn, formatPhone, getErrorMessage } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  addCookieVoucher,
-} from "../lib";
 import { useSavedVouchers } from "./saved-vouchers-provider";
 import VoucherCreatedCard from "./voucher-created-card";
 import PendingPurchaseDialog from "./pending-purchase-dialog";
@@ -30,6 +27,12 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { addDaysToDateKey, getSaoPauloDateKey } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
+import {
+  getCachedManagementToken,
+  setCachedManagementToken,
+} from "@/lib/voucher/management-token-cache";
+import { isMercadoPagoCheckoutUrl } from "@/lib/mercadopago/checkout-url";
+import { useResumePayment } from "@/lib/voucher/use-resume-payment";
 import {
   getCachedLookupToken,
   setCachedLookupToken,
@@ -53,6 +56,8 @@ export default function VoucherForm({
   const [lookupToken, setLookupToken] = useState<string | null>(null);
   const [pendingDialogOpen, setPendingDialogOpen] = useState(false);
   const [conflictPhone, setConflictPhone] = useState("");
+  const resumePayment = useResumePayment();
+  const [resumeError, setResumeError] = useState("");
   const managementTokens = useMemo(
     () =>
       vouchers
@@ -63,7 +68,7 @@ export default function VoucherForm({
 
   // The public settings query includes prices from the Convex environment.
   const settings = useQuery(convexApi.settings.getAll);
-  const startCheckout = useAction(convexApi.vouchers.startCheckout);
+  const startPurchase = useAction(convexApi.embeddedCheckout.startPurchase);
 
   // Exchanges `code` for the opaque, rate-limited lookup capability needed
   // by both `save()` (below) and the reactive status subscription. Called
@@ -172,8 +177,31 @@ export default function VoucherForm({
     return value.replace(/\D/g, "");
   }
 
-  function redirectToPayment() {
-    router.push(init_point);
+  // The management token of the purchase on screen, if this browser holds it.
+  const managementToken =
+    vouchers.find((v) => v.code === code)?.managementToken ??
+    getCachedManagementToken(code);
+
+  // With the browser's authorization the server decides where the purchase can
+  // continue (internal checkout, Pro address or receipt). The saved address is
+  // only a hint for Pro and a last resort when there is no authorization.
+  async function redirectToPayment() {
+    setResumeError("");
+    if (!managementToken) {
+      // Without authorization only a genuine Mercado Pago address is followed.
+      if (isMercadoPagoCheckoutUrl(init_point)) router.push(init_point);
+      else
+        setResumeError(
+          "Não foi possível retomar o pagamento neste navegador. Inicie uma nova compra ou procure a nossa equipe.",
+        );
+      return;
+    }
+    const message = await resumePayment({
+      code,
+      managementToken,
+      savedInitPoint: init_point || undefined,
+    });
+    if (message) setResumeError(message);
   }
 
   async function onSubmit(data: FormSchema) {
@@ -195,7 +223,7 @@ export default function VoucherForm({
       setIsLoading(true);
       setCheckoutFailed(false);
       setPersistenceWarning("");
-      const checkout = await startCheckout({
+      const purchase = {
         name: data.name,
         phone: data.phone,
         adults: data.adults,
@@ -205,28 +233,27 @@ export default function VoucherForm({
         visitDateMs: data.intendedDate.getTime(),
         testMode,
         referrerUrl: referrerURL,
-      });
+      };
+      const checkout = await startPurchase(purchase);
       setCode(checkout.code);
-      setInitPoint(checkout.initPoint);
+      // New purchases pay on the site's own page: there is no external address.
+      setInitPoint("");
       try {
         const authorization = await authorizeLookup(checkout.code);
         if (authorization.kind !== "authorized")
           throw new Error("Voucher not found");
         save({
           code: checkout.code,
-          initPoint: checkout.initPoint,
+          initPoint: "",
           createdAt: authorization.voucher.createdAt,
           managementToken: checkout.managementToken,
         });
       } catch {
         setPersistenceWarning("Não foi possível salvar seu voucher neste navegador. Anote o código antes de sair.");
       }
-      try {
-        await addCookieVoucher(checkout.code, checkout.initPoint);
-      } catch {
-        setPersistenceWarning("Não foi possível guardar o retorno do pagamento neste navegador. Anote o código do voucher antes de continuar.");
-      }
-      setIsLoading(false);
+      // Keeps this tab able to pay even if browser storage refused the save.
+      setCachedManagementToken(checkout.code, checkout.managementToken);
+      router.push(`/pagar/${checkout.code}`);
     } catch (error) {
       const message = getErrorMessage(
         error,
@@ -257,13 +284,17 @@ export default function VoucherForm({
     );
   }
 
-  if (!isLoading && code && (init_point || payment_sucess_url)) {
+  if (
+    !isLoading &&
+    code &&
+    (init_point || payment_sucess_url || managementToken)
+  ) {
     return (
       <VoucherCreatedCard
         code={code}
         redirectToPayment={redirectToPayment}
         onNewPurchase={() => { setCode(""); setInitPoint(""); }}
-        warning={persistenceWarning || warning}
+        warning={resumeError || persistenceWarning || warning}
         payment_success_url={payment_sucess_url}
       />
     );

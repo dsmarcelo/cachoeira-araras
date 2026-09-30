@@ -1,23 +1,29 @@
-import type { OperationRequest, ProviderIntent } from "../lib/paymentOperation";
+import type {
+  CreatePaymentRequest,
+  OperationRequest,
+  PaymentSnapshot,
+  ProviderIntent,
+} from "../lib/paymentOperation";
 import type * as adapter from "../lib/mercadopagoOperations";
 import { MercadoPagoApiError } from "../lib/mercadopagoError";
 
-type Mode = "success" | "transientFailure" | "lostResponse" | "unauthorized";
+type Mode =
+  | "success"
+  | "transientFailure"
+  | "lostResponse"
+  | "unauthorized"
+  // Provider refuses the request outright (HTTP 400): nothing was created.
+  | "badRequest";
 type Kind = OperationRequest["kind"];
 
 /** Only the provider is fake: state survives a lost response and subsequent retries. */
 export function createMercadoPagoFake() {
   const modes = new Map<Kind, Mode[]>();
-  const payments = new Map<
-    string,
-    {
-      id: string;
-      status: string;
-      externalReference: string | null;
-      amount: number;
-      refundedAmount: number;
-    }
-  >();
+  const payments = new Map<string, PaymentSnapshot>();
+  // Charges created per idempotency key: a retry returns the original charge.
+  const createdByKey = new Map<string, PaymentSnapshot>();
+  // Outcome of the next created charge; defaults to a pending Pix.
+  let nextCreated: Partial<PaymentSnapshot> = {};
   const invalidatedPreferences = new Set<string>();
   const refunds = new Map<
     string,
@@ -34,6 +40,8 @@ export function createMercadoPagoFake() {
     const mode = modes.get(kind)?.shift() ?? "success";
     if (mode === "transientFailure")
       throw new Error("Transient provider failure");
+    if (mode === "badRequest")
+      throw new MercadoPagoApiError(400, "bad_request", "Invalid payer email");
     if (mode === "unauthorized")
       throw new MercadoPagoApiError(
         401,
@@ -70,6 +78,42 @@ export function createMercadoPagoFake() {
           p.status = "cancelled";
         return p;
       }),
+    createPayment: (input: CreatePaymentRequest, intent: ProviderIntent) =>
+      perform("createPayment", intent, () => {
+        const previous = createdByKey.get(intent.idempotencyKey);
+        if (previous) return previous;
+        const id = `pay-${payments.size + 1}`;
+        // Installment interest changes what the buyer pays, never the base
+        // transaction amount, so card charges keep the Voucher price.
+        const method: Partial<PaymentSnapshot> = input.card
+          ? {
+              status: "approved",
+              statusDetail: "accredited",
+              paymentTypeId: "credit_card",
+            }
+          : {
+              status: "pending",
+              statusDetail: "pending_waiting_transfer",
+              paymentTypeId: "bank_transfer",
+              expiresAt: input.expiresAt,
+              pix: { qrCode: `000201pix-${id}`, qrCodeBase64: "iVBORw0KGgo=" },
+            };
+        const created: PaymentSnapshot = {
+          id,
+          status: "pending",
+          externalReference: input.externalReference,
+          amount: input.amountCents / 100,
+          refundedAmount: 0,
+          currency: "BRL",
+          paymentMethodId: input.paymentMethodId,
+          ...method,
+          ...nextCreated,
+        };
+        nextCreated = {};
+        payments.set(id, created);
+        createdByKey.set(intent.idempotencyKey, created);
+        return created;
+      }),
     getPayment: async (id: string, _intent: ProviderIntent) =>
       structuredClone(payment(id)),
     refundPayment: (id: string, intent: ProviderIntent) =>
@@ -95,6 +139,7 @@ export function createMercadoPagoFake() {
     | "cancelPayment"
     | "getPayment"
     | "refundPayment"
+    | "createPayment"
   >;
   return {
     api,
@@ -102,6 +147,11 @@ export function createMercadoPagoFake() {
     refunds,
     invalidatedPreferences,
     attempts,
+    createdByKey,
+    /** Shape the next created charge, e.g. `{ status: "rejected" }`. */
+    createNext: (overrides: Partial<PaymentSnapshot>) => {
+      nextCreated = overrides;
+    },
     approveOnCancel: (paymentId: string) => approveWhenCancelled.add(paymentId),
     respondWith: (kind: Kind, ...responses: Mode[]) => {
       modes.set(kind, responses);

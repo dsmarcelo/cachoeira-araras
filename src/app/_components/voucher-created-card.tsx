@@ -10,7 +10,7 @@ export default function VoucherCreatedCard({
   warning,
 }: {
   code: string;
-  redirectToPayment: () => void;
+  redirectToPayment: () => void | Promise<void>;
   onNewPurchase: () => void;
   payment_success_url: string;
   warning: string;
@@ -32,7 +32,7 @@ export default function VoucherCreatedCard({
         <Button
           variant="cta"
           size="xl"
-          onClick={redirectToPayment}
+          onClick={() => void redirectToPayment()}
           className="h-14"
         >
           Finalizar pagamento

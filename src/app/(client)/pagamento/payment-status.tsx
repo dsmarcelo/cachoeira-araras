@@ -9,6 +9,7 @@ import { getCookieVoucher } from "@/app/lib";
 import { useSavedVouchers } from "@/app/_components/saved-vouchers-provider";
 import { StatusScreen } from "@/app/_components/status-screen";
 import { api as convexApi } from "../../../../convex/_generated/api";
+import { useResumePayment } from "@/lib/voucher/use-resume-payment";
 import {
   getCachedLookupToken,
   setCachedLookupToken,
@@ -39,8 +40,9 @@ export default function PaymentStatus({
     getCachedLookupToken(code) ?? null,
   );
   const [lookupFailure, setLookupFailure] = useState<
-    "not_found" | "rate_limited" | null
+    "not_found" | "rate_limited" | "network" | null
   >(null);
+  const [attempt, setAttempt] = useState(0);
   const voucher = useQuery(
     convexApi.vouchers.getAuthorized,
     lookupToken ? { lookupToken } : "skip",
@@ -70,7 +72,8 @@ export default function PaymentStatus({
           setLookupFailure(authorization.kind);
         }
       } catch {
-        if (active) setLookupFailure("not_found");
+        // A failed request says nothing about whether the voucher exists.
+        if (active) setLookupFailure("network");
       }
     }
     void authorize();
@@ -81,7 +84,7 @@ export default function PaymentStatus({
     // authorization; including it would re-run the effect (and spend
     // another rate-limited authorizeLookup call) as soon as it's set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, convex]);
+  }, [code, convex, attempt]);
 
   useEffect(() => {
     async function syncCookieVoucher() {
@@ -94,6 +97,21 @@ export default function PaymentStatus({
     }
     void syncCookieVoucher();
   }, []);
+
+  const resumePayment = useResumePayment();
+  const [resuming, setResuming] = useState(false);
+  const [resumeMessage, setResumeMessage] = useState<string | null>(null);
+  const managementToken = savedVouchers.find(
+    (entry) => entry.code === code,
+  )?.managementToken;
+
+  async function handleResume() {
+    if (!managementToken) return;
+    setResuming(true);
+    setResumeMessage(null);
+    setResumeMessage(await resumePayment({ code, managementToken }));
+    setResuming(false);
+  }
 
   const isPaid = voucher?.status === "valid" || voucher?.status === "redeemed";
   const hasLocalEntry = savedVouchers.some((entry) => entry.code === code);
@@ -138,6 +156,26 @@ export default function PaymentStatus({
     );
   }
 
+  if (lookupFailure === "network") {
+    return (
+      <StatusScreen
+        title="Não foi possível consultar agora"
+        description="Confira sua conexão e tente de novo. Isso não significa que o voucher não existe."
+      >
+        <Button
+          variant="cta"
+          onClick={() => {
+            setLookupFailure(null);
+            setAttempt((n) => n + 1);
+          }}
+        >
+          Tentar novamente
+        </Button>
+        <BackHomeButton />
+      </StatusScreen>
+    );
+  }
+
   if (lookupFailure === "not_found" || voucher === null) {
     return (
       <StatusScreen title="Voucher não encontrado">
@@ -153,25 +191,35 @@ export default function PaymentStatus({
   }
 
   if (voucher.status === "pending") {
-    const canRetry = Boolean(
-      cookieVoucher?.code === code && cookieVoucher.initPoint,
-    );
-
     return (
       <StatusScreen
         title="Aguardando confirmação do pagamento"
         description="Assim que recebermos a confirmação do Mercado Pago, esta página é atualizada automaticamente — não é necessário atualizar a página."
       >
         <div className="flex flex-col sm:flex-row gap-3 items-center mt-2">
-          {canRetry && cookieVoucher ? (
-            <Button asChild variant="cta">
-              <a href={cookieVoucher.initPoint} rel="noopener noreferrer">
-                Tentar novamente o pagamento
-              </a>
+          {managementToken ? (
+            <Button
+              variant="cta"
+              disabled={resuming}
+              onClick={() => void handleResume()}
+            >
+              {resuming ? "Verificando..." : "Continuar o pagamento"}
             </Button>
           ) : null}
           <BackHomeButton />
         </div>
+        {!managementToken && savedReady && (
+          <p className="max-w-md text-center text-fg-muted">
+            Para continuar o pagamento, abra esta compra no navegador onde ela
+            foi iniciada ou fale com a nossa equipe informando o código{" "}
+            {voucher.code}.
+          </p>
+        )}
+        {resumeMessage && (
+          <p role="alert" className="text-warning-text">
+            {resumeMessage}
+          </p>
+        )}
       </StatusScreen>
     );
   }
