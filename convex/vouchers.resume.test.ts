@@ -266,3 +266,60 @@ test("server re-checks the voucher status dynamically; saved address alone is ne
     expect(secondResult.redirectUrl).toBe("/pagamento?external_reference=DYN001");
   }
 });
+
+const pendingVoucher = {
+  managementToken: "resume-token",
+  name: "Visitante Teste",
+  phone: "11999991111",
+  adults: 1,
+  elderly: 0,
+  adultsPool: 0,
+  elderlyPool: 0,
+  priceCents: 7000,
+  status: "pending" as const,
+  visitDate,
+  isTest: false,
+};
+
+test("an embedded purchase resumes on the internal checkout whatever address the browser saved", async () => {
+  const t = createConvexTest();
+  await t.run((ctx) =>
+    ctx.db.insert("vouchers", {
+      ...pendingVoucher,
+      code: "EMB001",
+      expiresAt: Date.now() + 1000 * 60 * 60,
+    }),
+  );
+
+  const result = await t.mutation(api.vouchers.resumePayment, {
+    code: "EMB001",
+    managementToken: "resume-token",
+    savedInitPoint: "https://mercadopago.example/checkout/OLD",
+  });
+
+  expect(result).toEqual({
+    kind: "resumed",
+    code: "EMB001",
+    checkoutUrl: "/pagar/EMB001",
+  });
+});
+
+test("a saved address that is not https is never used as a checkout destination", async () => {
+  const t = createConvexTest();
+  await t.run((ctx) =>
+    ctx.db.insert("vouchers", {
+      ...pendingVoucher,
+      code: "PRO002",
+      expiresAt: Date.now() + 1000 * 60 * 60,
+      preferenceId: "pref-pro002",
+    }),
+  );
+
+  await expect(
+    t.mutation(api.vouchers.resumePayment, {
+      code: "PRO002",
+      managementToken: "resume-token",
+      savedInitPoint: "javascript:alert(1)",
+    }),
+  ).rejects.toThrow(ConvexError);
+});

@@ -1,7 +1,12 @@
 import { v } from "convex/values";
 
 import { internal } from "./_generated/api";
-import { action, internalMutation, type ActionCtx } from "./_generated/server";
+import {
+  action,
+  internalMutation,
+  internalQuery,
+  type ActionCtx,
+} from "./_generated/server";
 import { requireRole } from "./lib/auth";
 import { patchVoucher } from "./lib/voucherWrites";
 import type { PaymentSnapshot } from "./lib/paymentOperation";
@@ -59,6 +64,68 @@ export const claim = internalMutation({
   },
 });
 
+// A charge still being created by the submitting tab is left alone this long.
+const RECOVERY_MIN_AGE_MS = 30_000;
+
+/** The newest Payment Attempt whose provider result was never recorded. */
+export const findUnsettledAttempt = internalQuery({
+  args: { code: v.string() },
+  returns: v.union(
+    v.object({
+      attemptId: v.id("paymentAttempts"),
+      operationId: v.id("paymentOperations"),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, { code }) => {
+    const latest = await ctx.db
+      .query("paymentAttempts")
+      .withIndex("by_voucherCode", (q) => q.eq("voucherCode", code))
+      .order("desc")
+      .first();
+    if (!latest) return null;
+    const unsettled =
+      latest.status === "uncertain" ||
+      (latest.status === "creating" &&
+        Date.now() - latest.updatedAt >= RECOVERY_MIN_AGE_MS);
+    return unsettled
+      ? { attemptId: latest._id, operationId: latest.operationId }
+      : null;
+  },
+});
+
+/**
+ * Finds the outcome of a charge whose response was lost or interrupted by
+ * running its own recorded operation again: same operation, same provider
+ * idempotency key, so the provider returns the original charge instead of
+ * creating another. If the provider still fails the attempt stays uncertain,
+ * because a failure proves nothing about whether a charge exists.
+ */
+async function recoverUnsettledAttempt(
+  ctx: ActionCtx,
+  code: string,
+): Promise<PaymentSnapshot | undefined> {
+  const unsettled = await ctx.runQuery(
+    internal.voucherReconciliation.findUnsettledAttempt,
+    { code },
+  );
+  if (!unsettled) return undefined;
+  try {
+    const result = await ctx.runAction(internal.paymentOperations.execute, {
+      id: unsettled.operationId,
+    });
+    if (Array.isArray(result) || !("amount" in result)) return undefined;
+    await ctx.runMutation(internal.paymentAttempts.settleAttempt, {
+      attemptId: unsettled.attemptId,
+      payment: result,
+    });
+    return result;
+  } catch (error) {
+    console.error("Falha ao recuperar cobrança incerta", code, error);
+    return undefined;
+  }
+}
+
 async function reconcile(
   ctx: ActionCtx,
   code: string,
@@ -70,9 +137,16 @@ async function reconcile(
   });
   if (!operationId) return "skipped";
 
-  const payments = (await ctx.runAction(internal.paymentOperations.execute, {
+  // Recovered first, so an approval it uncovers goes through the same
+  // idempotent confirmation below even if provider search lags behind.
+  const recovered = await recoverUnsettledAttempt(ctx, code);
+  const searched = (await ctx.runAction(internal.paymentOperations.execute, {
     id: operationId,
   })) as PaymentSnapshot[];
+  const payments =
+    recovered && !searched.some((payment) => payment.id === recovered.id)
+      ? [...searched, recovered]
+      : searched;
 
   let updated = false;
   for (const payment of payments) {

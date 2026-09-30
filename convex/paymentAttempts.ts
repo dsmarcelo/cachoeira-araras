@@ -247,6 +247,10 @@ export const settleAttempt = internalMutation({
   handler: async (ctx, { attemptId, payment }) => {
     const attempt = await ctx.db.get("paymentAttempts", attemptId);
     if (!attempt) throw new Error("Payment attempt not found");
+    // Only an unsettled attempt takes an answer; a stale reply (a late retry
+    // racing a webhook) never undoes what was already recorded.
+    if (attempt.status !== "creating" && attempt.status !== "uncertain")
+      return { status: attempt.status };
     const now = Date.now();
 
     if (payment === undefined) {

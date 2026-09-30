@@ -436,7 +436,10 @@ export const resumePayment = mutation({
         voucher.preferenceId === undefined && voucher.initPoint === undefined;
       const checkoutUrl = isEmbedded
         ? `/pagar/${voucher.code}`
-        : (voucher.initPoint ?? args.savedInitPoint);
+        : (voucher.initPoint ??
+          (args.savedInitPoint?.startsWith("https://")
+            ? args.savedInitPoint
+            : undefined));
       if (!checkoutUrl) {
         throw new ConvexError("Endereço de checkout não disponível.");
       }
