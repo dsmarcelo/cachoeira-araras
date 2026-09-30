@@ -1,32 +1,7 @@
-# Finance summaries
+# Finance integrity
 
-The admin financial report reads `financeDays`, not vouchers. One document per
-Sao Paulo purchase day (`purchasedAt`), holding net cents, voucher count, a
-24-hour breakdown, and totals by referrer and payment method. A day without
-revenue has no document.
+Vouchers are the source of truth. Daily summaries are derived, recomputable data grouped by São Paulo purchase day. A day with no qualifying revenue has no summary. Product inclusion rules are defined in [Payments and reporting](../product/payments.md).
 
-## Rules
+Voucher updates pass through a shared write boundary that schedules recomputation when their revenue contribution changes. Recalculation covers both old and new purchase days where necessary. Reports are eventually consistent with these scheduled writes; do not repair totals by editing summaries manually.
 
-- **Derived and recomputable.** Vouchers are the source of truth. Any day can be
-  rebuilt from them (`finance.recomputeDay`); never edit `financeDays` by hand.
-- **What counts** is defined once in `countsTowardRevenue`
-  (`convex/lib/financeSummary.ts`): real voucher, approved payment, status
-  valid/redeemed/expired, no reversal.
-- **One write point.** Every patch of a voucher goes through `patchVoucher`
-  (`convex/lib/voucherWrites.ts`). When the patch changes the voucher's revenue
-  contribution it schedules `recomputeDay` for the old and new purchase day.
-  Scheduled, not inline, so payment mutations stay small and conflict-free.
-  There must be no direct `ctx.db.patch` on a voucher elsewhere.
-- **Bulk inserts** (`convex/import.ts`) and backfills do not schedule recomputes.
-- **Safety net.** A daily cron recomputes the last 7 days.
-
-## Operations
-
-After the first deploy of this table, and after any bulk import (including
-`npx convex import`, which bypasses `convex/import.ts`):
-
-1. `npx convex run migrations:backfillVoucherPurchasedAtAndSearchText`
-   (fills `purchasedAt`, which the summaries need, and `searchText`/`isActive`,
-   which the admin table search needs).
-2. `npx convex run finance:rebuildAll` (walks every day from the earliest
-   purchase to today in batches and removes stale summaries).
+Bulk imports bypass ordinary update scheduling. After an import, complete the purchase-date/search backfill before rebuilding summaries. See the [import runbook](../operations/postgres-to-convex-cutover.md). The daily safety job recomputes the most recent seven days; it cannot repair older imported history by itself.

@@ -1,40 +1,13 @@
-# Recoverable Mercado Pago operations
+# Payment integrity
 
-Preference invalidation, payment discovery, cancellation and full refunds record
-an immutable intent before contacting Mercado Pago. The owning transaction keeps
-that intent's identifier and reuses it for retries; a fresh payment discovery
-needs a fresh intent because completed results are snapshots.
+The Next.js webhook verifies Mercado Pago's signature and fetches the payment from the provider. A shared service secret authenticates its call into Convex. Production requires the signing secret; legacy IPN notifications are rejected. Browser return parameters cannot authorize payment approval.
 
-Every request carries the intent-derived idempotency key. Refund retries rely on
-Mercado Pago's refund idempotency protection. Preference expiry and cancellation
-also read provider state to recognize effects whose response was lost.
+Each provider payment identifier is recorded individually. Repeated delivery of the same payment status is idempotent. Transactional confirmation selects one Official Payment; concurrent approvals cannot grant two entries. Excess approvals and approvals after cancellation queue full refunds without changing entitlement. Reversals preserve a recorded redemption and remove its revenue contribution.
 
-A failed or interrupted call leaves the intent unresolved. Retrying reconciles
-it; a concurrent failure cannot overwrite a recorded success. These internal
-primitives do not schedule work or change Voucher state by themselves.
+Preference invalidation, discovery, cancellation and refunds persist an immutable operation intent before provider calls. Retries reuse the intent and its idempotency key. Completed discovery is a snapshot; a later discovery needs a fresh intent. Failed calls remain unresolved, and a concurrent failure cannot overwrite success.
 
-An operation result records what the provider returned. A refund response is not
-proof of completed reimbursement unless its status confirms approval. Likewise,
-cancellation can return an approved payment when approval won the race.
+A provider response alone is not proof of reimbursement: approval must be confirmed. Cancellation may discover an approved payment if approval won the race. Discovery scans up to 1,000 payments without date or status restrictions and fails if results are incomplete; errors never mean an empty history.
 
-Payment discovery has no date or status restriction, reads up to 1,000 payments,
-and fails instead of returning a partial result when the scan is incomplete.
-Provider errors are never interpreted as an empty payment history.
+Authorized Pending purchase reads reconcile with the provider at most once per Voucher per minute. Discovered approvals use the same confirmation path as webhooks. Marketing failures do not block payment confirmation, and Test Vouchers produce no conversion event.
 
-Opening My Vouchers or the admin voucher table checks pending purchases against
-Mercado Pago when an authorized caller is present. Checks are limited to once
-per voucher per minute and reuse an unresolved discovery intent after failure.
-An approved payment enters the same idempotent confirmation path as the webhook.
-
-Provider rejection errors stop automatic attempts and require staff review;
-rate limiting remains retryable.
-Other failures stop after five attempts per retry cycle; resuming a held refund
-reuses its original payment operation and idempotency key. An admin retry first
-checks the provider's current payment, ownership, amount and refunded total.
-A full prior refund is recorded as completed without another provider request;
-a partial refund or mismatch blocks the retry for manual investigation.
-
-Admins can request a full refund for a voucher's official payment. The backend
-checks the provider's payment ID, voucher reference, amount and refund state
-before queuing it. Confirmation invalidates an unused voucher; a redeemed
-voucher retains its redemption and records a reversal warning.
+Provider rejection stops automatic refund attempts for staff review; rate limiting remains retryable. Other failures stop after five attempts per retry cycle. A resumed refund reuses the original intent. Before an administrator retry, provider payment identity, Voucher ownership, amount and refunded total are checked. An already completed full refund is recorded without another request; partial refunds and mismatches require investigation.
