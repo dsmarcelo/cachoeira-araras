@@ -113,19 +113,6 @@ test("a charge whose response was lost is recovered on return, without a second 
   expect(new Set(createKeys()).size).toBe(1);
 });
 
-test("while the result is uncertain no other charge can be created", async () => {
-  const t = createConvexTest();
-  await seedVoucher(t);
-  await submitWithLostResponse(t);
-
-  await expect(submit(t)).rejects.toThrow(/verificando/);
-
-  vi.setSystemTime(Date.now() + 2 * MINUTE);
-  await reconcile(t);
-
-  await expect(submit(t)).rejects.toThrow(/em andamento/);
-  expect(mpFake.payments.size).toBe(1);
-});
 
 test("a failed recovery never frees the purchase for another charge", async () => {
   const t = createConvexTest();
@@ -141,7 +128,11 @@ test("a failed recovery never frees the purchase for another charge", async () =
   vi.setSystemTime(Date.now() + 2 * MINUTE);
   await reconcile(t);
   expect((await attemptsOf(t))[0]?.status).toBe("uncertain");
-  await expect(submit(t)).rejects.toThrow(/verificando/);
+  mpFake.respondWith("createPayment", "transientFailure");
+  const blocked = await submit(t);
+  expect(blocked.status).toBe("uncertain");
+  expect(blocked.message).toMatch(/verificando/);
+  expect(mpFake.payments.size).toBe(1);
 });
 
 test("recovering twice leaves the same attempt and the same charge", async () => {

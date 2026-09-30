@@ -218,6 +218,9 @@ const paymentAttempts = defineTable({
   voucherCode: v.string(),
   requestId: v.string(),
   operationId: v.id("paymentOperations"),
+  // The `cancel` operation that closes this charge at the provider. Shared by
+  // every tab so a retry (or a second tab) repeats it instead of starting another.
+  closeOperationId: v.optional(v.id("paymentOperations")),
   method: v.union(v.literal("pix"), v.literal("card")),
   status: paymentAttemptStatus,
   paymentId: v.optional(v.string()),

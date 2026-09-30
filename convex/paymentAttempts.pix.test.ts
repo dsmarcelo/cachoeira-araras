@@ -154,15 +154,17 @@ test("concurrent submissions from two tabs create only one charge", async () => 
   expect(await attemptsOf(t)).toHaveLength(1);
 });
 
-test("a lost provider response leaves an uncertain attempt that blocks another charge", async () => {
+test("a lost provider response leaves an uncertain attempt that blocks another charge while it cannot be checked", async () => {
   const t = createConvexTest();
   await seedVoucher(t);
-  mpFake.respondWith("createPayment", "lostResponse");
+  mpFake.respondWith("createPayment", "lostResponse", "transientFailure");
 
   const first = await submit(t);
   expect(first.status).toBe("uncertain");
 
-  await expect(submit(t)).rejects.toThrow(/verificando/);
+  const second = await submit(t);
+  expect(second.status).toBe("uncertain");
+  expect(second.message).toMatch(/verificando/);
   expect(mpFake.payments.size).toBe(1);
 });
 
@@ -194,13 +196,6 @@ test("a request the provider refuses outright can be corrected and sent again", 
   expect(mpFake.payments.size).toBe(1);
 });
 
-test("a pending Pix keeps blocking new charges while its deadline runs", async () => {
-  const t = createConvexTest();
-  await seedVoucher(t);
-  await submit(t);
-
-  await expect(submit(t)).rejects.toThrow(/em andamento/);
-});
 
 test("Voucher states that cannot be paid never reach the provider", async () => {
   const t = createConvexTest();

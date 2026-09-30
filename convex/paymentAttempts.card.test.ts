@@ -158,7 +158,7 @@ test("a declined card explains why and allows another try on the same Voucher an
   expect(voucher).toMatchObject({ code: "BRICK1", priceCents: 14000 });
 });
 
-test("a card that needs bank authentication exposes the challenge and blocks other charges", async () => {
+test("a card that needs bank authentication exposes the challenge", async () => {
   const t = createConvexTest();
   await seedVoucher(t);
   mpFake.createNext({
@@ -176,8 +176,6 @@ test("a card that needs bank authentication exposes the challenge and blocks oth
     method: "card",
     challenge: { externalResourceUrl: "https://bank.example/3ds", creq: "abc" },
   });
-  await expect(payByCard(t)).rejects.toThrow(/em andamento/);
-  await expect(payByPix(t)).rejects.toThrow(/em andamento/);
   expect(mpFake.payments.size).toBe(1);
 });
 
@@ -217,15 +215,16 @@ test("a card under review is not declined and blocks another charge", async () =
   await expect(payByCard(t)).rejects.toThrow(/em andamento/);
 });
 
-test("a lost provider response is uncertain and blocks any other charge until recovered", async () => {
+test("a lost provider response is recovered by the next request instead of charging twice", async () => {
   const t = createConvexTest();
   await seedVoucher(t);
   mpFake.respondWith("createPayment", "lostResponse");
   const requestId = crypto.randomUUID();
 
   expect((await payByCard(t, { requestId })).status).toBe("uncertain");
-  await expect(payByCard(t)).rejects.toThrow(/verificando/);
-  await expect(payByPix(t)).rejects.toThrow(/verificando/);
+  const another = await payByPix(t);
+  expect(another.status).toBe("approved");
+  expect(mpFake.payments.size).toBe(1);
 
   const recovered = await payByCard(t, { requestId });
   expect(recovered.status).toBe("approved");

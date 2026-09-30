@@ -11,6 +11,10 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { paymentSnapshot, type PaymentSnapshot } from "./lib/paymentOperation";
+import {
+  RECOVERY_MIN_AGE_MS,
+  recoverUnsettledAttempt,
+} from "./voucherReconciliation";
 import { describeCardRejection } from "./lib/cardRejection";
 import {
   planPix,
@@ -501,6 +505,217 @@ async function runCharge(
   });
 }
 
+const closureStep = v.union(
+  v.object({ kind: v.literal("clear") }),
+  v.object({ kind: v.literal("paid") }),
+  // Another tab is creating a charge right now; it is left to finish.
+  v.object({ kind: v.literal("busy") }),
+  // The latest request has no known charge: run its own operation again.
+  v.object({ kind: v.literal("recover") }),
+  v.object({
+    kind: v.literal("cancel"),
+    attemptId: v.id("paymentAttempts"),
+    operationId: v.id("paymentOperations"),
+  }),
+);
+
+/**
+ * Decides what must happen before another charge may start: nothing, recover
+ * a request whose result was lost, or close the current charge at the
+ * provider. The close operation is recorded once on the attempt, so every tab
+ * and retry repeats the same one. A `requestId` that already has an attempt is
+ * a resend and never closes anything.
+ */
+export const beginClosure = internalMutation({
+  args: {
+    code: v.string(),
+    managementToken: v.string(),
+    requestId: v.optional(v.string()),
+  },
+  returns: closureStep,
+  handler: async (ctx, args) => {
+    const voucher = await findVoucher(ctx, args.code);
+    if (!voucher) throw new ConvexError("Voucher não encontrado.");
+    if (!isAuthorized(voucher, args.managementToken))
+      throw new ConvexError(notAuthorizedMessage);
+
+    const { requestId } = args;
+    if (requestId !== undefined) {
+      const resend = await ctx.db
+        .query("paymentAttempts")
+        .withIndex("by_voucherCode_and_requestId", (q) =>
+          q.eq("voucherCode", voucher.code).eq("requestId", requestId),
+        )
+        .unique();
+      if (resend) return { kind: "clear" as const };
+    }
+    // Not payable anymore: the charge itself will explain why it is refused.
+    if (voucher.status !== "pending") return { kind: "clear" as const };
+
+    const latest = await ctx.db
+      .query("paymentAttempts")
+      .withIndex("by_voucherCode", (q) => q.eq("voucherCode", voucher.code))
+      .order("desc")
+      .first();
+    if (!latest) return { kind: "clear" as const };
+    // Approved but the Voucher is not confirmed yet: never charge again.
+    if (latest.status === "approved") return { kind: "paid" as const };
+    // A charge under review is not closed for the buyer's convenience; the
+    // new charge is refused while it is in progress.
+    if (latest.status === "in_process" || !blockingStatuses.has(latest.status))
+      return { kind: "clear" as const };
+
+    if (latest.paymentId === undefined) {
+      return latest.status === "creating" &&
+        Date.now() - latest.updatedAt < RECOVERY_MIN_AGE_MS
+        ? { kind: "busy" as const }
+        : { kind: "recover" as const };
+    }
+    let operationId = latest.closeOperationId;
+    if (operationId === undefined) {
+      operationId = await ctx.db.insert("paymentOperations", {
+        request: { kind: "cancel", paymentId: latest.paymentId },
+      });
+      await ctx.db.patch("paymentAttempts", latest._id, {
+        closeOperationId: operationId,
+      });
+    }
+    return { kind: "cancel" as const, attemptId: latest._id, operationId };
+  },
+});
+
+/** Records that the provider confirmed the end of a charge that was not paid. */
+export const markClosed = internalMutation({
+  args: {
+    attemptId: v.id("paymentAttempts"),
+    statusDetail: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { attemptId, statusDetail }) => {
+    const attempt = await ctx.db.get("paymentAttempts", attemptId);
+    if (attempt && blockingStatuses.has(attempt.status))
+      await ctx.db.patch("paymentAttempts", attemptId, {
+        status: "cancelled",
+        ...(statusDetail ? { statusDetail } : {}),
+        updatedAt: Date.now(),
+      });
+    return null;
+  },
+});
+
+const releaseResult = v.union(
+  v.object({ kind: v.literal("released") }),
+  v.object({ kind: v.literal("paid") }),
+  v.object({ kind: v.literal("blocked"), message: v.string() }),
+);
+type ReleaseResult = Infer<typeof releaseResult>;
+
+const blockedMessages = {
+  busy: "Outro pagamento está sendo iniciado para esta compra. Aguarde alguns segundos e tente novamente.",
+  uncertain:
+    "Ainda estamos verificando o resultado do pagamento anterior. Aguarde alguns instantes antes de tentar novamente.",
+  close:
+    "Não conseguimos confirmar o encerramento do pagamento anterior. Sua compra continua reservada; tente novamente em instantes.",
+} as const;
+
+/**
+ * Makes the purchase free of an open charge, or says why it is not. Another
+ * charge may only start after the provider confirms the previous one ended;
+ * any failure to check or close leaves the result uncertain and blocks.
+ * An approval found on the way wins: the Voucher is confirmed as paid.
+ */
+async function closeActiveCharge(
+  ctx: ActionCtx,
+  args: { code: string; managementToken: string; requestId?: string },
+): Promise<ReleaseResult> {
+  // One recovery of a lost request, then the close of whatever it produced.
+  for (let round = 0; round < 2; round++) {
+    const step = await ctx.runMutation(internal.paymentAttempts.beginClosure, {
+      code: args.code,
+      managementToken: args.managementToken,
+      requestId: args.requestId,
+    });
+    switch (step.kind) {
+      case "clear":
+        return { kind: "released" };
+      case "paid":
+        return { kind: "paid" };
+      case "busy":
+        return { kind: "blocked", message: blockedMessages.busy };
+      case "recover":
+        // A recovery that failed leaves the result uncertain: never retried in
+        // the same call, so the provider is not hit twice for one click.
+        if (round > 0)
+          return { kind: "blocked", message: blockedMessages.uncertain };
+        await recoverUnsettledAttempt(ctx, args.code);
+        continue;
+      case "cancel": {
+        let payment: PaymentSnapshot;
+        try {
+          const result = await ctx.runAction(
+            internal.paymentOperations.execute,
+            { id: step.operationId },
+          );
+          if (Array.isArray(result) || !("status" in result))
+            return { kind: "blocked", message: blockedMessages.close };
+          payment = result as PaymentSnapshot;
+        } catch {
+          return { kind: "blocked", message: blockedMessages.close };
+        }
+        if (payment.status === "approved") {
+          await ctx.runMutation(internal.vouchers.confirmPayment, {
+            code: args.code,
+            paymentId: payment.id,
+            paymentStatus: "approved",
+            paymentAmountCents: Math.round(payment.amount * 100),
+            paymentCurrency: payment.currency,
+            paymentTypeId: payment.paymentTypeId,
+            paymentMethodId: payment.paymentMethodId,
+          });
+          return { kind: "paid" };
+        }
+        if (attemptStatusFromProvider(payment.status) !== "cancelled")
+          return { kind: "blocked", message: blockedMessages.close };
+        await ctx.runMutation(internal.paymentAttempts.markClosed, {
+          attemptId: step.attemptId,
+          statusDetail: payment.statusDetail,
+        });
+        return { kind: "released" };
+      }
+    }
+  }
+  return { kind: "blocked", message: blockedMessages.uncertain };
+}
+
+/**
+ * Closes the current charge (for example an expired Pix, or before the buyer
+ * picks another way to pay) so the payment page can offer a new one. Never
+ * changes the Voucher. Returns `paid` when the provider reports an approval.
+ */
+export const releaseCharge = action({
+  args: { code: v.string(), managementToken: v.string() },
+  returns: releaseResult,
+  handler: async (ctx, args): Promise<ReleaseResult> =>
+    await closeActiveCharge(ctx, args),
+});
+
+/**
+ * Closes any open charge, then sends the recorded one. A charge that cannot be
+ * closed leaves the result `uncertain` and creates nothing; an approval found
+ * while closing is reported as `approved`.
+ */
+async function replaceAndCharge(
+  ctx: ActionCtx,
+  args: { code: string; managementToken: string; requestId: string },
+  begin: () => Promise<Infer<typeof beginResult>>,
+): Promise<Infer<typeof chargeResult>> {
+  const closed = await closeActiveCharge(ctx, args);
+  if (closed.kind === "paid") return { status: "approved" };
+  if (closed.kind === "blocked")
+    return { status: "uncertain", message: closed.message };
+  return await runCharge(ctx, await begin());
+}
+
 /**
  * The buyer's request to pay by Pix. The server owns amount, reference,
  * expiry and notification address; the browser only supplies its request
@@ -518,9 +733,8 @@ export const submitPixPayment = action({
   },
   returns: chargeResult,
   handler: async (ctx, args): Promise<Infer<typeof chargeResult>> =>
-    await runCharge(
-      ctx,
-      await ctx.runMutation(internal.paymentAttempts.beginPixAttempt, args),
+    await replaceAndCharge(ctx, args, () =>
+      ctx.runMutation(internal.paymentAttempts.beginPixAttempt, args),
     ),
 });
 
@@ -544,9 +758,8 @@ export const submitCardPayment = action({
   },
   returns: chargeResult,
   handler: async (ctx, args): Promise<Infer<typeof chargeResult>> =>
-    await runCharge(
-      ctx,
-      await ctx.runMutation(internal.paymentAttempts.beginCardAttempt, args),
+    await replaceAndCharge(ctx, args, () =>
+      ctx.runMutation(internal.paymentAttempts.beginCardAttempt, args),
     ),
 });
 

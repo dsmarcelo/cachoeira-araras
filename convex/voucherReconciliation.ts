@@ -65,7 +65,7 @@ export const claim = internalMutation({
 });
 
 // A charge still being created by the submitting tab is left alone this long.
-const RECOVERY_MIN_AGE_MS = 30_000;
+export const RECOVERY_MIN_AGE_MS = 30_000;
 
 /** The newest Payment Attempt whose provider result was never recorded. */
 export const findUnsettledAttempt = internalQuery({
@@ -101,7 +101,7 @@ export const findUnsettledAttempt = internalQuery({
  * creating another. If the provider still fails the attempt stays uncertain,
  * because a failure proves nothing about whether a charge exists.
  */
-async function recoverUnsettledAttempt(
+export async function recoverUnsettledAttempt(
   ctx: ActionCtx,
   code: string,
 ): Promise<PaymentSnapshot | undefined> {
