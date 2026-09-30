@@ -8,6 +8,24 @@ export const operationRequest = v.union(
   v.object({ kind: v.literal("search"), externalReference: v.string() }),
   v.object({ kind: v.literal("cancel"), paymentId: v.string() }),
   v.object({ kind: v.literal("refund"), paymentId: v.string() }),
+  // Creates a charge on the embedded checkout. The whole body is persisted so
+  // every retry resends exactly the same request under the same idempotency
+  // key. `payer` is personal data: keep it in this internal table only.
+  v.object({
+    kind: v.literal("createPayment"),
+    externalReference: v.string(),
+    amountCents: v.number(),
+    description: v.string(),
+    paymentMethodId: v.string(),
+    payer: v.object({
+      email: v.string(),
+      identification: v.optional(
+        v.object({ type: v.string(), number: v.string() }),
+      ),
+    }),
+    // date_of_expiration (epoch ms) of a Pix charge.
+    expiresAt: v.number(),
+  }),
 );
 
 export const paymentSnapshot = v.object({
@@ -18,6 +36,11 @@ export const paymentSnapshot = v.object({
   refundedAmount: v.number(),
   paymentTypeId: v.optional(v.string()),
   paymentMethodId: v.optional(v.string()),
+  currency: v.optional(v.string()),
+  statusDetail: v.optional(v.string()),
+  // Pix charge deadline (epoch ms) and copy-and-paste data, when present.
+  expiresAt: v.optional(v.number()),
+  pix: v.optional(v.object({ qrCode: v.string(), qrCodeBase64: v.string() })),
 });
 
 export const operationResult = v.union(
@@ -34,3 +57,7 @@ export type OperationResult = Infer<typeof operationResult>;
 export type OperationRequest = Infer<typeof operationRequest>;
 export type PaymentSnapshot = Infer<typeof paymentSnapshot>;
 export type ProviderIntent = { idempotencyKey: string; recordedAt: number };
+export type CreatePaymentRequest = Extract<
+  OperationRequest,
+  { kind: "createPayment" }
+>;

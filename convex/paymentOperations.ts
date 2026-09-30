@@ -16,6 +16,7 @@ import {
   invalidatePreference,
   findPaymentsByExternalReference,
   cancelPayment,
+  createPayment,
 } from "./lib/mercadopagoOperations";
 import { MercadoPagoApiError } from "./lib/mercadopagoError";
 
@@ -107,6 +108,9 @@ export const execute = internalAction({
           break;
         case "cancel":
           result = await cancelPayment(request.paymentId, providerIntent);
+          break;
+        case "createPayment":
+          result = await createPayment(request, providerIntent);
           break;
         case "search":
           result = await findPaymentsByExternalReference(

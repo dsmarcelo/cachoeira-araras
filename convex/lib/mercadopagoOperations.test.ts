@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   cancelPayment,
+  createPayment,
   findPaymentsByExternalReference,
   invalidatePreference,
   refundPayment,
@@ -214,3 +215,63 @@ test.each([
     ).rejects.toThrow();
   },
 );
+
+const pixRequest = {
+  kind: "createPayment" as const,
+  externalReference: "ABC123",
+  amountCents: 7050,
+  description: "Voucher ABC123",
+  paymentMethodId: "pix",
+  payer: { email: "visitante@example.com" },
+  expiresAt: Date.parse("2026-09-01T12:30:10Z"),
+};
+
+test("creating a Pix charge sends the server-owned amount, reference and expiry under the recorded idempotency key", async () => {
+  replies = [
+    {
+      ...payment,
+      status: "pending",
+      status_detail: "pending_waiting_transfer",
+      transaction_amount: 70.5,
+      currency_id: "BRL",
+      payment_method_id: "pix",
+      payment_type_id: "bank_transfer",
+      date_of_expiration: "2026-09-01T12:30:10.000+00:00",
+      point_of_interaction: {
+        transaction_data: { qr_code: "000201pix", qr_code_base64: "iVBOR" },
+      },
+    },
+  ];
+
+  const created = await createPayment(pixRequest, intent);
+
+  expect(created).toMatchObject({
+    id: "123",
+    status: "pending",
+    statusDetail: "pending_waiting_transfer",
+    amount: 70.5,
+    currency: "BRL",
+    expiresAt: Date.parse("2026-09-01T12:30:10Z"),
+    pix: { qrCode: "000201pix", qrCodeBase64: "iVBOR" },
+  });
+  expect(calls).toHaveLength(1);
+  expect(calls[0]!.url).toBe("https://api.mercadopago.com/v1/payments");
+  expect(calls[0]!.init).toMatchObject({
+    method: "POST",
+    headers: { "X-Idempotency-Key": "mp-recorded-intent" },
+  });
+  expect(JSON.parse(calls[0]!.init.body as string)).toMatchObject({
+    transaction_amount: 70.5,
+    payment_method_id: "pix",
+    external_reference: "ABC123",
+    description: "Voucher ABC123",
+    payer: { email: "visitante@example.com" },
+    date_of_expiration: "2026-09-01T12:30:10.000Z",
+  });
+});
+
+test("a Pix response without its QR code is not accepted as a created charge", async () => {
+  replies = [{ ...payment, status: "pending", currency_id: "BRL" }];
+
+  await expect(createPayment(pixRequest, intent)).rejects.toThrow();
+});
