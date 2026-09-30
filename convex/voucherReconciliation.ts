@@ -114,12 +114,15 @@ async function recoverUnsettledAttempt(
     const result = await ctx.runAction(internal.paymentOperations.execute, {
       id: unsettled.operationId,
     });
-    if (Array.isArray(result) || !("amount" in result)) return undefined;
+    // `execute` is shared by every operation kind; a charge returns one payment.
+    if (Array.isArray(result) || !("status" in result && "amount" in result))
+      return undefined;
+    const payment = result as PaymentSnapshot;
     await ctx.runMutation(internal.paymentAttempts.settleAttempt, {
       attemptId: unsettled.attemptId,
-      payment: result,
+      payment,
     });
-    return result;
+    return payment;
   } catch (error) {
     console.error("Falha ao recuperar cobrança incerta", code, error);
     return undefined;

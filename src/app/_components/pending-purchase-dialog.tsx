@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useQuery, useAction } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api as convexApi } from "../../../convex/_generated/api";
 import {
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { formatQuantity, formatVoucherStatus } from "@/lib/voucher";
 import { formatPhone } from "@/lib/utils";
+import { useResumePayment } from "@/lib/voucher/use-resume-payment";
 import {
   readVouchers,
   touchFinancialEvent,
@@ -63,7 +64,7 @@ export default function PendingPurchaseDialog({
   onCancel,
 }: PendingPurchaseDialogProps) {
   const router = useRouter();
-  const resumePaymentMutation = useMutation(convexApi.vouchers.resumePayment);
+  const resumePayment = useResumePayment();
   const cancelPurchaseAction = useAction(
     convexApi.vouchers.cancelPendingPurchase,
   );
@@ -110,34 +111,22 @@ export default function PendingPurchaseDialog({
       }
 
       if (!token) {
-        throw new Error(
-          "Não foi possível encontrar a autorização desta compra neste navegador.",
+        setErrorMessage(
+          "Não foi possível encontrar a autorização desta compra neste navegador. Retome o pagamento pelo navegador onde ela foi iniciada ou fale com a nossa equipe.",
         );
+        return;
       }
 
-      const result = await resumePaymentMutation({
+      const message = await resumePayment({
         code,
         managementToken: token,
         savedInitPoint,
       });
-
-      if (result.kind === "resumed") {
-        window.location.assign(result.checkoutUrl);
-        return;
-      }
-
-      if (result.kind === "already_paid") {
-        router.push(result.redirectUrl);
-        return;
-      }
-
-      if (result.kind === "terminal") {
-        setErrorMessage(result.message);
-      }
-      onResume?.(code);
+      if (message) setErrorMessage(message);
+      else onResume?.(code);
     } catch {
       setErrorMessage(
-        "Não foi possível verificar o pagamento agora. Tente novamente em instantes.",
+        "Não foi possível ler as compras salvas neste navegador. Tente novamente em instantes.",
       );
     } finally {
       setResumingCode(null);

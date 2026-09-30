@@ -15,6 +15,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { PixPanel } from "./pix-panel";
 
 const RECONCILE_INTERVAL_MS = 15_000;
+const SLOW_LOAD_MS = 10_000;
 
 const terminalMessages: Record<string, string> = {
   cancelled: "Esta compra foi cancelada e não pode mais ser paga.",
@@ -30,6 +31,20 @@ function useNow(intervalMs = 1000) {
     return () => clearInterval(id);
   }, [intervalMs]);
   return now;
+}
+
+/** True once `active` has lasted `delayMs`, e.g. to explain a slow connection. */
+function useElapsed(active: boolean, delayMs: number) {
+  const [elapsed, setElapsed] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      setElapsed(false);
+      return;
+    }
+    const id = setTimeout(() => setElapsed(true), delayMs);
+    return () => clearTimeout(id);
+  }, [active, delayMs]);
+  return elapsed;
 }
 
 function newRequestId() {
@@ -114,6 +129,9 @@ export function EmbeddedCheckout({
   const [brickFailed, setBrickFailed] = useState(false);
   const [brickKey, setBrickKey] = useState(0);
   const [submitError, setSubmitError] = useState("");
+  // The last provider check failed (connection or provider); it says nothing
+  // about whether a charge exists, so the purchase stays blocked.
+  const [checkFailed, setCheckFailed] = useState(false);
   // One identity per submission: a resend keeps it, a refusal starts a new one.
   const requestId = useRef<string | null>(null);
 
@@ -142,14 +160,19 @@ export function EmbeddedCheckout({
   useEffect(() => {
     if (!isEmbeddedPending || !isAwaitingProvider || !managementToken) return;
     const check = () =>
-      void reconcile({ code, managementToken }).catch((error) =>
-        capturePaymentFlowException(error, "confirm_voucher", { code }),
-      );
+      void reconcile({ code, managementToken })
+        .then(() => setCheckFailed(false))
+        .catch((error) => {
+          capturePaymentFlowException(error, "confirm_voucher", { code });
+          setCheckFailed(true);
+        });
     check();
     const id = setInterval(check, RECONCILE_INTERVAL_MS);
     return () => clearInterval(id);
   }, [isEmbeddedPending, isAwaitingProvider, managementToken, code, reconcile]);
 
+  const isLoading = !ready || (Boolean(managementToken) && data === undefined);
+  const loadingIsSlow = useElapsed(isLoading, SLOW_LOAD_MS);
   const priceCents = data?.kind === "ok" ? data.voucher.priceCents : 0;
   // Stable across reactive updates so the Brick is not re-initialized.
   const brickInitialization = useMemo(
@@ -161,8 +184,17 @@ export function EmbeddedCheckout({
     [],
   );
 
-  if (!ready || (managementToken && data === undefined)) {
-    return <Notice title="Carregando sua compra..." />;
+  if (isLoading) {
+    return (
+      <Notice title="Carregando sua compra...">
+        {loadingIsSlow && (
+          <p role="alert" className="text-warning-text">
+            Está demorando mais que o normal. Confira sua conexão: sua compra
+            continua salva.
+          </p>
+        )}
+      </Notice>
+    );
   }
   if (!managementToken || data?.kind === "unauthorized") {
     return (
@@ -367,6 +399,12 @@ export function EmbeddedCheckout({
         </p>
       )}
       <PurchaseSummary voucher={voucher} />
+      {isAwaitingProvider && checkFailed && (
+        <p role="alert" className="text-warning-text">
+          Não conseguimos verificar o pagamento agora. Tentaremos de novo
+          automaticamente; não é preciso pagar outra vez.
+        </p>
+      )}
       {payment}
     </div>
   );

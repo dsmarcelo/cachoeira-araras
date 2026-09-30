@@ -31,7 +31,11 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { addDaysToDateKey, getSaoPauloDateKey } from "@/lib/utils/date";
 import NumberInput from "./input/number-input";
-import { setCachedManagementToken } from "@/lib/voucher/management-token-cache";
+import {
+  getCachedManagementToken,
+  setCachedManagementToken,
+} from "@/lib/voucher/management-token-cache";
+import { useResumePayment } from "@/lib/voucher/use-resume-payment";
 import {
   getCachedLookupToken,
   setCachedLookupToken,
@@ -55,6 +59,8 @@ export default function VoucherForm({
   const [lookupToken, setLookupToken] = useState<string | null>(null);
   const [pendingDialogOpen, setPendingDialogOpen] = useState(false);
   const [conflictPhone, setConflictPhone] = useState("");
+  const resumePayment = useResumePayment();
+  const [resumeError, setResumeError] = useState("");
   const managementTokens = useMemo(
     () =>
       vouchers
@@ -177,8 +183,26 @@ export default function VoucherForm({
     return value.replace(/\D/g, "");
   }
 
-  function redirectToPayment() {
-    router.push(init_point);
+  // The management token of the purchase on screen, if this browser holds it.
+  const managementToken =
+    vouchers.find((v) => v.code === code)?.managementToken ??
+    getCachedManagementToken(code);
+
+  // With the browser's authorization the server decides where the purchase can
+  // continue (internal checkout, Pro address or receipt). The saved address is
+  // only a hint for Pro and a last resort when there is no authorization.
+  async function redirectToPayment() {
+    setResumeError("");
+    if (!managementToken) {
+      router.push(init_point);
+      return;
+    }
+    const message = await resumePayment({
+      code,
+      managementToken,
+      savedInitPoint: init_point || undefined,
+    });
+    if (message) setResumeError(message);
   }
 
   async function onSubmit(data: FormSchema) {
@@ -273,13 +297,17 @@ export default function VoucherForm({
     );
   }
 
-  if (!isLoading && code && (init_point || payment_sucess_url)) {
+  if (
+    !isLoading &&
+    code &&
+    (init_point || payment_sucess_url || managementToken)
+  ) {
     return (
       <VoucherCreatedCard
         code={code}
         redirectToPayment={redirectToPayment}
         onNewPurchase={() => { setCode(""); setInitPoint(""); }}
-        warning={persistenceWarning || warning}
+        warning={resumeError || persistenceWarning || warning}
         payment_success_url={payment_sucess_url}
       />
     );

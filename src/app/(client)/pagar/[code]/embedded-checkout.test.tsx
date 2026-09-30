@@ -267,6 +267,53 @@ describe("EmbeddedCheckout", () => {
     expect(screen.queryByText("brick-ready")).toBeNull();
   });
 
+  it("checks an uncertain charge on arrival and shows the recovered Pix without a new charge", async () => {
+    mocks.checkout = checkout({
+      attempt: { ...pixAttempt, status: "uncertain", pix: undefined },
+    });
+    const view = renderPage();
+    await act(() => Promise.resolve());
+
+    expect(mocks.reconcile).toHaveBeenCalledWith({
+      code: "BRICK1",
+      managementToken: "token-1",
+    });
+    expect(mocks.submit).not.toHaveBeenCalled();
+
+    mocks.checkout = checkout({ attempt: pixAttempt });
+    view.rerender(<EmbeddedCheckout code="BRICK1" publicKey="TEST-key" />);
+
+    expect(screen.getByDisplayValue("000201pixcopiaecola")).toBeTruthy();
+  });
+
+  it("says the check failed without treating it as proof of no payment", async () => {
+    mocks.reconcile.mockRejectedValue(new Error("offline"));
+    mocks.checkout = checkout({
+      attempt: { ...pixAttempt, status: "uncertain", pix: undefined },
+    });
+    renderPage();
+    await act(() => Promise.resolve());
+
+    expect(screen.getByText(/Não conseguimos verificar o pagamento agora/)).toBeTruthy();
+    expect(screen.getByText(/Estamos verificando o seu pagamento/)).toBeTruthy();
+    expect(screen.queryByText("brick-ready")).toBeNull();
+  });
+
+  it("explains a slow connection instead of claiming the purchase does not exist", () => {
+    vi.useRealTimers();
+    vi.useFakeTimers();
+    mocks.checkout = undefined;
+    renderPage();
+    expect(screen.queryByText(/demorando mais que o normal/)).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+
+    expect(screen.getByText(/demorando mais que o normal/)).toBeTruthy();
+    expect(screen.queryByText(/não encontrada/i)).toBeNull();
+  });
+
   it("explains that a same-day Pix is no longer available after the cutoff", () => {
     mocks.checkout = checkout({ pixCutoffAt: EXPIRES_AT - 30 * 60_000 });
     renderPage();
