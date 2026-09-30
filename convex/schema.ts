@@ -43,7 +43,9 @@ const vouchers = defineTable({
 
   // Mercado Pago identifiers, needed to correlate checkout and webhook
   // delivery and to make payment confirmation idempotent.
-  preferenceId: v.string(),
+  // Checkout Pro preference. Absent on embedded (Bricks) purchases, whose
+  // payments are tracked in `paymentAttempts`.
+  preferenceId: v.optional(v.string()),
   paymentId: v.optional(v.string()),
   // Mercado Pago `payment_type_id` / `payment_method_id` of the Official
   // Payment, set when it makes the voucher valid (see `confirmPayment`).
@@ -195,6 +197,41 @@ const payments = defineTable({
   .index("by_voucherCode_and_isOfficial", ["voucherCode", "isOfficial"])
   .index("by_owesRefund", ["owesRefund"]);
 
+// One charge request for a Voucher on the embedded (Bricks) checkout. Its
+// status is the provider's view of that charge and is distinct from the
+// Voucher status: a rejected or pending attempt never cancels the Voucher.
+// `requestId` is the browser's identity for one submission, so a resend maps
+// to the same attempt (and the same provider idempotency key via
+// `operationId`). `uncertain` means the provider outcome is unknown; it blocks
+// any other charge until resolved. The payer's personal data lives only in the
+// operation request, never here.
+const paymentAttemptStatus = v.union(
+  v.literal("creating"),
+  v.literal("uncertain"),
+  v.literal("pending"),
+  v.literal("in_process"),
+  v.literal("approved"),
+  v.literal("rejected"),
+  v.literal("cancelled"),
+);
+const paymentAttempts = defineTable({
+  voucherCode: v.string(),
+  requestId: v.string(),
+  operationId: v.id("paymentOperations"),
+  method: v.literal("pix"),
+  status: paymentAttemptStatus,
+  paymentId: v.optional(v.string()),
+  statusDetail: v.optional(v.string()),
+  // When the Pix charge stops being payable (epoch ms). Not the Voucher Expiry.
+  expiresAt: v.number(),
+  pix: v.optional(v.object({ qrCode: v.string(), qrCodeBase64: v.string() })),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index("by_voucherCode", ["voucherCode"])
+  .index("by_voucherCode_and_requestId", ["voucherCode", "requestId"])
+  .index("by_paymentId", ["paymentId"]);
+
 const paymentRefunds = defineTable({
   paymentId: v.string(),
   voucherCode: v.string(),
@@ -260,6 +297,7 @@ export default defineSchema({
   financeDays,
   settings,
   payments,
+  paymentAttempts,
   paymentRefunds,
   operationalAlerts,
   paymentOperations: defineTable({

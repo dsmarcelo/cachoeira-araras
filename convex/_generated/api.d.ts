@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as authAdmin from "../authAdmin.js";
 import type * as crons from "../crons.js";
+import type * as embeddedCheckout from "../embeddedCheckout.js";
 import type * as finance from "../finance.js";
 import type * as http from "../http.js";
 import type * as import_ from "../import.js";
@@ -26,6 +27,7 @@ import type * as lib_serviceAuth from "../lib/serviceAuth.js";
 import type * as lib_settings from "../lib/settings.js";
 import type * as lib_siteUrl from "../lib/siteUrl.js";
 import type * as lib_voucherCode from "../lib/voucherCode.js";
+import type * as lib_voucherIntake from "../lib/voucherIntake.js";
 import type * as lib_voucherPurchase from "../lib/voucherPurchase.js";
 import type * as lib_voucherSearch from "../lib/voucherSearch.js";
 import type * as lib_voucherWrites from "../lib/voucherWrites.js";
@@ -49,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   authAdmin: typeof authAdmin;
   crons: typeof crons;
+  embeddedCheckout: typeof embeddedCheckout;
   finance: typeof finance;
   http: typeof http;
   import: typeof import_;
@@ -64,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   "lib/settings": typeof lib_settings;
   "lib/siteUrl": typeof lib_siteUrl;
   "lib/voucherCode": typeof lib_voucherCode;
+  "lib/voucherIntake": typeof lib_voucherIntake;
   "lib/voucherPurchase": typeof lib_voucherPurchase;
   "lib/voucherSearch": typeof lib_voucherSearch;
   "lib/voucherWrites": typeof lib_voucherWrites;

@@ -16,24 +16,20 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { getRole, requireRole } from "./lib/auth";
+import { requireRole } from "./lib/auth";
 import { createCheckoutPreference } from "./lib/mercadopago";
 import {
-  formatRetryAfter,
-  MAX_PENDING_VOUCHERS_PER_PHONE,
-  rateLimiter,
-} from "./lib/rateLimiter";
-import type { SettingValueMap } from "./lib/settings";
-import {
-  classifyReferrer,
   formatVoucherCheckoutDescription,
   generateVoucherCode,
-  splitCustomerName,
 } from "./lib/voucherCode";
+import { rateLimiter } from "./lib/rateLimiter";
+import {
+  pendingPurchaseMessage,
+  prepareVoucherIntake,
+} from "./lib/voucherIntake";
 import { countsAsRealVoucher } from "./lib/financeSummary";
 import { patchVoucher } from "./lib/voucherWrites";
 import { normalizeSearchQuery, voucherSearchText } from "./lib/voucherSearch";
-import { validateVoucherPurchase } from "./lib/voucherPurchase";
 import type { PaymentSnapshot } from "./lib/paymentOperation";
 
 export { countsAsRealVoucher };
@@ -434,7 +430,12 @@ export const resumePayment = mutation({
 
     // 4. Still pending and payable
     if (voucher.status === "pending") {
-      const checkoutUrl = voucher.initPoint ?? args.savedInitPoint;
+      // Embedded (Bricks) purchases have no Pro checkout: pay on our own page.
+      const isEmbedded =
+        voucher.preferenceId === undefined && voucher.initPoint === undefined;
+      const checkoutUrl = isEmbedded
+        ? `/pagar/${voucher.code}`
+        : (voucher.initPoint ?? args.savedInitPoint);
       if (!checkoutUrl) {
         throw new ConvexError("Endereço de checkout não disponível.");
       }
@@ -465,7 +466,7 @@ export const prepareCancellation = internalMutation({
       stage: v.literal("proceed"),
       searchOpId: v.id("paymentOperations"),
       invalidateOpId: v.optional(v.id("paymentOperations")),
-      preferenceId: v.string(),
+      preferenceId: v.optional(v.string()),
       voucherId: v.id("vouchers"),
     }),
     v.object({
@@ -900,16 +901,6 @@ export const referrerValidator = v.object({
   url: v.string(),
 });
 
-function buildReferrer(
-  referrerUrl: string | null | undefined,
-): { source: string; url: string } | undefined {
-  const normalized = referrerUrl?.trim();
-  if (!normalized) {
-    return undefined;
-  }
-  return { source: classifyReferrer(normalized), url: normalized };
-}
-
 /**
  * A voucher purchase: derive the price from the server environment (never
  * from client input), generate a short unique code, create the Mercado Pago
@@ -951,26 +942,8 @@ export const startCheckout = action({
     priceCents: number;
     managementToken: string;
   }> => {
-    const role = await getRole(ctx);
-    const canUseTestMode = role === "admin" || role === "employee";
-
-    const settings: SettingValueMap = await ctx.runQuery(
-      api.settings.getAll,
-      {},
-    );
-    const visitDate = getSaoPauloDateKey(new Date(args.visitDateMs));
-
-    const { priceCents } = validateVoucherPurchase(
-      {
-        adults: args.adults,
-        elderly: args.elderly,
-        adultsPool: args.adultsPool,
-        elderlyPool: args.elderlyPool,
-        visitDate,
-        testMode: args.testMode,
-      },
-      { canUseTestMode, settings },
-    );
+    const { priceCents, visitDate, expiresAt, isTest, referrer, firstName, surname } =
+      await prepareVoucherIntake(ctx, args);
 
     type InsertPendingVoucherResult =
       | { ok: true; managementToken: string }
@@ -978,42 +951,8 @@ export const startCheckout = action({
       | {
           ok: false;
           reason: "pending_conflict";
-          operationId: Id<"paymentOperations">;
+          operationId?: Id<"paymentOperations">;
         };
-
-    // Ceiling on unexpired Pending Vouchers per phone, checked before any
-    // rate-limit token is spent: an abandoned pending checkout should send
-    // the customer back to finish that one, not toward "wait and retry".
-    const pendingCount: number = await ctx.runQuery(
-      internal.vouchers.countUnexpiredPendingByPhone,
-      { phone: args.phone, now: Date.now() },
-    );
-    if (pendingCount >= MAX_PENDING_VOUCHERS_PER_PHONE) {
-      throw new ConvexError(
-        "Você já tem uma compra pendente com este telefone. Finalize o pagamento pendente (verifique o código enviado anteriormente) antes de iniciar uma nova compra.",
-      );
-    }
-
-    const phoneRateLimit = await rateLimiter.limit(ctx, "checkoutByPhone", {
-      key: args.phone,
-    });
-    if (!phoneRateLimit.ok) {
-      throw new ConvexError(
-        `Muitas tentativas de compra com este telefone. Aguarde ${formatRetryAfter(phoneRateLimit.retryAfter ?? 0)} e tente novamente.`,
-      );
-    }
-
-    const globalRateLimit = await rateLimiter.limit(ctx, "checkoutGlobal");
-    if (!globalRateLimit.ok) {
-      throw new ConvexError(
-        `O sistema está processando muitas compras no momento. Aguarde ${formatRetryAfter(globalRateLimit.retryAfter ?? 0)} e tente novamente.`,
-      );
-    }
-
-    const { firstName, surname } = splitCustomerName(args.name);
-    const referrer = buildReferrer(args.referrerUrl);
-    const isTest = args.testMode === true;
-    const expiresAt = endOfSaoPauloDayMs(visitDate);
 
     for (let attempt = 1; attempt <= maxVoucherCodeAttempts; attempt += 1) {
       const code = generateVoucherCode();
@@ -1067,18 +1006,18 @@ export const startCheckout = action({
       }
 
       if (result.reason === "pending_conflict") {
-        try {
-          await ctx.runAction(internal.paymentOperations.execute, {
-            id: result.operationId,
-          });
-        } catch {
-          // Failure is observable on paymentOperations (reconcile records lastError);
-          // background retry is already scheduled.
+        if (result.operationId) {
+          try {
+            await ctx.runAction(internal.paymentOperations.execute, {
+              id: result.operationId,
+            });
+          } catch {
+            // Failure is observable on paymentOperations (reconcile records lastError);
+            // background retry is already scheduled.
+          }
         }
 
-        throw new ConvexError(
-          "Você já tem uma compra pendente com este telefone. Finalize o pagamento pendente (verifique o código enviado anteriormente) antes de iniciar uma nova compra.",
-        );
+        throw new ConvexError(pendingPurchaseMessage);
       }
 
       // Code collision: retry with a fresh code and a fresh preference
@@ -1220,7 +1159,8 @@ export const insertPendingVoucher = internalMutation({
     priceCents: v.number(),
     visitDate: v.string(),
     expiresAt: v.number(),
-    preferenceId: v.string(),
+    // Absent for embedded (Bricks) purchases, which have no Pro preference.
+    preferenceId: v.optional(v.string()),
     initPoint: v.optional(v.string()),
     referrer: v.optional(referrerValidator),
     isTest: v.boolean(),
@@ -1235,7 +1175,7 @@ export const insertPendingVoucher = internalMutation({
     v.object({
       ok: v.literal(false),
       reason: v.literal("pending_conflict"),
-      operationId: v.id("paymentOperations"),
+      operationId: v.optional(v.id("paymentOperations")),
     }),
   ),
   handler: async (ctx, args) => {
@@ -1260,6 +1200,9 @@ export const insertPendingVoucher = internalMutation({
     );
 
     if (hasLivePending) {
+      if (args.preferenceId === undefined) {
+        return { ok: false as const, reason: "pending_conflict" as const };
+      }
       const operationId = await ctx.db.insert("paymentOperations", {
         request: {
           kind: "invalidatePreference",
@@ -1785,7 +1728,7 @@ const gateVoucherAdminValidator = v.object({
   expiresAt: v.number(),
   createdAt: v.number(),
   paymentId: v.optional(v.string()),
-  preferenceId: v.string(),
+  preferenceId: v.optional(v.string()),
   referrer: v.optional(referrerValidator),
   // The staff-visible warning set when a payment is reversed after the
   // Voucher was already redeemed (see `confirmPayment`). Undefined for
