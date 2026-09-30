@@ -237,6 +237,45 @@ describe("EmbeddedCheckout", () => {
     expect(screen.getByRole("alert").textContent).toMatch(/em andamento/);
   });
 
+  it("never shows the raw text of an unexpected error", async () => {
+    mocks.submit.mockRejectedValue(new Error("TypeError: boom at line 42"));
+    renderPage();
+
+    await act(() =>
+      mocks.brick
+        .current!.onSubmit({
+          formData: {
+            payment_method_id: "pix",
+            payer: { email: "m@example.com" },
+          },
+        })
+        .catch(() => undefined),
+    );
+
+    const message = screen.getByRole("alert").textContent;
+    expect(message).not.toMatch(/boom/);
+    expect(message).toMatch(/Não foi possível gerar o pagamento/);
+  });
+
+  it("explains a technical failure while the result is unknown", async () => {
+    mocks.submit.mockResolvedValue({
+      status: "uncertain",
+      message: "Não conseguimos concluir o pagamento por um problema técnico.",
+    });
+    renderPage();
+
+    await act(() =>
+      mocks.brick.current!.onSubmit({
+        formData: {
+          payment_method_id: "pix",
+          payer: { email: "m@example.com" },
+        },
+      }),
+    );
+
+    expect(screen.getByRole("alert").textContent).toMatch(/problema técnico/);
+  });
+
   describe("with a pending Pix", () => {
     beforeEach(() => {
       mocks.checkout = checkout({ attempt: pixAttempt });

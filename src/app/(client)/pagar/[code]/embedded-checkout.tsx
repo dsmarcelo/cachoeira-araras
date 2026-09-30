@@ -48,6 +48,21 @@ function useElapsed(active: boolean, delayMs: number) {
   return elapsed;
 }
 
+/**
+ * Reports a failed payment call and returns what the buyer may read: the
+ * server's own text for a refusal it raised on purpose, otherwise `fallback`.
+ * Raw error text is never shown.
+ */
+function describeFailure(
+  error: unknown,
+  step: Parameters<typeof capturePaymentFlowException>[1],
+  code: string,
+  fallback: string,
+) {
+  capturePaymentFlowException(error, step, { code });
+  return getErrorMessage(error, fallback);
+}
+
 function newRequestId() {
   return crypto.randomUUID();
 }
@@ -273,10 +288,11 @@ export function EmbeddedCheckout({
       if (result.kind === "blocked") setActionError(result.message);
       else requestId.current = null;
     } catch (error) {
-      capturePaymentFlowException(error, "release_charge", { code });
       setActionError(
-        getErrorMessage(
+        describeFailure(
           error,
+          "release_charge",
+          code,
           "Não foi possível encerrar o pagamento anterior. Tente novamente.",
         ),
       );
@@ -295,10 +311,11 @@ export function EmbeddedCheckout({
         setActionError(result.message);
       setConfirmingCancel(false);
     } catch (error) {
-      capturePaymentFlowException(error, "cancel_purchase", { code });
       setActionError(
-        getErrorMessage(
+        describeFailure(
           error,
+          "cancel_purchase",
+          code,
           "Não foi possível cancelar a compra agora. Tente novamente em instantes.",
         ),
       );
@@ -319,6 +336,8 @@ export function EmbeddedCheckout({
   }) {
     if (!managementToken) return;
     setSubmitError("");
+    setActionError("");
+    let refused = false;
     requestId.current ??= newRequestId();
     const identification = formData.payer?.identification;
     const charge = {
@@ -352,21 +371,26 @@ export function EmbeddedCheckout({
                 : {}),
             });
       if (result.status === "rejected") {
+        // A refusal the buyer can fix: a new request starts a new identity.
         requestId.current = null;
-        throw new Error(result.message ?? "Pagamento recusado.");
+        setSubmitError(result.message ?? "Pagamento recusado. Tente novamente.");
+        refused = true;
+      } else if (result.status === "uncertain" && result.message) {
+        setActionError(result.message);
       }
     } catch (error) {
-      capturePaymentFlowException(error, "create_payment", { code });
       setSubmitError(
-        error instanceof Error && !("data" in error)
-          ? error.message
-          : getErrorMessage(
-              error,
-              "Não foi possível gerar o pagamento. Tente novamente.",
-            ),
+        describeFailure(
+          error,
+          "create_payment",
+          code,
+          "Não foi possível gerar o pagamento. Tente novamente.",
+        ),
       );
       throw error;
     }
+    // Tells the Brick the submission failed so it can be corrected and resent.
+    if (refused) throw new Error("payment_refused");
   }
 
   let payment: React.ReactNode;
