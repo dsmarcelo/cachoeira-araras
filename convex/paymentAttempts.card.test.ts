@@ -353,9 +353,35 @@ test("between 16:30 and 17:00 the same-day visit can still pay by card but not b
 
   await expect(payByPix(t)).rejects.toThrow(/16h30/);
   const checkout = await checkoutOf(t);
-  expect(checkout.pixCutoffAt).toBe(at(TODAY, "16:30:00"));
+  // 17:00 minus the 30 minute Pix life and the provider margin.
+  expect(checkout.pixCutoffAt).toBe(at(TODAY, "16:29:50"));
   expect(checkout.cardCutoffAt).toBe(at(TODAY, "17:00:00"));
   expect((await payByCard(t)).status).toBe("approved");
+});
+
+test("a 3DS challenge started just before 17:00 can still be completed and confirmed after 17:00", async () => {
+  const t = createConvexTest();
+  await seedVoucher(t, { visitDate: TODAY });
+  vi.setSystemTime(at(TODAY, "16:59:59"));
+  mpFake.createNext({
+    status: "pending",
+    statusDetail: "pending_challenge",
+    challenge: { externalResourceUrl: "https://bank.example/3ds", creq: "abc" },
+  });
+  expect((await payByCard(t)).status).toBe("pending");
+
+  vi.setSystemTime(at(TODAY, "17:05:00"));
+  expect((await checkoutOf(t)).attempt?.challenge).toBeTruthy();
+  const confirmation = await t.mutation(internal.vouchers.confirmPayment, {
+    code: "BRICK1",
+    paymentId: "pay-1",
+    paymentStatus: "approved",
+    paymentAmountCents: 14000,
+    paymentCurrency: "BRL",
+    paymentTypeId: "credit_card",
+    paymentMethodId: "visa",
+  });
+  expect(confirmation).toMatchObject({ becameValid: true });
 });
 
 test("a future visit is not limited by the same-day card cutoff", async () => {

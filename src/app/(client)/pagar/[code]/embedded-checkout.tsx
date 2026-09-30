@@ -12,6 +12,10 @@ import { capturePaymentFlowException } from "@/lib/sentry/payment";
 import { getCachedManagementToken } from "@/lib/voucher/management-token-cache";
 import { formatToBRL, getErrorMessage } from "@/lib/utils";
 import { api } from "../../../../../convex/_generated/api";
+import {
+  sameDayCardLabel,
+  sameDayPixLabel,
+} from "../../../../../convex/lib/pixWindow";
 import { CardChallenge } from "./card-challenge";
 import { PixPanel } from "./pix-panel";
 
@@ -373,7 +377,9 @@ export function EmbeddedCheckout({
       if (result.status === "rejected") {
         // A refusal the buyer can fix: a new request starts a new identity.
         requestId.current = null;
-        setSubmitError(result.message ?? "Pagamento recusado. Tente novamente.");
+        setSubmitError(
+          result.message ?? "Pagamento recusado. Tente novamente.",
+        );
         refused = true;
       } else if (result.status === "uncertain" && result.message) {
         setActionError(result.message);
@@ -496,8 +502,9 @@ export function EmbeddedCheckout({
   } else if (!pixOpen && !cardOpen) {
     payment = (
       <p role="alert" className="text-warning-text">
-        Para visitas de hoje, o Pix só pode ser gerado até as 16h30 e o cartão é
-        aceito até as 17h. Escolha outra data de visita em uma nova compra.
+        Para visitas de hoje, o Pix só pode ser gerado até as {sameDayPixLabel}{" "}
+        e o cartão é aceito até as {sameDayCardLabel}. Escolha outra data de
+        visita em uma nova compra.
       </p>
     );
   } else {
@@ -506,8 +513,8 @@ export function EmbeddedCheckout({
         {pixCutoffAt !== null && (
           <p className="text-sm text-fg-muted">
             {pixOpen
-              ? "Para visitas de hoje, o Pix só pode ser gerado até as 16h30 e o cartão é aceito até as 17h."
-              : "Para visitas de hoje, o Pix só pode ser gerado até as 16h30. O cartão continua disponível até as 17h."}
+              ? `Para visitas de hoje, o Pix só pode ser gerado até as ${sameDayPixLabel} e o cartão é aceito até as ${sameDayCardLabel}.`
+              : `Para visitas de hoje, o Pix só pode ser gerado até as ${sameDayPixLabel}. O cartão continua disponível até as ${sameDayCardLabel}.`}
           </p>
         )}
         {attempt?.status === "cancelled" && !submitError && (

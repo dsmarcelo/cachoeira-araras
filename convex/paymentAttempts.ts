@@ -24,7 +24,9 @@ import { describeCardRejection } from "./lib/cardRejection";
 import {
   planPix,
   sameDayCardCutoffMs,
+  sameDayCardLabel,
   sameDayPixCutoffMs,
+  sameDayPixLabel,
 } from "./lib/pixWindow";
 
 // Payment Attempts of the embedded (Bricks) checkout. An attempt is one charge
@@ -227,7 +229,7 @@ export const beginPixAttempt = internalMutation({
     const plan = planPix(voucher.visitDate, now);
     if (!plan.allowed)
       throw new ConvexError(
-        "Para visitas de hoje, o Pix só pode ser gerado até as 16h30. Escolha outra data de visita.",
+        `Para visitas de hoje, o Pix só pode ser gerado até as ${sameDayPixLabel}. Escolha outra data de visita.`,
       );
 
     const operationId = await ctx.db.insert("paymentOperations", {
@@ -262,7 +264,7 @@ const maxInstallments = 24;
  * Same as `beginPixAttempt` for a credit card charge. The Brick supplies only a
  * single-use token (the card number and CVV never reach the site); the amount
  * is always the Voucher's price, so installment interest never changes it.
- * Same-day visits stop accepting cards at 17h.
+ * Same-day visits stop accepting cards at `sameDayCardLabel`.
  */
 export const beginCardAttempt = internalMutation({
   args: {
@@ -316,7 +318,7 @@ export const beginCardAttempt = internalMutation({
     const cutoff = sameDayCardCutoffMs(voucher.visitDate, now);
     if (cutoff !== null && now >= cutoff)
       throw new ConvexError(
-        "Para visitas de hoje, o pagamento com cartão só é aceito até as 17h. Escolha outra data de visita.",
+        `Para visitas de hoje, o pagamento com cartão só é aceito até as ${sameDayCardLabel}. Escolha outra data de visita.`,
       );
 
     const operationId = await ctx.db.insert("paymentOperations", {

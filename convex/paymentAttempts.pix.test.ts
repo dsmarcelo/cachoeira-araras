@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { createConvexTest } from "./test.setup";
 import { createMercadoPagoFake } from "./testing/mercadopagoFake";
 
@@ -196,7 +196,6 @@ test("a request the provider refuses outright can be corrected and sent again", 
   expect(mpFake.payments.size).toBe(1);
 });
 
-
 test("a provider credential fault is a technical failure, not a buyer data refusal", async () => {
   const t = createConvexTest();
   await seedVoucher(t);
@@ -257,25 +256,66 @@ test("only Pix is available in this checkout and the payer email is validated", 
   await expect(submit(t, { paymentMethodId: "visa" })).rejects.toThrow(
     /meio de pagamento/,
   );
-  await expect(
-    submit(t, { payer: { email: "not-an-email" } }),
-  ).rejects.toThrow(/e-mail/);
+  await expect(submit(t, { payer: { email: "not-an-email" } })).rejects.toThrow(
+    /e-mail/,
+  );
   expect(mpFake.attempts).toHaveLength(0);
 });
 
-test("same-day visits get a Pix until 16:29:59 and none from 16:30:00", async () => {
+test("a Pix lives 30 minutes plus the provider margin, never cut short by the same-day deadline", async () => {
+  const t = createConvexTest();
+  await seedVoucher(t, { visitDate: TODAY });
+  const created = at(TODAY, "10:00:00");
+  await submit(t);
+  expect((await attemptsOf(t))[0]!.expiresAt).toBe(
+    created + 30 * 60_000 + 10_000,
+  );
+});
+
+test("the last same-day Pix still gets its full life and ends before 17:00", async () => {
+  const t = createConvexTest();
+  await seedVoucher(t, { visitDate: TODAY });
+  vi.setSystemTime(at(TODAY, "16:29:49"));
+  await submit(t);
+  expect((await attemptsOf(t))[0]!.expiresAt).toBe(at(TODAY, "16:59:59"));
+});
+
+test("a Pix created before the cutoff can still be confirmed after 16:30 and after 17:00", async () => {
+  const t = createConvexTest();
+  await seedVoucher(t, { visitDate: TODAY });
+  vi.setSystemTime(at(TODAY, "16:29:00"));
+  expect((await submit(t)).status).toBe("pending");
+
+  for (const time of ["16:30:30", "17:05:00"]) {
+    vi.setSystemTime(at(TODAY, time));
+    const checkout = await t.query(api.paymentAttempts.getCheckout, {
+      code: "BRICK1",
+      managementToken,
+    });
+    expect(checkout).toMatchObject({ attempt: { status: "pending" } });
+  }
+  const confirmation = await t.mutation(internal.vouchers.confirmPayment, {
+    code: "BRICK1",
+    paymentId: "pay-1",
+    paymentStatus: "approved",
+    paymentAmountCents: 14000,
+    paymentCurrency: "BRL",
+    paymentTypeId: "bank_transfer",
+    paymentMethodId: "pix",
+  });
+  expect(confirmation).toMatchObject({ becameValid: true });
+});
+
+test("same-day visits get a Pix until 16:29:49 and none from 16:29:50", async () => {
   const t = createConvexTest();
   await seedVoucher(t, { visitDate: TODAY });
 
-  vi.setSystemTime(at(TODAY, "16:29:59"));
-  const before = await submit(t);
-  expect(before.status).toBe("pending");
-  const [attempt] = await attemptsOf(t);
-  expect(attempt!.expiresAt).toBeLessThanOrEqual(at(TODAY, "17:00:00"));
+  vi.setSystemTime(at(TODAY, "16:29:49"));
+  expect((await submit(t)).status).toBe("pending");
 
   const t2 = createConvexTest();
   await seedVoucher(t2, { visitDate: TODAY });
-  for (const time of ["16:30:00", "16:30:01"]) {
+  for (const time of ["16:29:50", "16:30:01"]) {
     vi.setSystemTime(at(TODAY, time));
     await expect(submit(t2)).rejects.toThrow(/16h30/);
   }
@@ -319,4 +359,3 @@ test("the intent is persisted before the provider is called", async () => {
 
   expect(seen).toEqual(["creating"]);
 });
-
