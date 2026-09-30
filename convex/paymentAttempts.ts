@@ -195,6 +195,55 @@ const beginResult = v.object({
 });
 
 /**
+ * Records the attempt and its recoverable provider operation in the caller's
+ * transaction, before the provider is ever called. `prepared` is what
+ * `prepareCharge` returned: a resent request yields its existing attempt.
+ */
+async function recordAttempt(
+  ctx: MutationCtx,
+  prepared: PreparedCharge,
+  input: {
+    requestId: string;
+    method: Doc<"paymentAttempts">["method"];
+    request: Omit<
+      Extract<Doc<"paymentOperations">["request"], { kind: "createPayment" }>,
+      "kind" | "externalReference" | "amountCents" | "description" | "payer"
+    >;
+    // Pix only: when the charge stops being payable.
+    expiresAt?: number;
+  },
+): Promise<Infer<typeof beginResult>> {
+  if (prepared.kind === "existing")
+    return {
+      attemptId: prepared.attempt._id,
+      operationId: prepared.attempt.operationId,
+      status: prepared.attempt.status,
+    };
+  const { voucher, now, payer } = prepared;
+  const operationId = await ctx.db.insert("paymentOperations", {
+    request: {
+      kind: "createPayment",
+      externalReference: voucher.code,
+      amountCents: voucher.priceCents,
+      description: `Voucher ${voucher.code}`,
+      payer,
+      ...input.request,
+    },
+  });
+  const attemptId = await ctx.db.insert("paymentAttempts", {
+    voucherCode: voucher.code,
+    requestId: input.requestId,
+    operationId,
+    method: input.method,
+    status: "creating",
+    ...(input.expiresAt !== undefined ? { expiresAt: input.expiresAt } : {}),
+    createdAt: now,
+    updatedAt: now,
+  });
+  return { attemptId, operationId, status: "creating" };
+}
+
+/**
  * Single transaction that decides whether a Pix charge may start and records
  * it, including the same-day Pix cutoff. The attempt and its recoverable
  * provider operation are stored before the provider is ever called.
@@ -218,47 +267,29 @@ export const beginPixAttempt = internalMutation({
       args,
       "Informe um e-mail válido para gerar o Pix.",
     );
-    if (prepared.kind === "existing")
-      return {
-        attemptId: prepared.attempt._id,
-        operationId: prepared.attempt.operationId,
-        status: prepared.attempt.status,
-      };
-    const { voucher, now, payer } = prepared;
-
-    const plan = planPix(voucher.visitDate, now);
-    if (!plan.allowed)
+    const plan =
+      prepared.kind === "new"
+        ? planPix(prepared.voucher.visitDate, prepared.now)
+        : undefined;
+    if (plan && !plan.allowed)
       throw new ConvexError(
         `Para visitas de hoje, o Pix só pode ser gerado até as ${sameDayPixLabel}. Escolha outra data de visita.`,
       );
-
-    const operationId = await ctx.db.insert("paymentOperations", {
-      request: {
-        kind: "createPayment",
-        externalReference: voucher.code,
-        amountCents: voucher.priceCents,
-        description: `Voucher ${voucher.code}`,
-        paymentMethodId: "pix",
-        payer,
-        expiresAt: plan.expiresAt,
-      },
-    });
-    const attemptId = await ctx.db.insert("paymentAttempts", {
-      voucherCode: voucher.code,
+    return await recordAttempt(ctx, prepared, {
       requestId: args.requestId,
-      operationId,
       method: "pix",
-      status: "creating",
-      expiresAt: plan.expiresAt,
-      createdAt: now,
-      updatedAt: now,
+      request: { paymentMethodId: "pix", expiresAt: plan?.expiresAt },
+      expiresAt: plan?.expiresAt,
     });
-    return { attemptId, operationId, status: "creating" as const };
   },
 });
 
+// Payment method ids look like "visa" or "master"; the Brick supplies them.
 const cardMethodPattern = /^[a-z0-9_]{2,30}$/;
 const maxInstallments = 24;
+// The Brick's single-use card token and the issuer id are short opaque strings.
+const MAX_CARD_TOKEN_LENGTH = 200;
+const MAX_ISSUER_ID_LENGTH = 20;
 
 /**
  * Same as `beginPixAttempt` for a credit card charge. The Brick supplies only a
@@ -286,7 +317,7 @@ export const beginCardAttempt = internalMutation({
       throw new ConvexError(
         "Não foi possível identificar o cartão. Confira os dados e tente novamente.",
       );
-    if (args.token.length === 0 || args.token.length > 200)
+    if (args.token.length === 0 || args.token.length > MAX_CARD_TOKEN_LENGTH)
       throw new ConvexError(
         "Não foi possível ler os dados do cartão. Confira as informações e tente novamente.",
       );
@@ -298,7 +329,10 @@ export const beginCardAttempt = internalMutation({
       throw new ConvexError(
         "Número de parcelas inválido. Escolha outra quantidade de parcelas.",
       );
-    if (args.issuerId !== undefined && args.issuerId.length > 20)
+    if (
+      args.issuerId !== undefined &&
+      args.issuerId.length > MAX_ISSUER_ID_LENGTH
+    )
       throw new ConvexError(
         "Não foi possível identificar o banco do cartão. Tente novamente.",
       );
@@ -307,28 +341,21 @@ export const beginCardAttempt = internalMutation({
       args,
       "Informe um e-mail válido para pagar com cartão.",
     );
-    if (prepared.kind === "existing")
-      return {
-        attemptId: prepared.attempt._id,
-        operationId: prepared.attempt.operationId,
-        status: prepared.attempt.status,
-      };
-    const { voucher, now, payer } = prepared;
-
-    const cutoff = sameDayCardCutoffMs(voucher.visitDate, now);
-    if (cutoff !== null && now >= cutoff)
-      throw new ConvexError(
-        `Para visitas de hoje, o pagamento com cartão só é aceito até as ${sameDayCardLabel}. Escolha outra data de visita.`,
+    if (prepared.kind === "new") {
+      const cutoff = sameDayCardCutoffMs(
+        prepared.voucher.visitDate,
+        prepared.now,
       );
-
-    const operationId = await ctx.db.insert("paymentOperations", {
+      if (cutoff !== null && prepared.now >= cutoff)
+        throw new ConvexError(
+          `Para visitas de hoje, o pagamento com cartão só é aceito até as ${sameDayCardLabel}. Escolha outra data de visita.`,
+        );
+    }
+    return await recordAttempt(ctx, prepared, {
+      requestId: args.requestId,
+      method: "card",
       request: {
-        kind: "createPayment",
-        externalReference: voucher.code,
-        amountCents: voucher.priceCents,
-        description: `Voucher ${voucher.code}`,
         paymentMethodId: args.paymentMethodId,
-        payer,
         card: {
           token: args.token,
           installments: args.installments,
@@ -336,16 +363,6 @@ export const beginCardAttempt = internalMutation({
         },
       },
     });
-    const attemptId = await ctx.db.insert("paymentAttempts", {
-      voucherCode: voucher.code,
-      requestId: args.requestId,
-      operationId,
-      method: "card",
-      status: "creating",
-      createdAt: now,
-      updatedAt: now,
-    });
-    return { attemptId, operationId, status: "creating" as const };
   },
 });
 
