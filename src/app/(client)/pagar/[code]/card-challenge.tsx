@@ -24,7 +24,7 @@ export function CardChallenge({
   return (
     <section
       aria-label="Verificação do banco"
-      className="grid gap-3 rounded-xl border border-border p-4"
+      className="grid gap-3 rounded-xl border border-line-soft bg-surface-alt p-4 text-fg"
     >
       <h2 className="text-lg font-bold">Confirme o pagamento com seu banco</h2>
       <p role="status">

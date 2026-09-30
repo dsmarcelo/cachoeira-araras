@@ -20,6 +20,7 @@ type BrickProps = {
   }) => Promise<unknown>;
   onReady?: () => void;
   onError?: (error: { type: string; message: string }) => void;
+  initialization: { amount: number };
   customization: { paymentMethods: Record<string, unknown> };
 };
 type StatusScreenProps = {
@@ -39,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   release: vi.fn(),
   cancel: vi.fn(),
   replace: vi.fn(),
+  brickMount: vi.fn(),
   brick: { current: null as null | BrickProps },
   statusScreen: { current: null as null | StatusScreenProps },
 }));
@@ -67,6 +69,9 @@ vi.mock("@mercadopago/sdk-react", () => ({
   initMercadoPago: vi.fn(),
   Payment: (props: BrickProps) => {
     mocks.brick.current = props;
+    React.useEffect(() => {
+      mocks.brickMount();
+    }, [props.onReady, props.onError, props.onSubmit, props.customization, props.initialization]);
     return (
       <button type="button" onClick={() => props.onReady?.()}>
         brick-ready
@@ -131,6 +136,20 @@ afterEach(() => {
 });
 
 describe("EmbeddedCheckout", () => {
+  it("keeps the Brick mounted after readiness and checkout rerenders", () => {
+    vi.useFakeTimers();
+    const view = renderPage();
+    expect(mocks.brickMount).toHaveBeenCalledTimes(1);
+
+    act(() => mocks.brick.current?.onReady?.());
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    view.rerender(<EmbeddedCheckout code="BRICK1" publicKey="TEST-key" />);
+
+    expect(mocks.brickMount).toHaveBeenCalledTimes(1);
+  });
+
   it("shows the purchase summary and a loading state until the payment form is ready", () => {
     renderPage();
 

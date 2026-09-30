@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAction, useQuery } from "convex/react";
@@ -18,6 +25,7 @@ import {
 } from "../../../../../convex/lib/pixWindow";
 import { CardChallenge } from "./card-challenge";
 import { PixPanel } from "./pix-panel";
+import styles from "./payment-brick.module.css";
 
 const RECONCILE_INTERVAL_MS = 15_000;
 const SLOW_LOAD_MS = 10_000;
@@ -79,7 +87,7 @@ function Notice({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto grid w-full max-w-lg gap-3 p-6 text-center text-fg">
+    <div className="mx-auto grid w-full max-w-lg gap-3 rounded-xl bg-surface p-6 text-center text-fg">
       <h1 className="text-2xl font-bold">{title}</h1>
       {children}
     </div>
@@ -99,15 +107,18 @@ type Summary = {
 function PurchaseSummary({ voucher }: { voucher: Summary }) {
   const [year, month, day] = voucher.visitDate.split("-");
   const parts = [
-    voucher.adults > 0 && `${voucher.adults} inteiras`,
-    voucher.elderly > 0 && `${voucher.elderly} meias`,
+    voucher.adults > 0 &&
+      `${voucher.adults} ${voucher.adults === 1 ? "inteira" : "inteiras"}`,
+    voucher.elderly > 0 &&
+      `${voucher.elderly} ${voucher.elderly === 1 ? "meia" : "meias"}`,
     voucher.adultsPool > 0 && `${voucher.adultsPool} piscina`,
-    voucher.elderlyPool > 0 && `${voucher.elderlyPool} meias com piscina`,
+    voucher.elderlyPool > 0 &&
+      `${voucher.elderlyPool} ${voucher.elderlyPool === 1 ? "meia" : "meias"} com piscina`,
   ].filter(Boolean);
   return (
     <section
       aria-label="Resumo da compra"
-      className="grid gap-1 rounded-xl border border-border p-4"
+      className="grid gap-2 rounded-xl bg-surface-alt p-5 text-fg"
     >
       <h2 className="text-lg font-bold">Resumo da compra</h2>
       <p>{voucher.name}</p>
@@ -221,6 +232,25 @@ export function EmbeddedCheckout({
   // so the account's own conditions apply.
   const brickCustomization = useMemo(
     () => ({
+      visual: {
+        style: {
+          theme: "dark" as const,
+          customVariables: {
+            borderRadiusSmall: "12px",
+            borderRadiusMedium: "12px",
+            borderRadiusLarge: "12px",
+            formBackgroundColor: "#00516D",
+            inputBackgroundColor: "#00435D",
+            textPrimaryColor: "#ecf7fa",
+            textSecondaryColor: "#c3e5ee",
+            baseColor: "#0e8043",
+            buttonTextColor: "#ffffff",
+            outlinePrimaryColor: "#a6d8e6",
+            outlineSecondaryColor: "#2b798f",
+            errorColor: "#ffedd5",
+          },
+        },
+      },
       paymentMethods: cardOpen
         ? pixOpen
           ? { creditCard: "all" as const, bankTransfer: ["pix"] }
@@ -229,6 +259,96 @@ export function EmbeddedCheckout({
     }),
     [cardOpen, pixOpen],
   );
+
+  const handleSubmit = useCallback(
+    async (formData: {
+      payment_method_id?: string;
+      token?: string;
+      installments?: number;
+      issuer_id?: string | number;
+      payer?: {
+        email?: string;
+        identification?: { type?: string; number?: string };
+      };
+    }) => {
+      if (!managementToken) return;
+      setSubmitError("");
+      setActionError("");
+      let refused = false;
+      requestId.current ??= newRequestId();
+      const identification = formData.payer?.identification;
+      const charge = {
+        code,
+        managementToken,
+        requestId: requestId.current,
+        paymentMethodId: formData.payment_method_id ?? "",
+        payer: {
+          email: formData.payer?.email ?? "",
+          ...(identification?.type && identification.number
+            ? {
+                identification: {
+                  type: identification.type,
+                  number: identification.number,
+                },
+              }
+            : {}),
+        },
+      };
+      try {
+        // The card number and CVV stay inside the Brick: only its token is sent.
+        const result =
+          charge.paymentMethodId === "pix"
+            ? await submitPix(charge)
+            : await submitCard({
+                ...charge,
+                token: formData.token ?? "",
+                installments: formData.installments ?? 1,
+                ...(formData.issuer_id !== undefined
+                  ? { issuerId: String(formData.issuer_id) }
+                  : {}),
+              });
+        if (result.status === "rejected") {
+          // A refusal the buyer can fix: a new request starts a new identity.
+          requestId.current = null;
+          setSubmitError(
+            result.message ?? "Pagamento recusado. Tente novamente.",
+          );
+          refused = true;
+        } else if (result.status === "uncertain" && result.message) {
+          setActionError(result.message);
+        }
+      } catch (error) {
+        setSubmitError(
+          describeFailure(
+            error,
+            "create_payment",
+            code,
+            "Não foi possível gerar o pagamento. Tente novamente.",
+          ),
+        );
+        throw error;
+      }
+      // Tells the Brick the submission failed so it can be corrected and resent.
+      if (refused) throw new Error("payment_refused");
+    },
+    [managementToken, code, submitPix, submitCard],
+  );
+
+  // SDK callback identities control the Brick lifecycle, including clock updates.
+  const handleBrickReady = useCallback(() => setBrickReady(true), []);
+  const handleBrickError = useCallback<
+    NonNullable<ComponentProps<typeof Payment>["onError"]>
+  >(
+    (error) => {
+      capturePaymentFlowException(error, "load_brick", { code });
+      // Field errors stay inside the Brick; only critical failures replace it.
+      if (error.type === "critical") setBrickFailed(true);
+    },
+    [code],
+  );
+  const handleBrickSubmit = useCallback<
+    NonNullable<ComponentProps<typeof Payment>["onSubmit"]>
+  >(({ formData }) => handleSubmit(formData), [handleSubmit]);
 
   if (isLoading) {
     return (
@@ -328,77 +448,6 @@ export function EmbeddedCheckout({
     }
   }
 
-  async function handleSubmit(formData: {
-    payment_method_id?: string;
-    token?: string;
-    installments?: number;
-    issuer_id?: string | number;
-    payer?: {
-      email?: string;
-      identification?: { type?: string; number?: string };
-    };
-  }) {
-    if (!managementToken) return;
-    setSubmitError("");
-    setActionError("");
-    let refused = false;
-    requestId.current ??= newRequestId();
-    const identification = formData.payer?.identification;
-    const charge = {
-      code,
-      managementToken,
-      requestId: requestId.current,
-      paymentMethodId: formData.payment_method_id ?? "",
-      payer: {
-        email: formData.payer?.email ?? "",
-        ...(identification?.type && identification.number
-          ? {
-              identification: {
-                type: identification.type,
-                number: identification.number,
-              },
-            }
-          : {}),
-      },
-    };
-    try {
-      // The card number and CVV stay inside the Brick: only its token is sent.
-      const result =
-        charge.paymentMethodId === "pix"
-          ? await submitPix(charge)
-          : await submitCard({
-              ...charge,
-              token: formData.token ?? "",
-              installments: formData.installments ?? 1,
-              ...(formData.issuer_id !== undefined
-                ? { issuerId: String(formData.issuer_id) }
-                : {}),
-            });
-      if (result.status === "rejected") {
-        // A refusal the buyer can fix: a new request starts a new identity.
-        requestId.current = null;
-        setSubmitError(
-          result.message ?? "Pagamento recusado. Tente novamente.",
-        );
-        refused = true;
-      } else if (result.status === "uncertain" && result.message) {
-        setActionError(result.message);
-      }
-    } catch (error) {
-      setSubmitError(
-        describeFailure(
-          error,
-          "create_payment",
-          code,
-          "Não foi possível gerar o pagamento. Tente novamente.",
-        ),
-      );
-      throw error;
-    }
-    // Tells the Brick the submission failed so it can be corrected and resent.
-    if (refused) throw new Error("payment_refused");
-  }
-
   let payment: React.ReactNode;
   if (unpayable) {
     payment = (
@@ -422,7 +471,7 @@ export function EmbeddedCheckout({
         {payment}
         <Button
           type="button"
-          variant="outline"
+          variant="inverseOutline"
           disabled={busy !== null}
           onClick={() => void handleRelease()}
         >
@@ -475,7 +524,7 @@ export function EmbeddedCheckout({
           />
           <Button
             type="button"
-            variant="outline"
+            variant="inverseOutline"
             disabled={busy !== null}
             onClick={() => void handleRelease()}
           >
@@ -563,20 +612,17 @@ export function EmbeddedCheckout({
             {!brickReady && (
               <p role="status">Carregando o formulário de pagamento...</p>
             )}
-            <Payment
-              key={brickKey}
-              locale="pt-BR"
-              initialization={brickInitialization}
-              customization={brickCustomization}
-              onReady={() => setBrickReady(true)}
-              onError={(error) => {
-                capturePaymentFlowException(error, "load_brick", { code });
-                // Field problems are explained by the Brick itself, next to
-                // the field, and keep the rest of the form.
-                if (error.type === "critical") setBrickFailed(true);
-              }}
-              onSubmit={({ formData }) => handleSubmit(formData)}
-            />
+            <div className={styles.brick}>
+              <Payment
+                key={brickKey}
+                locale="pt-BR"
+                initialization={brickInitialization}
+                customization={brickCustomization}
+                onReady={handleBrickReady}
+                onError={handleBrickError}
+                onSubmit={handleBrickSubmit}
+              />
+            </div>
           </>
         )}
       </div>
@@ -584,7 +630,7 @@ export function EmbeddedCheckout({
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-lg gap-4 p-4 text-fg">
+    <div className="mx-auto grid w-full max-w-lg gap-5 rounded-xl bg-surface p-5 text-fg shadow-lg md:p-6">
       <h1 className="text-2xl font-bold">
         Pagamento do voucher {voucher.code}
       </h1>
@@ -609,7 +655,7 @@ export function EmbeddedCheckout({
       )}
       {payment}
       {!unpayable && (
-        <div className="grid gap-2 border-t border-border pt-4">
+        <div className="grid gap-2 border-t border-line-soft pt-4">
           {confirmingCancel ? (
             <>
               <p>
@@ -619,7 +665,7 @@ export function EmbeddedCheckout({
               <div className="flex gap-2">
                 <Button
                   type="button"
-                  variant="destructive"
+                  variant="danger"
                   disabled={busy !== null}
                   onClick={() => void handleCancel()}
                 >
@@ -627,7 +673,7 @@ export function EmbeddedCheckout({
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="inverseOutline"
                   disabled={busy !== null}
                   onClick={() => setConfirmingCancel(false)}
                 >
@@ -638,7 +684,7 @@ export function EmbeddedCheckout({
           ) : (
             <Button
               type="button"
-              variant="ghost"
+              variant="inverseGhost"
               disabled={busy !== null}
               onClick={() => setConfirmingCancel(true)}
             >

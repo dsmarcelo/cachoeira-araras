@@ -1,0 +1,9 @@
+/* Keep option rows square inside the rounded group, without SDK class names. */
+.brick div:has(> input[type="radio"]) {
+  border-radius: 0;
+}
+
+/* Hide promotional subtitles; installment choices stay in the card form. */
+.brick div:has(> input[type="radio"]) p > span + span {
+  display: none !important;
+}

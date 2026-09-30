@@ -13,9 +13,11 @@ export default async function PayPage({
 }) {
   const { code } = await params;
   return (
-    <EmbeddedCheckout
-      code={decodeURIComponent(code)}
-      publicKey={env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY}
-    />
+    <main className="bg-page px-4 py-8 md:py-12">
+      <EmbeddedCheckout
+        code={decodeURIComponent(code)}
+        publicKey={env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY}
+      />
+    </main>
   );
 }

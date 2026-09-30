@@ -55,7 +55,7 @@ export function PixPanel({
   return (
     <section
       aria-label="Pagamento por Pix"
-      className="grid gap-4 rounded-xl border border-border p-4"
+      className="grid gap-4 rounded-xl border border-line-soft bg-surface-alt p-4 text-fg"
     >
       <h2 className="text-lg font-bold">Pague com Pix</h2>
       <p>
@@ -73,6 +73,7 @@ export function PixPanel({
         <Label htmlFor="pix-code">Código Pix copia e cola</Label>
         <Input
           id="pix-code"
+          className="border-slate-400 text-slate-900"
           ref={codeField}
           readOnly
           value={qrCode}
@@ -82,7 +83,7 @@ export function PixPanel({
           Copiar código
         </Button>
         {copyState === "copied" && (
-          <p role="status" className="text-success">
+          <p role="status" className="text-success-text">
             Código copiado! Cole no aplicativo do seu banco.
           </p>
         )}
