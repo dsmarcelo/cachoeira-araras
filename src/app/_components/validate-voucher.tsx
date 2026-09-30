@@ -88,6 +88,7 @@ export default function ValidateVoucher() {
       return await fetchVoucher();
     }
     setValid(false);
+    setMessage(res.data.syncWarning ?? 'Pagamento ainda não confirmado.');
   }
 
   function dynamicCardBorder() {

@@ -1,6 +1,7 @@
 "use client";
 import { api } from "@/trpc/react";
-import React, { useEffect, useState } from "react";
+import { useVoucherPaymentRecovery } from "@/hooks/use-vouchers";
+import React, { useCallback, useEffect, useState } from "react";
 import type { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { voucherFormSchema } from "@/lib/voucher/types";
-import { cn, formatPaymentUrl, formatPhone } from "@/lib/utils";
+import { cn, formatPhone } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import {
   addCookieVoucher,
@@ -42,7 +43,8 @@ export default function VoucherForm({
   const [payment_sucess_url, setPaymentSuccessUrl] = useState("");
   const [referrerURL, setReferrerURL] = useState<string | null>(null);
 
-  const utils = api.useUtils();
+  const { refreshPayment } = useVoucherPaymentRecovery();
+  const [paymentStatusError, setPaymentStatusError] = useState<string | null>(null);
 
   // Get all settings from database using a single query
   const settingsQuery = api.settings.getAll.useQuery();
@@ -57,72 +59,50 @@ export default function VoucherForm({
     "enable.voucher.buy": enableVoucherBuy = true,
   } = settingsQuery.data ?? {};
 
-  async function checkPaymentStatus(code: string) {
-    const reconciliation = await utils.voucher.reconcilePublicPaymentStatus.fetch({
-      code,
-    });
+  const checkPaymentStatus = useCallback(async (code: string) => {
+    setPaymentStatusError(null);
+    const reconciliation = await refreshPayment(code);
+    if (reconciliation.syncWarning) setPaymentStatusError(reconciliation.syncWarning);
     if (reconciliation.status === "paid" && reconciliation.successUrl) {
       setPaymentSuccessUrl(reconciliation.successUrl);
       return;
     }
 
-    const voucher = await utils.voucher.getPublicStatusByCode.fetch({ code });
-    if (!voucher) return deleteCookieVoucher();
-
-    if (voucher.status !== "pending" && voucher.payment_id) {
-      const url = formatPaymentUrl(voucher.preference_id, voucher.payment_id);
-      setPaymentSuccessUrl(url);
+    if (!reconciliation.exists) {
+      setCode("");
+      setInitPoint("");
+      setPaymentSuccessUrl("");
+      return deleteCookieVoucher();
     }
-
-    const preference = await utils.mercadopago.getPublicPreference.fetch({
-      preference_id: voucher.preference_id,
-    });
-
-    if (preference.init_point) {
-      setInitPoint(preference.init_point);
-    }
-  }
+    if (reconciliation.checkoutUrl) setInitPoint(reconciliation.checkoutUrl);
+  }, [refreshPayment]);
 
   useEffect(() => {
-    // Avoid an extra Edge request by reading the referrer on the client directly
-    const checkReferrer = async () => {
+    setReferrerURL(document.referrer || null);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function refreshPayment() {
       try {
-        const ref = document.referrer || null;
-        setReferrerURL(ref);
+        const currentCode = code || await getCookieVoucher();
+        if (cancelled || !currentCode) return;
+        if (!code) setCode(currentCode);
+        await checkPaymentStatus(currentCode);
       } catch {
-        setReferrerURL(null);
-      }
-    };
-
-    async function getPreference() {
-      if (code) {
-        return await checkPaymentStatus(code);
-      }
-      const cookieVoucher = await getCookieVoucher();
-      setCode(cookieVoucher ?? "");
-      if (cookieVoucher) {
-        await checkPaymentStatus(cookieVoucher);
+        if (!cancelled) setPaymentStatusError("Não foi possível atualizar o pagamento. Tente novamente.");
       }
     }
-
-    void checkReferrer();
-
     function handleVisibilityChange() {
-      if (document.visibilityState === "visible") {
-        void getPreference();
-      }
+      if (document.visibilityState === "visible") void refreshPayment();
     }
-
     document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Cleanup the event listener on component unmount
-    void getPreference();
+    void refreshPayment();
     return () => {
+      cancelled = true;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settingsQuery]);
+  }, [code, checkPaymentStatus]);
 
   type FormSchema = z.infer<typeof voucherFormSchema>;
   const startCheckout = api.voucher.startCheckout.useMutation();
@@ -203,13 +183,16 @@ export default function VoucherForm({
 
   if (code && (init_point || payment_sucess_url)) {
     return (
-      <VoucherCreatedCard
-        code={code}
-        init_point={init_point}
-        redirectToPayment={redirectToPayment}
-        setCode={setCode}
-        payment_success_url={payment_sucess_url}
-      />
+      <div>
+        {paymentStatusError && <p role="alert" className="text-center text-primary-100">{paymentStatusError}</p>}
+        <VoucherCreatedCard
+          code={code}
+          init_point={init_point}
+          redirectToPayment={redirectToPayment}
+          setCode={setCode}
+          payment_success_url={payment_sucess_url}
+        />
+      </div>
     );
   }
 
@@ -231,6 +214,7 @@ export default function VoucherForm({
   return (
     <div className="mx-auto w-full bg-dark-blue">
       <div className="border-none bg-dark-blue p-4 text-primary-50">
+        {paymentStatusError && <p role="alert" className="text-center text-primary-100">{paymentStatusError}</p>}
         <form
           onSubmit={handleSubmit(onSubmit)}
           className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-base [&_label]:leading-none"

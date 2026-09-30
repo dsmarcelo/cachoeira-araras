@@ -19,6 +19,7 @@
     "postinstall": "prisma generate",
     "lint": "eslint .",
     "test:webhook": "node --import ts-node/register --test src/server/mercadopago-webhook.test.ts",
+    "test:payment-sync": "node --import ts-node/register --test src/server/voucher-payment-confirmation.test.ts src/server/voucher-payment-sync.test.ts",
     "test:payments": "node scripts/payment-e2e/run-payment-e2e.mjs",
     "type-check": "tsc --noEmit",
     "start": "next start"

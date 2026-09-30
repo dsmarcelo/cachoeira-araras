@@ -60,6 +60,8 @@ async function fetchMercadoPagoJson<T>(path: string): Promise<T | null> {
       { path: path.split("?")[0] },
       async () => {
         const response = await fetch(`${mercadoPagoApiBase}${path}`, {
+          cache: "no-store",
+          signal: AbortSignal.timeout(8_000),
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -82,7 +84,7 @@ async function fetchMercadoPagoJson<T>(path: string): Promise<T | null> {
               status: response.status,
             },
           );
-          return null;
+          throw new Error(`Mercado Pago API failed with ${response.status}`);
         }
 
         return (await response.json()) as T;
@@ -189,6 +191,7 @@ export async function searchMercadoPagoPaymentsByExternalReference(
 
   const searchParams = new URLSearchParams({
     external_reference: normalizedReference,
+    status: "approved",
     limit: "10",
     sort: "date_created",
     criteria: "desc",

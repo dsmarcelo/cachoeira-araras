@@ -7,13 +7,13 @@ import { toast } from '@/components/ui/use-toast'
 import { motion } from 'framer-motion'
 import DeleteVoucherCookieBtn from './delete-voucher-cookie-btn'
 import { RefreshCcw } from 'lucide-react'
-import { api } from '@/trpc/react'
+import { useVoucherPaymentRecovery } from '@/hooks/use-vouchers'
 
 export default function VoucherCreatedCard(
   { code, init_point, redirectToPayment, setCode, payment_success_url }:
     { code: string, init_point: string, redirectToPayment: () => void, setCode: React.Dispatch<React.SetStateAction<string>>, payment_success_url: string }) {
 
-  const utils = api.useUtils();
+  const { refreshPayment } = useVoucherPaymentRecovery();
 
   async function handleClick(showToast = true) {
     setCode('')
@@ -46,23 +46,23 @@ export default function VoucherCreatedCard(
   }
 
   async function checkPaymentStatus() {
-    const reconciliation = await utils.voucher.reconcilePublicPaymentStatus.fetch({
-      code,
-    });
+    try {
+      const reconciliation = await refreshPayment(code);
 
-    if (reconciliation.status === "paid" && reconciliation.successUrl) {
-      location.href = reconciliation.successUrl;
-      return;
-    }
+      if (reconciliation.status === "paid" && reconciliation.successUrl) {
+        location.href = reconciliation.successUrl;
+        return;
+      }
 
-    const voucher = await utils.voucher.getPublicStatusByCode.fetch({ code });
-    if (!voucher) return location.reload();
-    if (!voucher.payment_id || voucher.status === "pending") {
+      if (reconciliation.syncWarning) {
+        toast({ title: "Atualização indisponível", description: reconciliation.syncWarning });
+        return;
+      }
+      if (!reconciliation.exists) return location.reload();
       redirectToPayment();
-      return;
+    } catch {
+      toast({ title: "Não foi possível atualizar o pagamento", description: "Tente novamente em instantes." });
     }
-
-    location.href = payment_success_url;
   }
 
   function AlreadyPayedButton() {
