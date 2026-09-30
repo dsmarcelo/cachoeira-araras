@@ -17,6 +17,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireRole } from "./lib/auth";
+import { isMercadoPagoCheckoutUrl } from "../src/lib/mercadopago/checkout-url";
 import { isEmbeddedVoucher } from "./lib/embeddedVoucher";
 import { attemptStatusFromProvider } from "./paymentAttempts";
 import { recoverUnsettledAttempt } from "./voucherReconciliation";
@@ -428,7 +429,8 @@ export const resumePayment = mutation({
       const checkoutUrl = isEmbeddedVoucher(voucher)
         ? `/pagar/${voucher.code}`
         : (voucher.initPoint ??
-          (args.savedInitPoint?.startsWith("https://")
+          (args.savedInitPoint &&
+          isMercadoPagoCheckoutUrl(args.savedInitPoint)
             ? args.savedInitPoint
             : undefined));
       if (!checkoutUrl) {

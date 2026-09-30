@@ -31,6 +31,7 @@ import {
   getCachedManagementToken,
   setCachedManagementToken,
 } from "@/lib/voucher/management-token-cache";
+import { isMercadoPagoCheckoutUrl } from "@/lib/mercadopago/checkout-url";
 import { useResumePayment } from "@/lib/voucher/use-resume-payment";
 import {
   getCachedLookupToken,
@@ -187,7 +188,12 @@ export default function VoucherForm({
   async function redirectToPayment() {
     setResumeError("");
     if (!managementToken) {
-      router.push(init_point);
+      // Without authorization only a genuine Mercado Pago address is followed.
+      if (isMercadoPagoCheckoutUrl(init_point)) router.push(init_point);
+      else
+        setResumeError(
+          "Não foi possível retomar o pagamento neste navegador. Inicie uma nova compra ou procure a nossa equipe.",
+        );
       return;
     }
     const message = await resumePayment({

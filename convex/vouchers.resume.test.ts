@@ -323,3 +323,27 @@ test("a saved address that is not https is never used as a checkout destination"
     }),
   ).rejects.toThrow(ConvexError);
 });
+
+test("a saved address is only followed when it points to Mercado Pago", async () => {
+  const t = createConvexTest();
+  await t.run((ctx) =>
+    ctx.db.insert("vouchers", {
+      ...pendingVoucher,
+      code: "PRO003",
+      expiresAt: Date.now() + 1000 * 60 * 60,
+      preferenceId: "pref-pro003",
+    }),
+  );
+  const resume = (savedInitPoint: string) =>
+    t.mutation(api.vouchers.resumePayment, {
+      code: "PRO003",
+      managementToken: "resume-token",
+      savedInitPoint,
+    });
+
+  await expect(resume("https://evil.example/checkout")).rejects.toThrow(
+    ConvexError,
+  );
+  const saved = "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=1";
+  expect(await resume(saved)).toMatchObject({ checkoutUrl: saved });
+});
