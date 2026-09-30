@@ -86,12 +86,12 @@ I love to build. I focus on building complex things as simple as possible. I lov
 
 ## Documentation
 
-- **Keep it minimal (< 40 lines per file)**: Document only domain rules, business constraints, limits, and data integrity guarantees.
+- **Keep it minimal**: Document only domain rules, business constraints, limits, and data integrity guarantees.
 - **Never document what code already says**: Do not list TypeScript types, component props, hook usage, or Convex API signatures. The code and types are the source of truth for implementation details.
 - **No scratch or plan files**: Do not persist temporary plans, mockups, or task logs in `docs/`.
 - **Audience split**:
-  - `docs/user/`: Product and domain rules (what features do, business constraints, limits). Shipped-product voice, no code paths or technical jargon.
-  - `docs/internals/`: Architecture, backend integrity rules, external integrations (R2, Stripe).
+  - `docs/product/`: Product and domain rules (what features do, business constraints, limits). Shipped-product voice, no code paths or technical jargon.
+  - `docs/internals/`: Architecture, backend integrity rules, external integrations (R2, Stripe, db, auth, etc).
   - `docs/operations/`: Deploy runbooks and environment setup.
   - `docs/adr/`: Architectural Decision Records for major structural choices.
 - **Keep in sync**: Update the relevant doc only when a domain rule or architecture constraint changes.
