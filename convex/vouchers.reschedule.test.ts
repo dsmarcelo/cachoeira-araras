@@ -9,6 +9,7 @@ import {
 import { api } from "./_generated/api";
 import { createConvexTest, withAuth } from "./test.setup";
 
+const lookupToken = "3f8c2a4e-7b1d-4c5a-9e2f-6a1b8c0d4e7f";
 const today = getSaoPauloDateKey();
 const inDays = (days: number) => addDaysToDateKey(today, days);
 
@@ -22,7 +23,12 @@ type Status =
 
 async function insertVoucher(
   t: ReturnType<typeof createConvexTest>,
-  overrides: { status?: Status; visitDate?: string; deletedAt?: number } = {},
+  overrides: {
+    status?: Status;
+    visitDate?: string;
+    deletedAt?: number;
+    expiresAt?: number;
+  } = {},
 ) {
   await t.run(async (ctx) =>
     ctx.db.insert("vouchers", {
@@ -36,7 +42,8 @@ async function insertVoucher(
       priceCents: 5000,
       status: overrides.status ?? "valid",
       visitDate: overrides.visitDate ?? inDays(1),
-      expiresAt: Date.now() + 60_000,
+      expiresAt: overrides.expiresAt ?? Date.now() + 60_000,
+      lookupToken,
       preferenceId: "pref-1",
       isTest: false,
       deletedAt: overrides.deletedAt,
@@ -207,5 +214,96 @@ describe("rescheduleByAdmin", () => {
     expect(row?.visitDate).toBe(inDays(2));
     expect(row?.rescheduledBy?.kind).toBe("admin");
     expect(row?.rescheduledAt).toBeTypeOf("number");
+  });
+});
+
+describe("rescheduleByCustomer", () => {
+  const reschedule = (
+    t: ReturnType<typeof createConvexTest>,
+    visitDate: string,
+    token = lookupToken,
+  ) =>
+    t.mutation(api.vouchers.rescheduleByCustomer, {
+      lookupToken: token,
+      visitDate,
+    });
+
+  test.each(["valid", "pending"] as const)(
+    "moves a %s voucher, recomputes the expiry and records the customer",
+    async (status) => {
+      const t = createConvexTest();
+      await insertVoucher(t, { status });
+
+      await reschedule(t, inDays(5));
+
+      const voucher = await readVoucher(t);
+      expect(voucher?.status).toBe(status);
+      expect(voucher?.visitDate).toBe(inDays(5));
+      expect(voucher?.expiresAt).toBe(endOfSaoPauloDayMs(inDays(5)));
+      expect(voucher?.rescheduledBy).toEqual({ kind: "customer" });
+    },
+  );
+
+  test("can be repeated without limit", async () => {
+    const t = createConvexTest();
+    await insertVoucher(t);
+
+    await reschedule(t, inDays(2));
+    await reschedule(t, inDays(3));
+    await reschedule(t, inDays(4));
+
+    expect((await readVoucher(t))?.visitDate).toBe(inDays(4));
+  });
+
+  test.each(["expired", "redeemed", "refunded", "cancelled"] as const)(
+    "refuses a %s voucher",
+    async (status) => {
+      const t = createConvexTest();
+      await insertVoucher(t, { status });
+
+      await expect(reschedule(t, inDays(2))).rejects.toThrow(
+        /não pode mais ter a data alterada/,
+      );
+    },
+  );
+
+  test("refuses a Valid voucher whose expiry has passed", async () => {
+    const t = createConvexTest();
+    await insertVoucher(t, { expiresAt: Date.now() - 1000 });
+
+    await expect(reschedule(t, inDays(2))).rejects.toThrow(
+      /não pode mais ter a data alterada/,
+    );
+  });
+
+  test("refuses a deleted voucher and an unknown or malformed token", async () => {
+    const t = createConvexTest();
+    await insertVoucher(t, { deletedAt: Date.now() });
+
+    await expect(reschedule(t, inDays(2))).rejects.toThrow(/não encontrado/);
+    await expect(
+      reschedule(t, inDays(2), "4f8c2a4e-7b1d-4c5a-9e2f-6a1b8c0d4e7f"),
+    ).rejects.toThrow(/não encontrado/);
+    await expect(reschedule(t, inDays(2), "abcd")).rejects.toThrow(
+      /não encontrado/,
+    );
+  });
+
+  test("applies the purchase rule: past, beyond the window and closed days are refused", async () => {
+    const t = createConvexTest();
+    await insertVoucher(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("settings", {
+        key: "disabled.days",
+        value: [inDays(3)],
+      });
+      await ctx.db.insert("settings", { key: "max.intended.days", value: 10 });
+    });
+
+    await expect(reschedule(t, inDays(-1))).rejects.toThrow(/passado/);
+    await expect(reschedule(t, inDays(11))).rejects.toThrow(/limite/);
+    await expect(reschedule(t, inDays(3))).rejects.toThrow(/indisponível/);
+    await reschedule(t, inDays(10));
+    expect((await readVoucher(t))?.visitDate).toBe(inDays(10));
   });
 });

@@ -7,6 +7,7 @@ import { api } from "../../../../convex/_generated/api";
 import { useSavedVouchers } from "../../_components/saved-vouchers-provider";
 import type { SavedVoucher } from "@/lib/voucher/browser-storage";
 import { Button } from "@/components/ui/button";
+import { RescheduleVoucherDialog } from "./reschedule-voucher-dialog";
 import { formatQuantity } from "@/lib/voucher";
 import { formatToBRL } from "@/lib/utils";
 import {
@@ -217,6 +218,15 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
           ))}
         </div>
       )}
+      {voucher &&
+        lookupToken &&
+        (voucher.status === "pending" || voucher.status === "valid") &&
+        voucher.expiresAt > Date.now() && (
+          <RescheduleVoucherDialog
+            lookupToken={lookupToken}
+            visitDate={voucher.visitDate}
+          />
+        )}
       {voucher?.status === "pending" && entry.initPoint && (
         <Button
           className="bg-positive-green"

@@ -25,7 +25,7 @@ import {
   MAX_PENDING_VOUCHERS_PER_PHONE,
   rateLimiter,
 } from "./lib/rateLimiter";
-import type { SettingValueMap } from "./lib/settings";
+import { mergeSettings, type SettingValueMap } from "./lib/settings";
 import {
   classifyReferrer,
   formatVoucherCheckoutDescription,
@@ -171,24 +171,74 @@ export const getAuthorized = query({
   args: { lookupToken: v.string() },
   returns: v.union(publicVoucherValidator, v.null()),
   handler: async (ctx, args) => {
+    const voucher = await findVoucherByLookupToken(ctx, args.lookupToken);
+    return voucher ? summarizeForPublic(voucher) : null;
+  },
+});
+
+/**
+ * Resolves a lookup capability to its live Voucher. Malformed tokens, unknown
+ * tokens and soft-deleted Vouchers all resolve to null, so callers cannot
+ * tell them apart.
+ */
+async function findVoucherByLookupToken(
+  ctx: QueryCtx,
+  lookupToken: string,
+): Promise<Doc<"vouchers"> | null> {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+      lookupToken,
+    )
+  ) {
+    return null;
+  }
+
+  const voucher = await ctx.db
+    .query("vouchers")
+    .withIndex("by_lookupToken", (q) => q.eq("lookupToken", lookupToken))
+    .unique();
+
+  return voucher && voucher.deletedAt === undefined ? voucher : null;
+}
+
+/**
+ * Lets a customer move their Pending or Valid voucher (whose Expiry has not
+ * passed) to another day, authorized by the lookup capability alone. The new
+ * day must satisfy the same Visit Date rule as a purchase, with the current
+ * settings. There is no limit on how many times a voucher can be moved.
+ */
+export const rescheduleByCustomer = mutation({
+  args: { lookupToken: v.string(), visitDate: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const voucher = await findVoucherByLookupToken(ctx, args.lookupToken);
+    if (!voucher) {
+      throw new ConvexError("Voucher não encontrado.");
+    }
     if (
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
-        args.lookupToken,
-      )
+      (voucher.status !== "pending" && voucher.status !== "valid") ||
+      voucher.expiresAt <= Date.now()
     ) {
-      return null;
+      throw new ConvexError("Este voucher não pode mais ter a data alterada.");
     }
 
-    const voucher = await ctx.db
-      .query("vouchers")
-      .withIndex("by_lookupToken", (q) => q.eq("lookupToken", args.lookupToken))
-      .unique();
-
-    if (!voucher || voucher.deletedAt !== undefined) {
-      return null;
+    const settings = mergeSettings(await ctx.db.query("settings").collect());
+    const rejection = getVisitDateRejection(args.visitDate, {
+      todayKey: getSaoPauloDateKey(),
+      rules: {
+        maxIntendedDays: settings["max.intended.days"],
+        disabledDays: settings["disabled.days"],
+      },
+    });
+    if (rejection !== null) {
+      throw new ConvexError(rejection);
     }
 
-    return summarizeForPublic(voucher);
+    await applyReschedule(ctx, voucher, {
+      visitDate: args.visitDate,
+      by: { kind: "customer" },
+    });
+    return null;
   },
 });
 
