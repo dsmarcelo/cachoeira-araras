@@ -12,9 +12,7 @@ import { useRouter } from "next/navigation";
 import { createVoucherFormSchema } from "@/lib/voucher/types";
 import { cn, formatPhone, getErrorMessage } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  addCookieVoucher,
-} from "../lib";
+import { addCookieVoucher } from "../lib";
 import { useSavedVouchers } from "./saved-vouchers-provider";
 import VoucherCreatedCard from "./voucher-created-card";
 import PendingPurchaseDialog from "./pending-purchase-dialog";
@@ -27,7 +25,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { addDaysToDateKey, getSaoPauloDateKey } from "@/lib/utils/date";
+import { getSaoPauloDateKey } from "@/lib/utils/date";
+import { getVisitDateRejection } from "@/lib/voucher/visit-date";
 import NumberInput from "./input/number-input";
 import {
   getCachedLookupToken,
@@ -116,7 +115,6 @@ export default function VoucherForm({
     } catch {
       setReferrerURL(null);
     }
-
   }, []);
 
   useEffect(() => {
@@ -163,9 +161,7 @@ export default function VoucherForm({
   });
 
   const formValues = useWatch({ control });
-  const totalPrice = testMode
-    ? 0.01
-    : (formValues.adults ?? 0) * voucherPrice;
+  const totalPrice = testMode ? 0.01 : (formValues.adults ?? 0) * voucherPrice;
 
   function normalizePhone(value: string) {
     return value.replace(/\D/g, "");
@@ -218,12 +214,16 @@ export default function VoucherForm({
           managementToken: checkout.managementToken,
         });
       } catch {
-        setPersistenceWarning("Não foi possível salvar seu voucher neste navegador. Anote o código antes de sair.");
+        setPersistenceWarning(
+          "Não foi possível salvar seu voucher neste navegador. Anote o código antes de sair.",
+        );
       }
       try {
         await addCookieVoucher(checkout.code, checkout.initPoint);
       } catch {
-        setPersistenceWarning("Não foi possível guardar o retorno do pagamento neste navegador. Anote o código do voucher antes de continuar.");
+        setPersistenceWarning(
+          "Não foi possível guardar o retorno do pagamento neste navegador. Anote o código do voucher antes de continuar.",
+        );
       }
       setIsLoading(false);
     } catch (error) {
@@ -261,7 +261,10 @@ export default function VoucherForm({
       <VoucherCreatedCard
         code={code}
         redirectToPayment={redirectToPayment}
-        onNewPurchase={() => { setCode(""); setInitPoint(""); }}
+        onNewPurchase={() => {
+          setCode("");
+          setInitPoint("");
+        }}
         warning={persistenceWarning || warning}
         payment_success_url={payment_sucess_url}
       />
@@ -286,7 +289,11 @@ export default function VoucherForm({
   return (
     <div className="mx-auto w-full bg-dark-blue">
       <div className="border-none bg-dark-blue p-4 text-primary-50">
-        {warning && <p role="alert" className="mb-4 text-orange-100">{warning}</p>}
+        {warning && (
+          <p role="alert" className="mb-4 text-orange-100">
+            {warning}
+          </p>
+        )}
         <form
           onSubmit={handleSubmit(onSubmit)}
           className="grid gap-4 [&_input]:h-12 [&_input]:bg-primary-50 [&_label]:text-base [&_label]:leading-none"
@@ -380,7 +387,6 @@ export default function VoucherForm({
                       </p>
                     )}
                   </div>
-
                 </>
               )}
             </div>
@@ -422,22 +428,12 @@ export default function VoucherForm({
                         mode="single"
                         selected={field.value}
                         onSelect={field.onChange}
-                        disabled={(date) => {
-                          const dateKey = getSaoPauloDateKey(date);
-                          const todayKey = getSaoPauloDateKey();
-                          const maxDateKey = addDaysToDateKey(
-                            todayKey,
-                            maxIntendedDays,
-                          );
-
-                          // Compare as YYYY-MM-DD strings so a visitor's local
-                          // timezone never shifts the day being checked.
-                          if (dateKey < todayKey || dateKey > maxDateKey) {
-                            return true;
-                          }
-
-                          return disabledDays.includes(dateKey);
-                        }}
+                        disabled={(date) =>
+                          getVisitDateRejection(getSaoPauloDateKey(date), {
+                            todayKey: getSaoPauloDateKey(),
+                            rules: { maxIntendedDays, disabledDays },
+                          }) !== null
+                        }
                         initialFocus
                       />
                     </PopoverContent>

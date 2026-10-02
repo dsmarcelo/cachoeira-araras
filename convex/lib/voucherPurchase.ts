@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 
 import { getSaoPauloDateKey } from "../../src/lib/utils/date";
+import { getVisitDateRejection } from "../../src/lib/voucher/visit-date";
 import type { SettingValueMap } from "./settings";
 
 /**
@@ -73,7 +74,9 @@ export function validateVoucherPurchase(
   options: ValidateVoucherPurchaseOptions,
 ): VoucherPurchaseValidationResult {
   if (input.testMode === true && options.canUseTestMode !== true) {
-    throw new ConvexError("Modo de teste disponível apenas para equipe autorizada.");
+    throw new ConvexError(
+      "Modo de teste disponível apenas para equipe autorizada.",
+    );
   }
 
   validateQuantities(input);
@@ -169,31 +172,15 @@ function validateVisitDate(
   visitDate: string,
   options: ValidateVoucherPurchaseOptions,
 ) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(visitDate)) {
-    throw new ConvexError("Data de visita inválida.");
+  const rejection = getVisitDateRejection(visitDate, {
+    todayKey: getSaoPauloDateKey(options.now),
+    rules: {
+      maxIntendedDays: options.settings["max.intended.days"],
+      disabledDays: options.settings["disabled.days"],
+    },
+  });
+
+  if (rejection !== null) {
+    throw new ConvexError(rejection);
   }
-
-  const todayKey = getSaoPauloDateKey(options.now);
-  const today = dateKeyToUtcDay(todayKey);
-  const visitDay = dateKeyToUtcDay(visitDate);
-  const maxDate = new Date(today);
-  maxDate.setUTCDate(
-    today.getUTCDate() + options.settings["max.intended.days"],
-  );
-
-  if (visitDay < today) {
-    throw new ConvexError("Data de visita não pode estar no passado.");
-  }
-
-  if (visitDay > maxDate) {
-    throw new ConvexError("Data de visita além do limite permitido.");
-  }
-
-  if (options.settings["disabled.days"].includes(visitDate)) {
-    throw new ConvexError("Data de visita indisponível.");
-  }
-}
-
-function dateKeyToUtcDay(dateKey: string) {
-  return new Date(`${dateKey}T00:00:00.000Z`);
 }
