@@ -18,14 +18,23 @@ across contexts.
 _Avoid_: voucher id, voucher number
 
 **Visit Date**:
-The day the visitor chose to come, fixed at purchase. It is never changed by staff,
-because reporting and gate planning depend on it describing the visitor's intent.
+The day the Voucher is currently booked for, chosen at purchase and moved only by a
+Reschedule. Gate redemption and the gate's daily list are keyed on it.
 _Avoid_: intended date, expiry date
 
 **Expiry**:
-The moment a Voucher stops being redeemable. Distinct from the Visit Date: staff may
-extend an Expiry to resolve a problem at the gate, and doing so does not change the
-day the visitor originally chose.
+The moment a Voucher stops being redeemable: the end of its Visit Date in Sao Paulo.
+A Reschedule recomputes it with the Visit Date. Staff may also extend it alone to
+resolve a problem at the gate, which does not change the Visit Date.
+
+**Reschedule**:
+Moving a Voucher to another Visit Date, which always moves the Expiry with it. Price,
+quantities and payments never change. Only the last Reschedule is kept: when it
+happened and who made it (the customer or a named admin). A customer may reschedule a
+Pending or Valid Voucher that has not expired, to any day a purchase would allow, as
+often as they like. An admin may also reschedule an Expired Voucher (it becomes Valid
+again) to any day from today on, ignoring the booking window and closed days.
+Employees cannot reschedule.
 
 **Test Voucher**:
 A Voucher created by staff to exercise the real purchase and payment path at a
