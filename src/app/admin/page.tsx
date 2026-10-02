@@ -13,7 +13,7 @@ export default async function AdminPage() {
 
   return (
     <main className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-4 px-4 py-4 sm:grid-cols-2 sm:gap-12">
-      <ValidateVoucher />
+      <ValidateVoucher isAdmin={user.role === "admin"} />
       {user.role === "admin" ? <TodayVouchers /> : <EmployeeTodayVouchers />}
     </main>
   );
