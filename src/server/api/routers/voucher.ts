@@ -14,6 +14,8 @@ import { formatPaymentUrl } from "@/lib/utils";
 import { getMercadoPagoPayment } from "@/server/mercadopago";
 import { syncVoucherPayment, syncDisplayedVouchers } from "@/server/voucher-payment-sync";
 import { startVoucherCheckout } from "@/server/voucher-purchase-intake";
+import { brazilDateKeyToDate } from "@/server/voucher-expiry";
+import { planVisitDateUpdate } from "@/server/voucher-visit-date";
 
 function getTodayRange() {
   const today = new Date();
@@ -561,6 +563,40 @@ export const voucherRouter = createTRPCRouter({
       return await ctx.db.voucher.update({
         where: whereClause,
         data: input.data,
+      });
+    }),
+
+  /** Admin-only: moves the visit day; reactivates expired vouchers moved to today or later. */
+  updateVisitDate: adminProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        // "YYYY-MM-DD" day in Brasília, so browser and server time zones never matter.
+        date: z.string().transform((key, ctx) => {
+          const date = brazilDateKeyToDate(key);
+          if (!date) {
+            ctx.addIssue({ code: "custom", message: "Data inválida." });
+            return z.NEVER;
+          }
+          return date;
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const voucher = await ctx.db.voucher.findFirst({
+        where: { id: input.id, deletedAt: null },
+        select: { status: true },
+      });
+      if (!voucher) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Voucher não encontrado." });
+      }
+      const plan = planVisitDateUpdate(voucher, input.date);
+      if (!plan.ok) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: plan.message });
+      }
+      return await ctx.db.voucher.update({
+        where: { id: input.id },
+        data: plan.data,
       });
     }),
 

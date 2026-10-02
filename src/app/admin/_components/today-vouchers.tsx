@@ -131,6 +131,7 @@ export default function TodayVouchers() {
           data={{ ...selectedData, payment_id: selectedData.payment_id ?? undefined }}
           open={!!selectedVoucher}
           onClose={() => setSelectedVoucher(null)}
+          canEditVisitDate
         />
       )}
     </div>

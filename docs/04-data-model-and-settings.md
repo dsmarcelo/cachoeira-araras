@@ -11,7 +11,7 @@ Campos essenciais para operação:
 - `valid`: flag booleana auxiliar de validade.
 - `preference_id`: id da preferência do Mercado Pago.
 - `payment_id`: id do pagamento confirmado (quando houver).
-- `expires_at`: data planejada de uso/expiração.
+- `expires_at`: data planejada de uso/expiração. Somente admins podem alterá-la (qualquer data, inclusive passada); vouchers `redeemed` ficam travados. Prorrogar um voucher `expired` para hoje ou depois o torna `valid` novamente.
 - `deletedAt`: soft delete.
 
 Também guarda quantidades e preço final para rastreabilidade da compra.

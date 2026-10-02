@@ -12,7 +12,7 @@ import { VoucherInfoCard } from '../admin/voucher-info-card'
 import { type CompleteVoucherSchema } from '@/lib/voucher/types'
 
 type TVoucher = RouterOutputs['voucher']['findByCode'];
-export default function ValidateVoucher() {
+export default function ValidateVoucher({ isAdmin = false }: { isAdmin?: boolean }) {
   const [voucherCode, setVoucherCode] = useState('');
   const [voucher, setVoucher] = useState<TVoucher>();
   const [valid, setValid] = useState(false);
@@ -146,6 +146,7 @@ export default function ValidateVoucher() {
             data={voucher as CompleteVoucherSchema}
             open={!!openMoreInfo}
             onClose={() => setOpenMoreInfo(false)}
+            canEditVisitDate={isAdmin}
           />
         </div>
         : null}

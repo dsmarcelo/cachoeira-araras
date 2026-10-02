@@ -28,3 +28,16 @@ export function startOfBrazilDay(now: Date) {
   const localMidnightUtc = Date.parse(`${getBrazilDateKey(now)}T00:00:00Z`);
   return new Date(localMidnightUtc + UTC_OFFSET_HOURS * 3_600_000);
 }
+
+/**
+ * Converts a "YYYY-MM-DD" visit day into 00:00 Brasília, the same instant
+ * stored at purchase. Returns null for malformed or non-existent days (31/02).
+ */
+export function brazilDateKeyToDate(dateKey: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null;
+  const localMidnightUtc = Date.parse(`${dateKey}T00:00:00Z`);
+  if (Number.isNaN(localMidnightUtc)) return null;
+  // Date.parse rolls 02-31 over to March, so the round trip rejects it.
+  if (new Date(localMidnightUtc).toISOString().slice(0, 10) !== dateKey) return null;
+  return new Date(localMidnightUtc + UTC_OFFSET_HOURS * 3_600_000);
+}

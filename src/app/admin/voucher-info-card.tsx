@@ -22,14 +22,17 @@ import { formatPaymentStatus, formatPaymentStatusDetail, formatPaymentType } fro
 import { toast } from "@/components/ui/use-toast"
 import { activateVoucher, redeemVoucher } from "../lib"
 import Link from "next/link"
+import { VoucherVisitDateEditor } from "./_components/voucher-visit-date-editor"
 
 interface props {
   data: CompleteVoucherSchema,
   onClose: () => void
   open: boolean
+  /** Admins can move the visit date, except on already redeemed vouchers. */
+  canEditVisitDate?: boolean
 }
 
-export function VoucherInfoCard({ data: initialData, onClose, open }: props) {
+export function VoucherInfoCard({ data: initialData, onClose, open, canEditVisitDate = false }: props) {
   const details = useAdminVoucherDetails(initialData.id, open);
   const data = details.data?.voucher ?? initialData;
   const referrerQuery = api.referrer.findByCode.useQuery(data.code, { enabled: open });
@@ -127,7 +130,9 @@ export function VoucherInfoCard({ data: initialData, onClose, open }: props) {
                       ? "Expira em"
                       : "Expirou em"}:
                 </span>
-                <h4>{formatDateWeekDay(data.expires_at)}</h4>
+                {canEditVisitDate && data.status !== "redeemed"
+                  ? <VoucherVisitDateEditor voucherId={data.id} expiresAt={data.expires_at} />
+                  : <h4>{formatDateWeekDay(data.expires_at)}</h4>}
               </div>}
           </div>
           <div className="flex flex-wrap gap-x-1" onClick={() => navigator.clipboard.writeText(data.preference_id)}>

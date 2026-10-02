@@ -275,6 +275,7 @@ export function VoucherTable<TData, TValue>({
           data={selectedRow.original as CompleteVoucherSchema}
           open={!!selectedRow}
           onClose={() => setSelectedRow(undefined)}
+          canEditVisitDate
         />
       )}
     </div>
