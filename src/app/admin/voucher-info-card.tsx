@@ -33,6 +33,7 @@ import { ptBR } from "date-fns/locale"
 import { CalendarIcon, Copy } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { api } from "../../../convex/_generated/api"
+import { isAdminReschedulable } from "../../../convex/lib/voucherReschedule"
 import { AdminVoucherRefundButton } from "./admin-voucher-refund-button"
 
 export type AdminVoucher = FunctionReturnType<typeof api.vouchers.listAdmin>[number]
@@ -44,9 +45,6 @@ const statusOptions = [
   { value: "expired", label: "Expirado" },
   { value: "refunded", label: "Estornado" },
 ] as const
-
-/** Statuses an admin may reschedule; Expired returns to Valid. */
-const reschedulableStatuses: ReadonlyArray<AdminVoucher["status"]> = ["pending", "valid", "expired"]
 
 interface props {
   data: AdminVoucher
@@ -70,6 +68,7 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
   const reschedule = useMutation(api.vouchers.rescheduleByAdmin)
   const [pendingStatus, setPendingStatus] = React.useState(data.status)
   const [pendingVisitDate, setPendingVisitDate] = React.useState(data.visitDate)
+  const [isRescheduling, setIsRescheduling] = React.useState(false)
 
   React.useEffect(() => {
     setPendingStatus(data.status)
@@ -109,6 +108,7 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
 
   async function handleReschedule() {
     if (pendingVisitDate === data.visitDate) return
+    setIsRescheduling(true)
     try {
       await reschedule({ code: data.code, visitDate: pendingVisitDate })
       toast({ title: "Data da visita alterada com sucesso" })
@@ -117,6 +117,8 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
         title: getErrorMessage(error, "Erro ao alterar a data da visita"),
         variant: "destructive",
       })
+    } finally {
+      setIsRescheduling(false)
     }
   }
 
@@ -135,7 +137,7 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
 
   const expiresAt = new Date(data.expiresAt)
   const createdAt = new Date(data.createdAt)
-  const canReschedule = !isDeleted && reschedulableStatuses.includes(data.status)
+  const canReschedule = !isDeleted && isAdminReschedulable(data.status)
 
   return (
     <Drawer open={open} onClose={onClose} preventScrollRestoration={true} shouldScaleBackground={true} >
@@ -230,10 +232,10 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={pendingVisitDate === data.visitDate}
+                disabled={isRescheduling || pendingVisitDate === data.visitDate}
                 onClick={handleReschedule}
               >
-                Salvar
+                {isRescheduling ? "Salvando..." : "Salvar"}
               </Button>
             </div>
           )}

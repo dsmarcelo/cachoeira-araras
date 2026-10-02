@@ -35,6 +35,7 @@ import {
 import { validateVoucherPurchase } from "./lib/voucherPurchase";
 import {
   applyReschedule,
+  isAdminReschedulable,
   rescheduledByValidator,
 } from "./lib/voucherReschedule";
 import type { PaymentSnapshot } from "./lib/paymentOperation";
@@ -2082,7 +2083,7 @@ export const rescheduleByAdmin = mutation({
     if (voucher.deletedAt !== undefined) {
       throw new ConvexError("Voucher excluído não pode ser reagendado.");
     }
-    if (!["pending", "valid", "expired"].includes(voucher.status)) {
+    if (!isAdminReschedulable(voucher.status)) {
       throw new ConvexError(
         "Só é possível reagendar vouchers pendentes, válidos ou expirados.",
       );

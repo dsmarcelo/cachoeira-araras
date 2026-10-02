@@ -11,6 +11,14 @@ export const rescheduledByValidator = v.union(
 );
 
 /**
+ * Whether an admin may reschedule a voucher in `status` (Expired returns to
+ * Valid). Shared by `rescheduleByAdmin` and the admin drawer.
+ */
+export function isAdminReschedulable(status: Doc<"vouchers">["status"]) {
+  return status === "pending" || status === "valid" || status === "expired";
+}
+
+/**
  * Applies a Reschedule: moves `visitDate` and recomputes `expiresAt` as the end
  * of the new Sao Paulo day, always together, and records the last change.
  * `revive` also turns an Expired voucher back into Valid (admin only).

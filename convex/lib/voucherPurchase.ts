@@ -74,9 +74,7 @@ export function validateVoucherPurchase(
   options: ValidateVoucherPurchaseOptions,
 ): VoucherPurchaseValidationResult {
   if (input.testMode === true && options.canUseTestMode !== true) {
-    throw new ConvexError(
-      "Modo de teste disponível apenas para equipe autorizada.",
-    );
+    throw new ConvexError("Modo de teste disponível apenas para equipe autorizada.");
   }
 
   validateQuantities(input);

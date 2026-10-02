@@ -15,6 +15,14 @@ describe("getVisitDateRejection", () => {
     ).toBeNull();
   });
 
+  test("rejects a well-formed key that is not a real calendar day", () => {
+    for (const dateKey of ["2026-04-31", "2026-13-01"]) {
+      expect(getVisitDateRejection(dateKey, { todayKey })).toBe(
+        "Data de visita inválida.",
+      );
+    }
+  });
+
   test("rejects a malformed date", () => {
     expect(
       getVisitDateRejection("25/04/2026", { todayKey, rules: customerRules }),

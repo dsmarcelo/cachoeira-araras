@@ -21,7 +21,11 @@ export function getVisitDateRejection(
   dateKey: string,
   options: { todayKey: string; rules?: VisitDateBookingRules },
 ): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+  // A key that doesn't survive a round trip (e.g. "2026-02-31") names no real day.
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(dateKey) ||
+    addDaysToDateKey(dateKey, 0) !== dateKey
+  ) {
     return "Data de visita inválida.";
   }
 
