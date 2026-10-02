@@ -6,7 +6,6 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
-  type Row,
   type VisibilityState,
 } from "@tanstack/react-table"
 
@@ -82,7 +81,10 @@ export function VoucherTable({
 }: DataTableProps) {
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
-  const [selectedRow, setSelectedRow] = React.useState<Row<AdminVoucher>>()
+  // Keyed by code and resolved against live `data`, so the open drawer
+  // reflects edits (status, reschedule) as soon as the query updates.
+  const [selectedCode, setSelectedCode] = React.useState<string>()
+  const selectedVoucher = data.find((voucher) => voucher.code === selectedCode)
 
   // TanStack Table exposes mutable APIs that React Compiler cannot safely memoize.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -205,7 +207,7 @@ export function VoucherTable({
                 <TableRow
                   key={row.id}
                   className="cursor-pointer"
-                  onClick={() => setSelectedRow(row)}
+                  onClick={() => setSelectedCode(row.original.code)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -233,12 +235,12 @@ export function VoucherTable({
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}
       />
-      {selectedRow && (
+      {selectedVoucher && (
         <VoucherInfoCard
-          data={selectedRow.original}
+          data={selectedVoucher}
           isDeleted={view === "deleted"}
-          open={!!selectedRow}
-          onClose={() => setSelectedRow(undefined)}
+          open={!!selectedVoucher}
+          onClose={() => setSelectedCode(undefined)}
         />
       )}
     </div>

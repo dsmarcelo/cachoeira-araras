@@ -24,7 +24,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { formatVoucherStatus } from "@/lib/voucher"
-import { Copy } from "lucide-react"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { getSaoPauloDateKey } from "@/lib/utils/date"
+import { getVisitDateRejection } from "@/lib/voucher/visit-date"
+import { format, parseISO } from "date-fns"
+import { ptBR } from "date-fns/locale"
+import { CalendarIcon, Copy } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { api } from "../../../convex/_generated/api"
 import { AdminVoucherRefundButton } from "./admin-voucher-refund-button"
@@ -38,6 +44,9 @@ const statusOptions = [
   { value: "expired", label: "Expirado" },
   { value: "refunded", label: "Estornado" },
 ] as const
+
+/** Statuses an admin may reschedule; Expired returns to Valid. */
+const reschedulableStatuses: ReadonlyArray<AdminVoucher["status"]> = ["pending", "valid", "expired"]
 
 interface props {
   data: AdminVoucher
@@ -58,11 +67,17 @@ interface props {
 export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
   const updateStatus = useMutation(api.vouchers.updateStatus)
   const restore = useMutation(api.vouchers.restore)
+  const reschedule = useMutation(api.vouchers.rescheduleByAdmin)
   const [pendingStatus, setPendingStatus] = React.useState(data.status)
+  const [pendingVisitDate, setPendingVisitDate] = React.useState(data.visitDate)
 
   React.useEffect(() => {
     setPendingStatus(data.status)
   }, [data.status])
+
+  React.useEffect(() => {
+    setPendingVisitDate(data.visitDate)
+  }, [data.visitDate])
 
   function formatQuantity(voucher: { adults: number; elderly: number }): string {
     const adultsText = voucher.adults === 1 ? '1 inteira' : `${voucher.adults} inteiras`;
@@ -92,6 +107,19 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
     }
   }
 
+  async function handleReschedule() {
+    if (pendingVisitDate === data.visitDate) return
+    try {
+      await reschedule({ code: data.code, visitDate: pendingVisitDate })
+      toast({ title: "Data da visita alterada com sucesso" })
+    } catch (error) {
+      toast({
+        title: getErrorMessage(error, "Erro ao alterar a data da visita"),
+        variant: "destructive",
+      })
+    }
+  }
+
   async function handleRestore() {
     try {
       await restore({ code: data.code })
@@ -107,6 +135,7 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
 
   const expiresAt = new Date(data.expiresAt)
   const createdAt = new Date(data.createdAt)
+  const canReschedule = !isDeleted && reschedulableStatuses.includes(data.status)
 
   return (
     <Drawer open={open} onClose={onClose} preventScrollRestoration={true} shouldScaleBackground={true} >
@@ -129,6 +158,12 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
             <p>{formatQuantity({ adults: data.adults, elderly: data.elderly })}</p>
             <h4>{formatVoucherStatus(data.status)}</h4>
             <p>Gerado em: {formatDateWeekDay(createdAt)}</p>
+            <p>Visita: {formatDateWeekDay(parseISO(data.visitDate))}</p>
+            {data.rescheduledAt !== undefined && data.rescheduledBy && (
+              <p className="text-xs text-muted-foreground">
+                Data alterada por {data.rescheduledBy.kind === "customer" ? "cliente" : data.rescheduledBy.username} em {new Date(data.rescheduledAt).toLocaleString("pt-BR")}
+              </p>
+            )}
             {data.referrer && <p>Origem: {formatReferrer(data.referrer.source)}</p>}
             <div className="flex flex-wrap gap-x-1">
               <span>
@@ -168,6 +203,40 @@ export function VoucherInfoCard({ data, isDeleted, onClose, open }: props) {
               Salvar
             </Button>
           </div>
+          {canReschedule && (
+            <div className="flex items-end gap-2 pt-2">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Alterar data da visita</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 w-48 justify-start font-normal">
+                      {format(parseISO(pendingVisitDate), "PPP", { locale: ptBR })}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto rounded-2xl p-0 shadow-lg" align="center">
+                    <Calendar
+                      mode="single"
+                      selected={parseISO(pendingVisitDate)}
+                      onSelect={(date) => date && setPendingVisitDate(format(date, "yyyy-MM-dd"))}
+                      disabled={(date) =>
+                        getVisitDateRejection(format(date, "yyyy-MM-dd"), { todayKey: getSaoPauloDateKey() }) !== null
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pendingVisitDate === data.visitDate}
+                onClick={handleReschedule}
+              >
+                Salvar
+              </Button>
+            </div>
+          )}
           {!isDeleted && (
             <AdminVoucherRefundButton code={data.code} paymentId={data.paymentId} status={data.status} />
           )}

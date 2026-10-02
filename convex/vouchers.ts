@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 
+import { getVisitDateRejection } from "../src/lib/voucher/visit-date";
 import {
   endOfSaoPauloDayMs,
   getSaoPauloDateKey,
@@ -17,6 +18,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { getRole, requireRole } from "./lib/auth";
+import { authComponent } from "./auth";
 import { createCheckoutPreference } from "./lib/mercadopago";
 import {
   formatRetryAfter,
@@ -31,6 +33,10 @@ import {
   splitCustomerName,
 } from "./lib/voucherCode";
 import { validateVoucherPurchase } from "./lib/voucherPurchase";
+import {
+  applyReschedule,
+  rescheduledByValidator,
+} from "./lib/voucherReschedule";
 import type { PaymentSnapshot } from "./lib/paymentOperation";
 
 /**
@@ -1782,6 +1788,9 @@ const gateVoucherAdminValidator = v.object({
   // Voucher was already redeemed (see `confirmPayment`). Undefined for
   // every Voucher this never happened to.
   reversal: v.optional(v.object({ reason: v.string(), notedAt: v.number() })),
+  // The most recent Reschedule, shown in the admin drawer.
+  rescheduledAt: v.optional(v.number()),
+  rescheduledBy: v.optional(rescheduledByValidator),
 });
 
 function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
@@ -1791,6 +1800,8 @@ function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
     preferenceId: voucher.preferenceId,
     referrer: voucher.referrer,
     reversal: voucher.reversal,
+    rescheduledAt: voucher.rescheduledAt,
+    rescheduledBy: voucher.rescheduledBy,
   };
 }
 
@@ -1995,6 +2006,50 @@ export const updateStatus = mutation({
       );
     }
     await ctx.db.patch(voucher._id, { status: args.status });
+    return null;
+  },
+});
+
+/**
+ * Moves a voucher to another Visit Date as an admin. Allowed on Pending, Valid
+ * and Expired vouchers (Expired returns to Valid; the nightly job only deletes
+ * overdue Pending vouchers, so Expired always means previously paid). Any day
+ * from today on is accepted: the booking window and closed days are for
+ * customers. The admin's username is recorded as the author.
+ */
+export const rescheduleByAdmin = mutation({
+  args: { code: v.string(), visitDate: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user || typeof user.username !== "string") {
+      throw new ConvexError("Não foi possível identificar o administrador.");
+    }
+
+    const voucher = await requireVoucherByCode(ctx, args.code);
+    if (voucher.deletedAt !== undefined) {
+      throw new ConvexError("Voucher excluído não pode ser reagendado.");
+    }
+    if (!["pending", "valid", "expired"].includes(voucher.status)) {
+      throw new ConvexError(
+        "Só é possível reagendar vouchers pendentes, válidos ou expirados.",
+      );
+    }
+
+    const rejection = getVisitDateRejection(args.visitDate, {
+      todayKey: getSaoPauloDateKey(),
+    });
+    if (rejection !== null) {
+      throw new ConvexError(rejection);
+    }
+
+    await applyReschedule(ctx, voucher, {
+      visitDate: args.visitDate,
+      by: { kind: "admin", username: user.username },
+      revive: true,
+    });
     return null;
   },
 });
