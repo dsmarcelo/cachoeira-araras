@@ -71,7 +71,7 @@ export function AttractionCard({
       ))}
 
       {/* Dark gradient overlay - transparent at top, opaque at bottom */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-scrim/80 via-scrim/30 to-transparent" />
 
       {/* Text content - prominentText bumps sizes for portrait stacked cards */}
       <div
@@ -82,7 +82,7 @@ export function AttractionCard({
       >
         <h3
           className={cn(
-            "font-bold leading-snug text-white",
+            "font-bold leading-snug text-on-solid",
             prominentText ? "text-2xl" : "text-xl sm:text-2xl",
           )}
         >
@@ -90,7 +90,7 @@ export function AttractionCard({
         </h3>
         <p
           className={cn(
-            "leading-relaxed text-white/80",
+            "leading-relaxed text-on-solid/80",
             prominentText ? "text-base" : "text-xs sm:text-sm",
           )}
         >

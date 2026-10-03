@@ -159,10 +159,8 @@ async function main() {
   for (const voucher of legacyVouchers) {
     try {
       voucherRows.push(
-        buildVoucherImportRow(
-          voucher,
-          referrerByVoucherCode.get(voucher.code),
-        ),
+        buildVoucherImportRow(voucher, referrerByVoucherCode.get(voucher.code))
+          .row,
       );
     } catch (error) {
       report.vouchers.failed.push(

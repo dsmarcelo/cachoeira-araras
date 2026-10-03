@@ -45,6 +45,11 @@ const vouchers = defineTable({
   // delivery and to make payment confirmation idempotent.
   preferenceId: v.string(),
   paymentId: v.optional(v.string()),
+  // Mercado Pago `payment_type_id` / `payment_method_id` of the Official
+  // Payment, set when it makes the voucher valid (see `confirmPayment`).
+  // Absent on vouchers paid before these were recorded.
+  paymentTypeId: v.optional(v.string()),
+  paymentMethodId: v.optional(v.string()),
 
   // Set once, the first time a negative-terminal Mercado Pago notification
   // (refund, chargeback, cancellation) arrives after the Voucher was already
@@ -93,9 +98,30 @@ const vouchers = defineTable({
   cancellationSearchOpId: v.optional(v.id("paymentOperations")),
   cancellationInvalidateOpId: v.optional(v.id("paymentOperations")),
 
+  // When the customer bought the voucher (epoch ms). Set to the checkout time
+  // for new vouchers; the Postgres import will carry the legacy `created_at`
+  // so imported vouchers keep their real sale date. Optional until existing
+  // vouchers are backfilled; the financial report will read this instead of
+  // `_creationTime`.
+  // TODO: make required once `migrations:backfillVoucherPurchasedAtAndSearchText`
+  // has run in production (also in convex/import.ts).
+  purchasedAt: v.optional(v.number()),
+
+  // Normalized `code name phone` (see convex/lib/voucherSearch.ts) feeding the
+  // admin search index. Rewrite it whenever code, name or phone changes.
+  // TODO: make required after the backfill.
+  searchText: v.optional(v.string()),
+
+  // `deletedAt === undefined && !isTest`, derived so the admin search index can
+  // filter "real, live vouchers" with a single equality (search filters can't
+  // express "field is set"). Rewrite it on every write that changes
+  // `deletedAt` or `isTest`. TODO: make required after the backfill.
+  isActive: v.optional(v.boolean()),
+
   deletedAt: v.optional(v.number()),
 })
   .index("by_code", ["code"])
+  .index("by_purchasedAt", ["purchasedAt"])
   .index("by_lookupToken", ["lookupToken"])
   .index("by_managementToken", ["managementToken"])
   .index("by_paymentId", ["paymentId"])
@@ -113,7 +139,28 @@ const vouchers = defineTable({
   ])
   // Lets daily maintenance find Test Vouchers old enough to hard-delete
   // without scanning non-test vouchers too.
-  .index("by_isTest", ["isTest"]);
+  .index("by_isTest", ["isTest"])
+  // Admin table (`listAdmin`): real vouchers newest-sale-first, optionally
+  // narrowed by status and a purchasedAt range without scanning the table.
+  .index("by_isTest_and_deletedAt_and_purchasedAt", [
+    "isTest",
+    "deletedAt",
+    "purchasedAt",
+  ])
+  .index("by_isTest_and_deletedAt_and_status_and_purchasedAt", [
+    "isTest",
+    "deletedAt",
+    "status",
+    "purchasedAt",
+  ])
+  // Admin "deleted" view (`listDeleted`).
+  .index("by_deletedAt", ["deletedAt"])
+  // Admin search by code, name or phone. `isActive` (not `deletedAt`) is the
+  // filter for live vs. deleted because search filters only support equality.
+  .searchIndex("search_text", {
+    searchField: "searchText",
+    filterFields: ["isActive", "status"],
+  });
 
 // One document per key so concurrent admins editing settings cannot clobber
 // each other. `key` values and their value shapes come from the
@@ -189,8 +236,28 @@ const operationalAlerts = defineTable({
   .index("by_voucherCode", ["voucherCode"])
   .index("by_paymentId", ["paymentId"]);
 
+// Derived, recomputable revenue summary of one Sao Paulo purchase day (see
+// convex/lib/financeSummary.ts). Vouchers are the source of truth; rewrite
+// only through `finance.recomputeDay`. Days without revenue have no document.
+const financeShare = v.object({
+  key: v.string(),
+  netCents: v.number(),
+  voucherCount: v.number(),
+});
+const financeDays = defineTable({
+  date: v.string(),
+  netCents: v.number(),
+  voucherCount: v.number(),
+  // 24 entries, indexed by Sao Paulo hour of day.
+  hours: v.array(v.object({ netCents: v.number(), voucherCount: v.number() })),
+  referrers: v.array(financeShare),
+  paymentMethods: v.array(financeShare),
+  updatedAt: v.number(),
+}).index("by_date", ["date"]);
+
 export default defineSchema({
   vouchers,
+  financeDays,
   settings,
   payments,
   paymentRefunds,

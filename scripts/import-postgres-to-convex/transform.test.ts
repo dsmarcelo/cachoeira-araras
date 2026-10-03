@@ -8,6 +8,7 @@ import {
   reaisToCents,
   splitExpiresAt,
 } from "./transform";
+import { endOfSaoPauloDayMs } from "../../src/lib/utils/date";
 
 function baseVoucher(overrides: Partial<Voucher> = {}): Voucher {
   return {
@@ -110,7 +111,7 @@ describe("foldReferrer", () => {
 
 describe("buildVoucherImportRow", () => {
   test("applies every transformation together", () => {
-    const row = buildVoucherImportRow(
+    const { row } = buildVoucherImportRow(
       baseVoucher({ status: "used", price: 19.99 }),
       { referrer: "Google", url: "https://example.com/?gclid=1" },
     );
@@ -124,15 +125,16 @@ describe("buildVoucherImportRow", () => {
     });
     expect(row.adultsPool).toBe(0);
     expect(row.elderlyPool).toBe(0);
+    expect(row.purchasedAt).toBe(new Date("2026-08-02T19:00:00.000Z").getTime());
   });
 
   test("a voucher with no Referrer row stays valid, with referrer absent", () => {
-    const row = buildVoucherImportRow(baseVoucher(), undefined);
+    const { row } = buildVoucherImportRow(baseVoucher(), undefined);
     expect(row.referrer).toBeUndefined();
   });
 
   test("carries payment id and soft-delete timestamp through when present", () => {
-    const row = buildVoucherImportRow(
+    const { row } = buildVoucherImportRow(
       baseVoucher({
         payment_id: "pay-1",
         deletedAt: new Date("2026-08-03T21:51:01.000Z"),
@@ -143,9 +145,19 @@ describe("buildVoucherImportRow", () => {
     expect(row.deletedAt).toBe(new Date("2026-08-03T21:51:01.000Z").getTime());
   });
 
-  test("throws when expires_at is missing", () => {
-    expect(() =>
-      buildVoucherImportRow(baseVoucher({ expires_at: null }), undefined),
-    ).toThrow(/no expires_at/);
+  test("falls back to the createdAt day when expires_at is missing", () => {
+    const { row, usedCreatedAtFallback } = buildVoucherImportRow(
+      baseVoucher({ expires_at: null }),
+      undefined,
+    );
+    expect(usedCreatedAtFallback).toBe(true);
+    expect(row.visitDate).toBe("2026-08-02");
+    expect(row.expiresAt).toBe(endOfSaoPauloDayMs("2026-08-02"));
+  });
+
+  test("does not flag a voucher that has expires_at", () => {
+    expect(
+      buildVoucherImportRow(baseVoucher(), undefined).usedCreatedAtFallback,
+    ).toBe(false);
   });
 });

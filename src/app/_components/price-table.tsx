@@ -22,7 +22,7 @@ function PriceSummary({ label, priceCents, description }: PriceSummaryProps) {
       <div className="flex flex-col gap-1">
         <p>{label}</p>
         {description ? (
-          <p className="text-sm text-primary-100/80">{description}</p>
+          <p className="text-sm text-fg-muted/80">{description}</p>
         ) : null}
       </div>
       <p>R${formatCentsAsReais(priceCents)}</p>
@@ -37,11 +37,11 @@ export default function PriceTable() {
   if (!settings) {
     return (
       <div className="flex w-full flex-col items-center justify-center">
-        <h3 className="h-12 py-2 text-xl font-bold text-primary-100">
+        <h3 className="h-12 py-2 text-xl font-bold text-fg-muted">
           Adquira já seu voucher
         </h3>
-        <div className="flex w-full items-center justify-center bg-custom-secondary pb-2 pt-6 font-semibold text-primary-50">
-          <p className="text-primary-100">Carregando preços...</p>
+        <div className="flex w-full items-center justify-center bg-surface-alt pb-2 pt-6 font-semibold text-fg">
+          <p className="text-fg-muted">Carregando preços...</p>
         </div>
       </div>
     );
@@ -56,10 +56,10 @@ export default function PriceTable() {
 
   return (
     <div className="flex w-full flex-col items-center justify-center">
-      <h3 className="h-12 py-2 text-xl font-bold text-primary-100">
+      <h3 className="h-12 py-2 text-xl font-bold text-fg-muted">
         Adquira já seu voucher
       </h3>
-      <div className="flex w-full flex-col gap-2 bg-custom-secondary pb-2 pt-1 font-semibold text-primary-50">
+      <div className="flex w-full flex-col gap-2 bg-surface-alt pb-2 pt-1 font-semibold text-fg">
         <div className="flex w-full flex-col gap-2 px-4">
           {showRegular && (
             <PriceSummary label="Voucher" priceCents={voucherPriceCents} />

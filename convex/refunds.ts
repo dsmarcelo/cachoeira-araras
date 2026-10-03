@@ -7,6 +7,7 @@ import {
   internalQuery,
   query,
 } from "./_generated/server";
+import { patchVoucher } from "./lib/voucherWrites";
 import { getPayment } from "./lib/mercadopagoOperations";
 import { MercadoPagoApiError } from "./lib/mercadopagoError";
 import { explainRefundFailure, refundProviderDetail } from "./lib/refundFailure";
@@ -418,9 +419,9 @@ export const markCompleted = internalMutation({
     if (voucher?.paymentId === refund.paymentId) {
       const reversal = voucher.reversal ?? { reason: "refunded", notedAt: now };
       if (voucher.status === "redeemed") {
-        await ctx.db.patch(voucher._id, { reversal });
+        await patchVoucher(ctx, voucher, { reversal });
       } else if (voucher.status === "valid" || voucher.status === "expired") {
-        await ctx.db.patch(voucher._id, { status: "refunded", reversal });
+        await patchVoucher(ctx, voucher, { status: "refunded", reversal });
       }
     }
 

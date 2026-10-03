@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
 import { formatQuantity, formatVoucherStatus } from "@/lib/voucher";
 import { formatPhone } from "@/lib/utils";
 import {
@@ -202,27 +203,27 @@ export default function PendingPurchaseDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto bg-dark-blue text-primary-50 sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto bg-surface text-fg sm:max-w-lg">
         {conflict === undefined ? (
           <div className="flex flex-col items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-primary-100" />
-            <p className="mt-2 text-sm text-primary-200">
+            <Loader2 className="h-8 w-8 animate-spin text-fg-muted" />
+            <p className="mt-2 text-sm text-fg-subtle">
               Verificando compras pendentes...
             </p>
           </div>
         ) : conflict.kind === "generic" ? (
           <div className="space-y-4">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-white">
+              <DialogTitle className="text-xl font-bold text-fg">
                 Compra pendente encontrada
               </DialogTitle>
-              <DialogDescription className="text-sm text-primary-200">
+              <DialogDescription className="text-sm text-fg-subtle">
                 Identificamos uma compra em andamento para o telefone{" "}
                 {formatPhone(phone)}.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="rounded-lg bg-black/20 p-4 text-sm leading-relaxed text-primary-100">
+            <div className="rounded-lg bg-scrim/20 p-4 text-sm leading-relaxed text-fg-muted">
               <p>
                 Para sua segurança, os detalhes e ações desta compra só estão
                 disponíveis no navegador onde ela foi iniciada.
@@ -235,9 +236,9 @@ export default function PendingPurchaseDialog({
 
             <div className="flex justify-end pt-2">
               <Button
-                variant="outline"
+                variant="inverseOutline"
                 onClick={() => onOpenChange(false)}
-                className="rounded-xl border-primary-300 bg-transparent text-primary-50 hover:bg-white/10"
+                className="rounded-xl"
               >
                 Entendi
               </Button>
@@ -246,12 +247,12 @@ export default function PendingPurchaseDialog({
         ) : conflict.kind === "authorized" ? (
           <div className="space-y-4">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-white">
+              <DialogTitle className="text-xl font-bold text-fg">
                 {conflict.vouchers.length > 1
                   ? "Compras pendentes encontradas"
                   : "Compra pendente encontrada"}
               </DialogTitle>
-              <DialogDescription className="text-sm text-primary-200">
+              <DialogDescription className="text-sm text-fg-subtle">
                 Você já possui{" "}
                 {conflict.vouchers.length > 1 ? "compras" : "uma compra"} para o
                 telefone {formatPhone(phone)}. Escolha uma ação abaixo:
@@ -259,37 +260,37 @@ export default function PendingPurchaseDialog({
             </DialogHeader>
 
             {errorMessage && (
-              <div className="rounded-lg border border-red-500/30 bg-red-900/40 p-3 text-sm text-red-200">
+              <Notice tone="danger" role="alert">
                 {errorMessage}
-              </div>
+              </Notice>
             )}
 
             <div className="space-y-4">
               {conflict.vouchers.map((voucher) => (
                 <div
                   key={voucher.code}
-                  className="space-y-3 rounded-xl border border-white/10 bg-black/30 p-4"
+                  className="space-y-3 rounded-xl border border-line/10 bg-scrim/30 p-4"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold tracking-wide text-primary-200">
+                    <span className="text-sm font-semibold tracking-wide text-fg-subtle">
                       Código:{" "}
-                      <span className="font-mono text-base font-bold text-white">
+                      <span className="font-mono text-base font-bold text-fg">
                         {voucher.code}
                       </span>
                     </span>
                     <div>{formatVoucherStatus(voucher.status)}</div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-sm text-primary-100">
+                  <div className="grid grid-cols-2 gap-2 text-sm text-fg-muted">
                     <div>
-                      <p className="text-xs text-primary-300">Data da visita</p>
-                      <p className="font-medium text-white">
+                      <p className="text-xs text-fg-faint">Data da visita</p>
+                      <p className="font-medium text-fg">
                         {formatDate(voucher.visitDate)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-primary-300">Valor</p>
-                      <p className="font-medium text-white">
+                      <p className="text-xs text-fg-faint">Valor</p>
+                      <p className="font-medium text-fg">
                         R${" "}
                         {(voucher.priceCents / 100)
                           .toFixed(2)
@@ -297,8 +298,8 @@ export default function PendingPurchaseDialog({
                       </p>
                     </div>
                     <div className="col-span-2">
-                      <p className="text-xs text-primary-300">Entradas</p>
-                      <p className="font-medium text-white">
+                      <p className="text-xs text-fg-faint">Entradas</p>
+                      <p className="font-medium text-fg">
                         {formatQuantity({
                           adults: voucher.adults,
                           elderly: voucher.elderly,
@@ -310,13 +311,14 @@ export default function PendingPurchaseDialog({
                   </div>
 
                   {voucher.status === "valid" ? (
-                    <div className="rounded-lg bg-green-900/30 p-2 text-center text-xs text-green-300">
+                    <Notice tone="success" className="border-0 p-2 text-center text-xs">
                       Pagamento aprovado! Este voucher já está válido.
                       <div className="mt-2">
                         <Button
                           asChild
                           size="sm"
-                          className="w-full bg-positive-green text-white hover:bg-positive-green/80"
+                          variant="cta"
+                          className="w-full"
                         >
                           <Link
                             href={`/pagamento?external_reference=${voucher.code}`}
@@ -325,35 +327,36 @@ export default function PendingPurchaseDialog({
                           </Link>
                         </Button>
                       </div>
-                    </div>
+                    </Notice>
                   ) : voucher.status !== "pending" ? (
-                    <div className="rounded-lg bg-white/5 p-2 text-center text-xs text-slate-300">
+                    <Notice tone="neutral" className="p-2 text-center text-xs">
                       {formatTerminalExplanation(voucher.status)}
-                    </div>
+                    </Notice>
                   ) : confirmingCancelCode === voucher.code ? (
-                    <div className="space-y-2 rounded-lg border border-red-500/30 bg-red-950/40 p-3 text-sm">
-                      <p className="font-medium text-red-200">
+                    <Notice tone="danger" className="space-y-2">
+                      <p className="font-medium">
                         Deseja realmente cancelar esta compra pendente?
                       </p>
-                      <p className="text-xs text-red-300">
+                      <p className="text-xs">
                         Esta ação liberará seu telefone para uma nova compra. O
                         link de pagamento atual será desativado.
                       </p>
                       <div className="flex justify-end gap-2 pt-1">
                         <Button
-                          variant="ghost"
+                          variant="inverseGhost"
                           size="sm"
                           disabled={cancellingCode === voucher.code}
                           onClick={() => setConfirmingCancelCode(null)}
-                          className="text-xs text-primary-200 hover:text-white"
+                          className="text-xs"
                         >
                           Voltar
                         </Button>
                         <Button
                           size="sm"
+                          variant="danger"
                           disabled={cancellingCode === voucher.code}
                           onClick={() => handleCancel(voucher.code)}
-                          className="bg-red-600 text-xs text-white hover:bg-red-700"
+                          className="text-xs"
                         >
                           {cancellingCode === voucher.code ? (
                             <>
@@ -365,7 +368,7 @@ export default function PendingPurchaseDialog({
                           )}
                         </Button>
                       </div>
-                    </div>
+                    </Notice>
                   ) : (
                     <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:justify-end">
                       {voucher.actions.canCancel && (
@@ -377,7 +380,7 @@ export default function PendingPurchaseDialog({
                             resumingCode === voucher.code
                           }
                           onClick={() => setConfirmingCancelCode(voucher.code)}
-                          className="rounded-lg border-red-500/40 bg-transparent text-red-300 hover:bg-red-500/20 hover:text-red-200"
+                          className="rounded-lg border-danger/40 bg-transparent text-danger-text hover:bg-danger/20 hover:text-danger-text"
                         >
                           Cancelar compra
                         </Button>
@@ -385,12 +388,13 @@ export default function PendingPurchaseDialog({
                       {voucher.actions.canResume && (
                         <Button
                           size="sm"
+                          variant="cta"
                           disabled={
                             resumingCode === voucher.code ||
                             cancellingCode === voucher.code
                           }
                           onClick={() => handleResume(voucher.code)}
-                          className="rounded-lg bg-positive-green text-white hover:bg-positive-green/80"
+                          className="rounded-lg"
                         >
                           {resumingCode === voucher.code ? (
                             <>
@@ -410,9 +414,9 @@ export default function PendingPurchaseDialog({
 
             <div className="flex justify-end pt-2">
               <Button
-                variant="ghost"
+                variant="inverseGhost"
                 onClick={() => onOpenChange(false)}
-                className="text-sm text-primary-200 hover:text-white"
+                className="text-sm"
               >
                 Fechar
               </Button>
@@ -421,17 +425,18 @@ export default function PendingPurchaseDialog({
         ) : (
           <div className="space-y-4">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-white">
+              <DialogTitle className="text-xl font-bold text-fg">
                 Nenhuma compra pendente
               </DialogTitle>
-              <DialogDescription className="text-sm text-primary-200">
+              <DialogDescription className="text-sm text-fg-subtle">
                 Não há compras pendentes bloqueando este telefone.
               </DialogDescription>
             </DialogHeader>
             <div className="flex justify-end pt-2">
               <Button
+                variant="cta"
                 onClick={() => onOpenChange(false)}
-                className="rounded-xl bg-positive-green text-white hover:bg-positive-green/80"
+                className="rounded-xl"
               >
                 Continuar
               </Button>

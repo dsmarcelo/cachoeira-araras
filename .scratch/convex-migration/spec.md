@@ -127,7 +127,7 @@ Settings:
 
 ### Admin data access
 
-- Production holds roughly one thousand vouchers growing at about fifty per month. At that volume the admin list loads the full filtered set in one reactive query and paginates and searches client-side, preserving the existing page-number UI and true substring matching. No Convex search index and no cursor pagination: both would trade correct `contains` semantics and an accurate page count for scale that is more than a decade away.
+- The admin list and the deleted view are cursor-paginated on the server ("Carregar mais", no total or page numbers) so a write to one voucher no longer resends the whole table. Without a search term, rows come from an index ordered by purchase date with status and purchase-date range in the index; expiry range is a post-filter. Search uses a Convex search index over a normalized `code name phone` field (word/prefix match, accents and case ignored, not mid-word substring) and orders by relevance. A derived `isActive` flag (live and not a Test Voucher) is the search filter, because search filters only support equality. This supersedes the earlier decision to load ~1k vouchers and filter client-side.
 - Summary endpoints always use a bounded date range because they read every matching voucher and reduce in memory. Omitting both bounds defaults to the current calendar month in Sao Paulo; supplying only one bound or explicitly requesting an unbounded range is refused.
 
 ### Test purchases

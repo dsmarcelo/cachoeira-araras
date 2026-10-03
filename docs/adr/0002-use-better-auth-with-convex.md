@@ -1,29 +1,15 @@
-# Use Better Auth with Convex
+# ADR 0002: Better Auth on Convex
 
-Status: accepted
+Status: accepted.
 
-The admin area needs named accounts, live role changes, password management,
-and the same login flow on localhost and Vercel. The previous NextAuth bridge
-stored shared password hashes in Next.js environment variables and depended on
-a Next.js-hosted JWKS endpoint. That made local testing depend on a deployed
-frontend.
+## Context
 
-The app now uses Better Auth's username and admin plugins. Better Auth stores
-users, credentials, sessions, roles, and bans in its component on Convex. The
-browser never asks for an email address. Better Auth still requires an email
-field internally, so account creation supplies an opaque `.invalid` value.
+Staff need named accounts, account administration and role changes that work locally and in production. The previous NextAuth/JWKS bridge coupled local authentication to a deployed frontend and shared credentials.
 
-Application role `employee` maps to Better Auth's built-in `user` role. Convex
-authorization reads the current user record for each privileged operation, so
-role changes and bans do not trust caller-supplied claims.
+## Decision
+
+Store identity, credentials and sessions in Better Auth's Convex component. Use username login and the admin plugin, with public signup disabled. Map the ordinary user role to employee and authorize against the current stored account.
 
 ## Consequences
 
-Local Next.js development talks to a remote Convex development deployment.
-That deployment accepts `http://localhost:3000` through its `SITE_URL` setting.
-No local Convex database or Vercel push is required.
-
-Each Convex deployment needs its own `BETTER_AUTH_SECRET` and `SITE_URL`.
-Production configuration remains a separate, explicit deployment operation.
-An internal Convex action creates the first administrator and refuses to run
-after the first user exists. Later account management happens in the admin UI.
+Each deployment has its own signing secret and trusted origins. Local Next.js can use a remote development backend. Internal placeholder emails satisfy the identity provider without requiring staff email addresses. First-account provisioning is internal and refuses to run once any user exists.

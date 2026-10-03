@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, internalMutation, type ActionCtx } from "./_generated/server";
 import { requireRole } from "./lib/auth";
+import { patchVoucher } from "./lib/voucherWrites";
 import type { PaymentSnapshot } from "./lib/paymentOperation";
 
 const RECHECK_INTERVAL_MS = 60_000;
@@ -50,7 +51,7 @@ export const claim = internalMutation({
       : await ctx.db.insert("paymentOperations", {
           request: { kind: "search", externalReference: voucher.code },
         });
-    await ctx.db.patch(voucher._id, {
+    await patchVoucher(ctx, voucher, {
       paymentReconciliationCheckedAt: now,
       paymentReconciliationOpId: operationId,
     });
@@ -81,6 +82,8 @@ async function reconcile(
       paymentId: payment.id,
       paymentStatus: payment.status,
       paymentAmountCents: Math.round(payment.amount * 100),
+      paymentTypeId: payment.paymentTypeId,
+      paymentMethodId: payment.paymentMethodId,
     });
     updated ||= result.outcome !== "not_found" && result.becameValid;
   }

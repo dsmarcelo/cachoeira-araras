@@ -99,7 +99,7 @@ export default function NumberInput({
   }, [selectedValue, minValue, onChange]);
 
   const buttonClass =
-    "text-primary-50 bg-transparent hover:text-black flex aspect-square h-10 rounded-full items-center justify-center border-primary-300 shadow-sm bg-light text-sm transition-colors disabled:pointer-events-none disabled:opacity-50";
+    "flex aspect-square h-10 items-center justify-center rounded-full bg-field text-sm text-field-fg shadow-sm transition-colors hover:bg-fg-muted disabled:pointer-events-none disabled:opacity-50";
 
   return (
     <div className="w-42">
@@ -121,7 +121,7 @@ export default function NumberInput({
             onBlur={handleInputBlur}
             min={minValue}
             max={maxValue}
-            className="bg-background text-base h-full w-16 px-4 py-2 text-center text-dark focus:outline-none rounded-xl"
+            className="bg-field text-base h-full w-16 px-4 py-2 text-center text-field-fg focus:outline-none rounded-xl"
             aria-label={label}
             {...inputProps}
           />

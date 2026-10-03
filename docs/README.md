@@ -1,31 +1,30 @@
-# Documentação do Projeto — Cachoeira das Araras
+# Documentation
 
-Esta pasta reúne uma documentação prática para **uma pessoa desenvolvedora** manter e evoluir o site com segurança.
+Start with the [domain vocabulary](../CONTEXT.md).
 
-## Ordem de leitura recomendada
+## Product
 
-1. [`01-product-overview.md`](./01-product-overview.md)  
-   Visão geral do produto, público, fluxos principais e regras de negócio.
-2. [`02-architecture-and-stack.md`](./02-architecture-and-stack.md)  
-   Arquitetura atual com Next.js, Convex e a ponte Prisma temporária.
-3. [`03-routes-and-pages.md`](./03-routes-and-pages.md)  
-   Mapa das páginas públicas, admin e endpoints de API.
-4. [`operations/postgres-to-convex-cutover.md`](./operations/postgres-to-convex-cutover.md)
-   Ensaio, corte de produção, validação e critérios para remover Prisma.
-5. [`05-maintenance-playbook.md`](./05-maintenance-playbook.md)  
-   Guia de manutenção: tarefas comuns, checklists e pontos de atenção para mudanças futuras.
-6. [`06-optimization-implementation-plan.md`](./06-optimization-implementation-plan.md)  
-   Plano objetivo por item de otimização: o que mudar, onde mudar e ganho esperado.
-7. [`07-sentry-payment-monitoring.md`](./07-sentry-payment-monitoring.md)  
-   Setup do Sentry, variáveis de ambiente, instrumentação do fluxo de pagamento e playbook de investigação.
-8. [`08-voucher-purchase-intake.md`](./08-voucher-purchase-intake.md)  
-   Decisão arquitetural que centraliza o início da compra de voucher em um módulo server-side.
-9. [`09-architecture-deepening-backlog.md`](./09-architecture-deepening-backlog.md)  
-   Backlog das cinco oportunidades de aprofundamento arquitetural identificadas na revisão.
+- [Purchases and entry](product/vouchers.md)
+- [Payments and reporting](product/payments.md)
 
-## Objetivo desta documentação
+## Internals
 
-- Explicar **o que o app faz**.
-- Explicar **como ele funciona por dentro**.
-- Facilitar modificações futuras com baixo risco.
-- Ajudar a manter consistência entre front-end, regras de negócio e banco.
+- [Architecture and access](internals/architecture.md)
+- [Payment integrity](internals/payment-operations.md)
+- [Finance integrity](internals/finance-summaries.md)
+
+## Operations
+
+- [Environment setup and deployment](operations/deployment.md)
+- [Payment recovery and maintenance](operations/recovery.md)
+- [PostgreSQL import and cutover](operations/postgres-to-convex-cutover.md)
+
+## Decisions and agent guidance
+
+- [Direct Convex access](adr/0001-replace-trpc-with-direct-convex-access.md)
+- [Better Auth on Convex](adr/0002-use-better-auth-with-convex.md)
+- [Domain documentation](agents/domain.md)
+- [GitHub issue tracker](agents/issue-tracker.md)
+- [Triage labels](agents/triage-labels.md)
+
+Keep rules here and implementation details in code. Plans and outstanding work belong in GitHub Issues.

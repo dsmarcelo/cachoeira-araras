@@ -13,7 +13,7 @@ const itemVariants = {
 
 export default function InfoCard() {
   return (
-    <motion.div className="mx-auto flex max-w-2xl flex-col px-4 text-xl text-primary-200">
+    <motion.div className="mx-auto flex max-w-2xl flex-col px-4 text-xl text-fg-subtle">
       <motion.div
         initial="hidden"
         whileInView="visible"

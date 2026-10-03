@@ -1,0 +1,17 @@
+# Purchases and entry
+
+Visitors buy full-price or half-price entries, with or without pool access, for a chosen Visit Date. A purchase needs at least one entry. Quantities must be nonnegative whole numbers and stay within each category's configured limit.
+
+The booking window runs from today through the configured number of days ahead, inclusive, using São Paulo dates. Closed dates and disabled entry categories cannot be purchased. Defaults allow 60 days ahead and 20 entries per category; these are purchase limits, not a guarantee of daily venue capacity.
+
+Prices are configured separately for standard and pool entries. Half-price quantities cost half the corresponding full price, rounded to cents per category. The accepted purchase total is fixed when checkout starts; later price changes do not reprice existing purchases.
+
+A phone number can have one unexpired Pending purchase at a time. Visitors can resume or cancel that purchase using the saved purchase access. If payment approval wins the cancellation race, the purchase remains paid. Approval arriving after completed cancellation is refunded.
+
+## Entry
+
+Staff look up the Voucher Code and record entry once. Redemption requires a Valid Voucher whose original Visit Date is today in São Paulo. Pending, overdue, cancelled and refunded purchases do not grant entry through the ordinary purchase flow.
+
+Staff can reactivate a Voucher and extend its Expiry to the end of today; cancellation cannot be undone this way. Reactivation preserves Visit Date. It does not bypass the gate's same-date requirement, so extending an older Voucher alone does not make it redeemable today.
+
+Unused Valid Vouchers become Expired during daily maintenance. Overdue Pending purchases are hidden from active views but retained. Real Vouchers are not physically deleted by daily maintenance. Test Vouchers are deleted after 30 days.

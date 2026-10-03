@@ -106,27 +106,31 @@ export interface VoucherImportRow {
   preferenceId: string;
   paymentId?: string;
   referrer?: { source: string; url: string };
+  purchasedAt: number;
   deletedAt?: number;
 }
 
 /**
  * Builds the full Convex import row for one legacy Voucher, applying every
  * transformation this migration requires: status normalisation, cents,
- * the visitDate/expiresAt split, and the folded referrer.
+ * the visitDate/expiresAt split, the folded referrer, and `purchasedAt` from
+ * the legacy `createdAt`.
+ *
+ * A voucher with no `expires_at` uses its `createdAt` day as `visitDate`
+ * (and that day's end as `expiresAt`); `usedCreatedAtFallback` flags those
+ * rows so callers can report them.
  */
 export function buildVoucherImportRow(
   voucher: Voucher,
   referrer: Pick<Referrer, "referrer" | "url"> | null | undefined,
-): VoucherImportRow {
-  if (!voucher.expires_at) {
-    throw new Error(
-      `Voucher ${voucher.code} has no expires_at; cannot derive visitDate/expiresAt.`,
-    );
-  }
+): { row: VoucherImportRow; usedCreatedAtFallback: boolean } {
+  const usedCreatedAtFallback = !voucher.expires_at;
+  const visitDate = voucher.expires_at
+    ? splitExpiresAt(voucher.expires_at).visitDate
+    : getSaoPauloDateKey(voucher.createdAt);
+  const expiresAtMs = endOfSaoPauloDayMs(visitDate);
 
-  const { visitDate, expiresAtMs } = splitExpiresAt(voucher.expires_at);
-
-  return {
+  const row: VoucherImportRow = {
     code: voucher.code,
     name: voucher.name,
     phone: voucher.phone,
@@ -141,6 +145,8 @@ export function buildVoucherImportRow(
     preferenceId: voucher.preference_id,
     paymentId: voucher.payment_id ?? undefined,
     referrer: foldReferrer(referrer),
+    purchasedAt: voucher.createdAt.getTime(),
     deletedAt: voucher.deletedAt?.getTime(),
   };
+  return { row, usedCreatedAtFallback };
 }

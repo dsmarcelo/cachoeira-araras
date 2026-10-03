@@ -1,36 +1,41 @@
-# Corte de PostgreSQL para Convex
+# PostgreSQL import and cutover
 
-## Estado atual
+Prisma remains necessary for the legacy importer and payment E2E script. Repository code cannot establish whether production cutover has completed; verify the deployed data and migration evidence before removing that tooling.
 
-A aplicação desta branch usa Convex, mas a importação do PostgreSQL de produção **não foi executada**. O ensaio em desenvolvimento importou 97 vouchers.
+The importer reads Vouchers and Referrers without writing PostgreSQL. It does not import Site Settings. It converts prices to cents and normalizes dates and states, reporting rejected rows instead of silently supplying defaults. Mutation-based import skips existing Voucher Codes without updating them; a rerun should insert zero rows.
 
-Prisma é uma ponte temporária obrigatória: lê o banco legado no corte e também sustenta o teste E2E de pagamentos. Não remova `prisma/`, `@prisma/client`, `prisma`, `DATABASE_URL`, os scripts `db:*`, `postinstall` ou `scripts/import-postgres-to-convex/` antes da conclusão deste runbook.
+## Rehearsal
 
-## Garantias do importador
+1. Back up the source and use read-only PostgreSQL credentials. Select an isolated Convex development target and configure `DATABASE_URL` and `CONVEX_DEPLOYMENT=dev:...` in `.env.local`.
+2. Run `pnpm test:import`, then `pnpm import:postgres-to-convex`. This importer deliberately refuses non-development deployments.
+3. Resolve every reported failure and compare counts, codes, amounts, states, dates and attribution. Imports can partially succeed before reporting conversion failures.
+4. Rerun and verify existing codes are reported unchanged.
+5. Complete the backfill and financial rebuild below before checking search and reporting.
 
-- Lê Vouchers e Referrers (Site Settings não são importados); não escreve no PostgreSQL.
-- Normaliza status, converte reais em centavos, deriva data/expiração e incorpora o referrer.
-- Insere por código do voucher e não altera registros já existentes no Convex.
-- Falha diante de status ou valores desconhecidos em vez de adivinhar.
-- Atualmente recusa qualquer `CONVEX_DEPLOYMENT` que não comece com `dev:`; portanto não pode atingir produção sem uma mudança deliberada e revisada.
+## Bulk alternative
 
-## Repetir o ensaio
+`pnpm export:postgres-to-convex` creates `.import-data/vouchers.jsonl`; conversion failure prevents export. Import it with `pnpm exec convex import --table vouchers --append .import-data/vouchers.jsonl` only after checking the target and existing data. This bypasses the mutation importer's development guard and code deduplication. Append can duplicate codes; replace deletes existing table contents. Neither mode is a safe merge of an unknown dataset.
 
-1. Use uma cópia recente do PostgreSQL e um deployment Convex de desenvolvimento vazio.
-2. Configure `DATABASE_URL` e `CONVEX_DEPLOYMENT=dev:...` em `.env.local`.
-3. Rode `pnpm test:import` e depois `pnpm import:postgres-to-convex`.
-4. Resolva explicitamente toda linha recusada; não substitua valores por defaults silenciosos.
-5. Compare contagens e amostras dos dois bancos; valide status, preços, datas e referrers.
-6. Rode novamente: o resultado esperado é zero inserções e todas as linhas como `unchanged`.
+Protect the export as customer data and remove it after verified import.
 
-## Corte de produção
+## Backfill and financial rebuild
 
-1. Faça backup, registre contagens de origem e defina uma janela sem novas escritas no PostgreSQL.
-2. Garanta que schema e mutations internas de importação estejam no deployment Convex de produção.
-3. Altere o bloqueio `dev:` para exigir alvo de produção e confirmação explícitos; revise e repita os testes.
-4. Use credenciais PostgreSQL somente-leitura, execute uma vez e preserve o relatório completo.
-5. Reconcilie colisões: um código já existente no Convex é ignorado, não atualizada.
-6. Compare contagens e amostras, então direcione a aplicação para Convex e monitore pagamentos e resgates.
-7. Mantenha o PostgreSQL somente-leitura durante o período de rollback.
+On the same selected target, run these in order:
 
-Remova a ponte Prisma somente após validação formal do corte, término do rollback e substituição do teste E2E que ainda usa Prisma.
+```bash
+pnpm exec convex run migrations:backfillVoucherPurchasedAtAndSearchText
+# Wait for scheduled backfill batches to complete before continuing.
+pnpm exec convex run finance:rebuildAll
+```
+
+Wait for scheduled rebuild batches to complete, then verify search and financial totals. Add `--prod` to each command only when deliberately targeting production. Command return does not mean scheduled work has finished.
+
+## Production cutover
+
+1. Confirm the production target, take restorable backups and pause legacy writes during the migration window.
+2. Rehearse on a current source snapshot and reconcile existing destination codes before importing. The mutation importer needs a reviewed target-guard change to support production; the bulk alternative requires explicit destination and duplicate handling.
+3. Import with read-only source credentials, preserve the outcome report, then backfill and rebuild on the same target.
+4. Compare source/destination counts and representative records. Configure business settings separately and validate purchase, approval, reporting and gate entry before directing traffic to Convex.
+5. Keep PostgreSQL read-only through the rollback window. If reverting traffic after Convex receives new writes, reconcile those writes first; switching URLs alone can lose purchases or redemption history.
+
+Retire Prisma only after cutover verification, the rollback window and replacement of its remaining E2E consumer.

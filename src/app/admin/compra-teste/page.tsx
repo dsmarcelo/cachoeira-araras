@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
+import { FlaskConical } from "lucide-react";
 
 import { requireStaff } from "@/app/lib";
 
 import VoucherBuyTest from "../../_components/voucher-buy-test";
+import { PageShell } from "../_components/admin-ui";
 
 /**
  * The one predictable place staff buy an R$0,01 voucher to exercise the real
@@ -22,8 +24,22 @@ export default async function CompraTestePage() {
   }
 
   return (
-    <main className="flex w-full flex-col items-center px-4 py-4 md:py-8">
+    <PageShell className="max-w-2xl">
+      <div
+        role="note"
+        className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-amber-900"
+      >
+        <FlaskConical className="mt-0.5 size-5 shrink-0 text-amber-700" aria-hidden />
+        <div className="flex flex-col gap-1 text-[13px] leading-relaxed">
+          <span className="text-sm font-semibold">Pagamento real de R$ 0,01</span>
+          <span>
+            Passa pelo Mercado Pago de verdade para testar pagamento e confirmação. O voucher
+            sai marcado como teste e não aparece nas listas nem nos relatórios.
+          </span>
+        </div>
+      </div>
+      {/* The public purchase form in test mode, so it keeps the site's own look. */}
       <VoucherBuyTest />
-    </main>
+    </PageShell>
   );
 }

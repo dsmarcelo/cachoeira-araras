@@ -1,11 +1,12 @@
 'use client'
 import * as React from "react"
-import { useAction, useQuery } from "convex/react"
+import { useAction, usePaginatedQuery, useQuery } from "convex/react"
 
 import { VoucherTable, type VoucherView } from "./voucher-table"
 import { columns } from "./columns"
 import { api } from "../../../../convex/_generated/api"
 import type { AdminVoucher } from "../voucher-info-card"
+import type { DateRangeValue } from "./date-range-filter"
 
 /** A calendar date input ("YYYY-MM-DD") read as Sao Paulo local time, matching the fixed
  * UTC-3 offset assumption used throughout the voucher backend. */
@@ -16,46 +17,61 @@ function endOfSaoPauloDayMs(dateKey: string): number {
   return new Date(`${dateKey}T23:59:59.999-03:00`).getTime()
 }
 
-function matchesSearch(voucher: AdminVoucher, needle: string): boolean {
-  if (!needle) return true
-  const haystack = `${voucher.code} ${voucher.name} ${voucher.phone}`.toLowerCase()
-  return haystack.includes(needle)
-}
-
 type StatusFilter = "all" | AdminVoucher["status"]
 
+const PAGE_SIZE = 25
+const SEARCH_DEBOUNCE_MS = 300
+
+/** Lags `value` behind by `delayMs` so typing does not fire a query per keystroke. */
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = React.useState(value)
+  React.useEffect(() => {
+    const timeout = setTimeout(() => setDebounced(value), delayMs)
+    return () => clearTimeout(timeout)
+  }, [value, delayMs])
+  return debounced
+}
+
 export default function DataTable() {
-  const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(10)
   const [status, setStatus] = React.useState<StatusFilter>('all')
   const [search, setSearch] = React.useState('')
   const [view, setView] = React.useState<VoucherView>('active')
-  const [dateFrom, setDateFrom] = React.useState('')
-  const [dateTo, setDateTo] = React.useState('')
+  const [created, setCreated] = React.useState<DateRangeValue>({ from: '', to: '' })
+  const [expires, setExpires] = React.useState<DateRangeValue>({ from: '', to: '' })
   const [reconciliationError, setReconciliationError] = React.useState('')
   const checkedCodes = React.useRef(new Set<string>())
   const reconcilePayments = useAction(api.voucherReconciliation.reconcileAdmin)
+  const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS)
+  const searchArg = debouncedSearch || undefined
 
-  const activeVouchers = useQuery(
+  const active = usePaginatedQuery(
     api.vouchers.listAdmin,
     view === 'active'
       ? {
         status: status === 'all' ? undefined : status,
-        createdAfter: dateFrom ? startOfSaoPauloDayMs(dateFrom) : undefined,
-        createdBefore: dateTo ? endOfSaoPauloDayMs(dateTo) : undefined,
+        purchasedFrom: created.from ? startOfSaoPauloDayMs(created.from) : undefined,
+        purchasedTo: created.to ? endOfSaoPauloDayMs(created.to) : undefined,
+        expiresAfter: expires.from ? startOfSaoPauloDayMs(expires.from) : undefined,
+        expiresBefore: expires.to ? endOfSaoPauloDayMs(expires.to) : undefined,
+        search: searchArg,
       }
       : 'skip',
+    { initialNumItems: PAGE_SIZE },
   )
-  const deletedVouchers = useQuery(
+  const deleted = usePaginatedQuery(
     api.vouchers.listDeleted,
-    view === 'deleted' ? {} : 'skip',
+    view === 'deleted' ? { search: searchArg } : 'skip',
+    { initialNumItems: PAGE_SIZE },
+  )
+  // Pending vouchers are reconciled regardless of which page of the table is loaded.
+  const pendingCodes = useQuery(
+    api.vouchers.listPendingCodes,
+    view === 'active' ? {} : 'skip',
   )
 
   React.useEffect(() => {
-    if (!activeVouchers) return
-    const codes = activeVouchers
-      .filter((voucher) => voucher.status === 'pending' && !checkedCodes.current.has(voucher.code))
-      .map((voucher) => voucher.code)
+    if (!pendingCodes) return
+    const codes = pendingCodes.filter((code) => !checkedCodes.current.has(code))
     if (codes.length === 0) return
     codes.forEach((code) => checkedCodes.current.add(code))
 
@@ -72,68 +88,28 @@ export default function DataTable() {
       }
     }
     void checkPayments()
-  }, [activeVouchers, reconcilePayments])
+  }, [pendingCodes, reconcilePayments])
 
-  const allRows = view === 'active' ? activeVouchers : deletedVouchers
-  const isLoading = allRows === undefined
-
-  const filtered = React.useMemo(() => {
-    const needle = search.trim().toLowerCase()
-    return (allRows ?? []).filter((voucher) => matchesSearch(voucher, needle))
-  }, [allRows, search])
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const clampedPage = Math.min(page, pageCount)
-  const pageRows = filtered.slice(
-    (clampedPage - 1) * pageSize,
-    clampedPage * pageSize,
-  )
-
-  function resetToFirstPage() {
-    setPage(1)
-  }
+  const { results, status: loadStatus, loadMore } = view === 'active' ? active : deleted
 
   return (
     <div className='w-full'>
       {reconciliationError && <p role='alert' className='mb-4 text-destructive'>{reconciliationError}</p>}
       <VoucherTable
         columns={columns}
-        data={pageRows}
-        total={filtered.length}
-        page={clampedPage}
-        pageSize={pageSize}
-        pageCount={pageCount}
+        data={results}
+        loadStatus={loadStatus}
+        onLoadMore={() => loadMore(PAGE_SIZE)}
         status={status}
         search={search}
         view={view}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        isLoading={isLoading}
-        onPageChange={setPage}
-        onPageSizeChange={(nextPageSize) => {
-          setPageSize(nextPageSize)
-          resetToFirstPage()
-        }}
-        onStatusChange={(nextStatus) => {
-          setStatus(nextStatus as StatusFilter)
-          resetToFirstPage()
-        }}
-        onSearchChange={(nextSearch) => {
-          setSearch(nextSearch)
-          resetToFirstPage()
-        }}
-        onViewChange={(nextView) => {
-          setView(nextView)
-          resetToFirstPage()
-        }}
-        onDateFromChange={(value) => {
-          setDateFrom(value)
-          resetToFirstPage()
-        }}
-        onDateToChange={(value) => {
-          setDateTo(value)
-          resetToFirstPage()
-        }}
+        created={created}
+        expires={expires}
+        onStatusChange={(nextStatus) => setStatus(nextStatus as StatusFilter)}
+        onSearchChange={setSearch}
+        onViewChange={setView}
+        onCreatedChange={setCreated}
+        onExpiresChange={setExpires}
       />
     </div>
   )

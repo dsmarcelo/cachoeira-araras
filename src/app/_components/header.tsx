@@ -6,7 +6,7 @@ import { MyVouchersLink } from "./saved-vouchers-provider";
 
 export default function Header() {
   return (
-    <header className="top-0 max flex h-16 items-center gap-4 border-b-primary-500 bg-dark-blue px-4 text-primary-400 md:h-24 md:px-6">
+    <header className="top-0 max flex h-16 items-center gap-4 bg-surface px-4 text-fg-faint md:h-24 md:px-6">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between">
         <Link href="/" className="flex shrink-0">
           <Image
@@ -24,21 +24,21 @@ export default function Header() {
           <Link
             href={"https://www.facebook.com/C.Araras/?locale=pt_BR"}
             target="_blank"
-            className="flex h-10 w-10 items-center justify-center rounded-lg p-2 text-current transition-colors hover:bg-bg-blue/20 md:h-12 md:w-12"
+            className="flex h-10 w-10 items-center justify-center rounded-lg p-2 text-current transition-colors hover:bg-page/20 md:h-12 md:w-12"
           >
             <FaFacebook className="h-5 w-5" />
           </Link>
           <Link
             href={"https://www.instagram.com/cachoeiradasararasoficial/"}
             target="_blank"
-            className="flex h-10 w-10 items-center justify-center rounded-lg p-2 text-current transition-colors hover:bg-bg-blue/20 md:h-12 md:w-12"
+            className="flex h-10 w-10 items-center justify-center rounded-lg p-2 text-current transition-colors hover:bg-page/20 md:h-12 md:w-12"
           >
             <FaInstagram className="h-5 w-5" />
           </Link>
           <Link
             href="https://wa.me/556299251040?"
             target="_blank"
-            className="flex h-10 w-10 items-center justify-center rounded-lg p-2 text-current transition-colors hover:bg-bg-blue/20 md:h-12 md:w-12"
+            className="flex h-10 w-10 items-center justify-center rounded-lg p-2 text-current transition-colors hover:bg-page/20 md:h-12 md:w-12"
           >
             <FaWhatsapp className="h-5 w-5" />
           </Link>

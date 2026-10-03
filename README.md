@@ -40,6 +40,35 @@ A origem publica do app (`SITE_URL`) fica no deployment Convex, nao no `.env`; v
 
 `DATABASE_URL` e opcional: conexao somente com o PostgreSQL legado, usada pela importacao ao Convex e pelo teste E2E de pagamentos; veja o [runbook de corte](./docs/operations/postgres-to-convex-cutover.md).
 
+### Exportar do PostgreSQL e importar no Convex (em lote)
+
+Alternativa ao `pnpm import:postgres-to-convex`, que faz uma mutation a cada 10 vouchers e consome muito do limite gratuito do Convex. O export gera um unico arquivo e o `convex import` o carrega de uma vez.
+
+```bash
+# 1. Le o PostgreSQL (somente leitura, usa DATABASE_URL do .env.local) e grava .import-data/vouchers.jsonl
+pnpm export:postgres-to-convex
+
+# 2. Importa no deployment de desenvolvimento (CONVEX_DEPLOYMENT do .env.local)
+pnpm exec convex import --table vouchers --append .import-data/vouchers.jsonl
+```
+
+Depois de qualquer importacao em lote (e no primeiro deploy do resumo financeiro), rode os dois comandos abaixo, nesta ordem. Sem eles a busca da tabela admin nao encontra os vouchers importados e a pagina Financeiro mostra totais desatualizados:
+
+```bash
+# 3. Preenche purchasedAt, searchText e isActive que faltarem (seguro rodar de novo)
+pnpm exec convex run migrations:backfillVoucherPurchasedAtAndSearchText
+
+# 4. Recalcula os resumos diarios (financeDays) a partir dos vouchers
+pnpm exec convex run finance:rebuildAll
+```
+
+- Os dois comandos rodam em lotes agendados e terminam alguns segundos depois de retornar; rode o 4 so depois que o 3 terminar.
+- Para producao, acrescente `--prod` aos dois comandos. Detalhes em [docs/internals/finance-summaries.md](./docs/internals/finance-summaries.md).
+- Se alguma linha nao puder ser convertida, o export lista os erros e nao grava arquivo.
+- `--append` nao evita duplicados por codigo: se a tabela ja tem vouchers importados, use `--replace` (apaga a tabela antes) ou exporte so o que falta.
+- Para producao, acrescente `--prod` ao `convex import`, seguindo o [runbook de corte](./docs/operations/postgres-to-convex-cutover.md).
+- `.import-data/` esta no `.gitignore` porque contem nomes e telefones de clientes; apague a pasta depois de importar.
+
 ### Pagamentos e webhooks
 
 | Key | Uso |
