@@ -2,6 +2,7 @@
 import { ConvexError } from "convex/values";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
+import { addDaysToDateKey, getSaoPauloDateKey } from "../src/lib/utils/date";
 import { api } from "./_generated/api";
 import type * as voucherCodeModule from "./lib/voucherCode";
 import { MAX_PENDING_VOUCHERS_PER_PHONE } from "./lib/rateLimiter";
@@ -81,7 +82,9 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllEnvs());
 
-const visitDateMs = new Date("2026-09-10T12:00:00-03:00").getTime();
+// Relative to today so the default booking window never makes these dates stale.
+const visitDateKey = addDaysToDateKey(getSaoPauloDateKey(), 10);
+const visitDateMs = new Date(`${visitDateKey}T12:00:00-03:00`).getTime();
 
 function validArgs(overrides: Record<string, unknown> = {}) {
   return {
@@ -159,7 +162,7 @@ test("a visit date beyond the booking window is refused with an actionable reaso
 test("a disabled day is refused with an actionable reason", async () => {
   const t = createConvexTest();
   const asAdmin = await withAuth(t, "admin");
-  const dateKey = "2026-09-10";
+  const dateKey = visitDateKey;
   await asAdmin.mutation(api.settings.set, {
     key: "disabled.days",
     value: [dateKey],
@@ -271,7 +274,7 @@ test("the voucher is left Pending with visitDate set to the day the customer cho
       .unique(),
   );
   expect(stored?.status).toBe("pending");
-  expect(stored?.visitDate).toBe("2026-09-10");
+  expect(stored?.visitDate).toBe(visitDateKey);
 });
 
 test("a code collision retries with a fresh code instead of erroring, and produces exactly one voucher", async () => {
@@ -291,7 +294,7 @@ test("a code collision retries with a fresh code instead of erroring, and produc
       elderlyPool: 0,
       priceCents: 5000,
       status: "pending",
-      visitDate: "2026-09-10",
+      visitDate: visitDateKey,
       expiresAt: Date.now() + 1000 * 60 * 60 * 24,
       preferenceId: "pref-existing",
       isTest: false,

@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { beforeEach, expect, test, vi } from "vitest";
+import { addDaysToDateKey, getSaoPauloDateKey } from "../src/lib/utils/date";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { createConvexTest } from "./test.setup";
@@ -34,7 +35,9 @@ beforeEach(() => {
   );
 });
 
-const visitDateMs = new Date("2026-09-10T12:00:00-03:00").getTime();
+// Relative to today so the default booking window never makes this date stale.
+const visitDateKey = addDaysToDateKey(getSaoPauloDateKey(), 10);
+const visitDateMs = new Date(`${visitDateKey}T12:00:00-03:00`).getTime();
 
 function validArgs(overrides: Record<string, unknown> = {}) {
   return {
@@ -92,7 +95,7 @@ test("with a valid capability, a blocked purchase shows Voucher Code, Visit Date
       elderlyPool: 0,
       priceCents: 15000,
       status: "pending",
-      visitDate: "2026-09-10",
+      visitDate: visitDateKey,
       expiresAt: Date.now() + 1000 * 60 * 60 * 24,
       preferenceId: "pref-pend01",
       isTest: false,
@@ -110,7 +113,7 @@ test("with a valid capability, a blocked purchase shows Voucher Code, Visit Date
   expect(conflict.vouchers).toHaveLength(1);
   const voucher = conflict.vouchers[0]!;
   expect(voucher.code).toBe("PEND01");
-  expect(voucher.visitDate).toBe("2026-09-10");
+  expect(voucher.visitDate).toBe(visitDateKey);
   expect(voucher.adults).toBe(2);
   expect(voucher.elderly).toBe(1);
   expect(voucher.adultsPool).toBe(1);
