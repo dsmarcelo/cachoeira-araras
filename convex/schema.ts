@@ -1,12 +1,14 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { rescheduledByValidator } from "./lib/voucherReschedule";
 import { operationRequest, operationResult } from "./lib/paymentOperation";
 
 // A Voucher Code is the identity of a voucher; there is no separate surrogate
 // id. `status` is the single source of truth for voucher state (no parallel
-// boolean). `visitDate` is the day the customer chose at purchase and is
-// never written by staff; `expiresAt` is when the voucher stops being
-// redeemable and is the only field a reactivation may move.
+// boolean). `visitDate` is the day the voucher is currently booked for; it
+// changes only through a Reschedule, which always moves `expiresAt` (when the
+// voucher stops being redeemable) to the end of the new day. A reactivation
+// moves `expiresAt` alone.
 const vouchers = defineTable({
   code: v.string(),
   name: v.string(),
@@ -34,12 +36,15 @@ const vouchers = defineTable({
     v.literal("cancelled"),
   ),
 
-  // The day the customer chose at purchase, as "YYYY-MM-DD" in the Sao Paulo
-  // calendar. Never rewritten by staff, including on reactivation.
+  // The day the voucher is booked for, as "YYYY-MM-DD" in the Sao Paulo
+  // calendar. Set at purchase; rewritten only by a Reschedule.
   visitDate: v.string(),
-  // When the voucher stops being redeemable. Reactivation moves this field,
-  // never `visitDate`.
+  // When the voucher stops being redeemable. A Reschedule recomputes it as the
+  // end of the new `visitDate`; reactivation moves it without touching `visitDate`.
   expiresAt: v.number(),
+  // Only the most recent Reschedule is kept: when it happened and who did it.
+  rescheduledAt: v.optional(v.number()),
+  rescheduledBy: v.optional(rescheduledByValidator),
 
   // Mercado Pago identifiers, needed to correlate checkout and webhook
   // delivery and to make payment confirmation idempotent.

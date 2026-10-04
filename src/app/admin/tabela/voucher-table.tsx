@@ -84,7 +84,10 @@ export function VoucherTable({
   onCreatedChange,
   onExpiresChange,
 }: VoucherTableProps) {
-  const [selected, setSelected] = React.useState<AdminVoucher>()
+  // Keyed by code and resolved against live `data`, so the open drawer
+  // reflects edits (status, reschedule) as soon as the query updates.
+  const [selectedCode, setSelectedCode] = React.useState<string>()
+  const selected = data.find((voucher) => voucher.code === selectedCode)
   const isDeletedView = view === "deleted"
 
   // TanStack Table exposes mutable APIs that React Compiler cannot safely memoize.
@@ -133,7 +136,7 @@ export function VoucherTable({
               <li key={voucher.code} className={index > 0 ? "border-t border-border" : undefined}>
                 <button
                   type="button"
-                  onClick={() => setSelected(voucher)}
+                  onClick={() => setSelectedCode(voucher.code)}
                   className="flex w-full flex-col gap-1.5 px-4 py-3.5 text-left transition-colors hover:bg-zinc-50"
                 >
                   <span className="flex items-center justify-between gap-3">
@@ -183,7 +186,7 @@ export function VoucherTable({
                 <TableRow
                   key={row.id}
                   className="cursor-pointer"
-                  onClick={() => setSelected(row.original)}
+                  onClick={() => setSelectedCode(row.original.code)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -219,7 +222,7 @@ export function VoucherTable({
           data={selected}
           isDeleted={isDeletedView}
           open
-          onClose={() => setSelected(undefined)}
+          onClose={() => setSelectedCode(undefined)}
         />
       ) : null}
     </div>

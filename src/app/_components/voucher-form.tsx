@@ -28,7 +28,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { addDaysToDateKey, getSaoPauloDateKey } from "@/lib/utils/date";
+import { getSaoPauloDateKey } from "@/lib/utils/date";
+import { getVisitDateRejection } from "@/lib/voucher/visit-date";
 import NumberInput from "./input/number-input";
 import {
   getCachedLookupToken,
@@ -411,22 +412,12 @@ export default function VoucherForm({
                         mode="single"
                         selected={field.value}
                         onSelect={field.onChange}
-                        disabled={(date) => {
-                          const dateKey = getSaoPauloDateKey(date);
-                          const todayKey = getSaoPauloDateKey();
-                          const maxDateKey = addDaysToDateKey(
-                            todayKey,
-                            maxIntendedDays,
-                          );
-
-                          // Compare as YYYY-MM-DD strings so a visitor's local
-                          // timezone never shifts the day being checked.
-                          if (dateKey < todayKey || dateKey > maxDateKey) {
-                            return true;
-                          }
-
-                          return disabledDays.includes(dateKey);
-                        }}
+                        disabled={(date) =>
+                          getVisitDateRejection(getSaoPauloDateKey(date), {
+                            todayKey: getSaoPauloDateKey(),
+                            rules: { maxIntendedDays, disabledDays },
+                          }) !== null
+                        }
                         initialFocus
                       />
                     </PopoverContent>

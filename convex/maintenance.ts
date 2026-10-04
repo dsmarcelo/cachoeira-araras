@@ -21,7 +21,8 @@ export const BATCH_SIZE = 200;
  *
  * `expiresAt` is already an absolute instant computed against the Sao Paulo
  * calendar wherever it's written (`endOfSaoPauloDayMs` in convex/vouchers.ts,
- * for both the original purchase and `reactivate`), so this job only needs
+ * for the original purchase and `reactivate`, and in convex/lib/voucherReschedule.ts
+ * for every Reschedule), so this job only needs
  * the true current instant to compare against it — no timezone conversion of
  * its own. The Vercel-cron predecessor of this job instead reparsed a Sao
  * Paulo wall-clock string as server-local time, producing a "now" three

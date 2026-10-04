@@ -4,7 +4,11 @@ import {
 } from "convex/server";
 import { ConvexError, v } from "convex/values";
 
-import { endOfSaoPauloDayMs, getSaoPauloDateKey } from "../src/lib/utils/date";
+import { getVisitDateRejection } from "../src/lib/voucher/visit-date";
+import {
+  endOfSaoPauloDayMs,
+  getSaoPauloDateKey,
+} from "../src/lib/utils/date";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -17,13 +21,14 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { getRole, requireRole } from "./lib/auth";
+import { authComponent } from "./auth";
 import { createCheckoutPreference } from "./lib/mercadopago";
 import {
   formatRetryAfter,
   MAX_PENDING_VOUCHERS_PER_PHONE,
   rateLimiter,
 } from "./lib/rateLimiter";
-import type { SettingValueMap } from "./lib/settings";
+import { mergeSettings, type SettingValueMap } from "./lib/settings";
 import {
   classifyReferrer,
   formatVoucherCheckoutDescription,
@@ -34,6 +39,11 @@ import { countsAsRealVoucher } from "./lib/financeSummary";
 import { patchVoucher } from "./lib/voucherWrites";
 import { normalizeSearchQuery, voucherSearchText } from "./lib/voucherSearch";
 import { validateVoucherPurchase } from "./lib/voucherPurchase";
+import {
+  applyReschedule,
+  isAdminReschedulable,
+  rescheduledByValidator,
+} from "./lib/voucherReschedule";
 import type { PaymentSnapshot } from "./lib/paymentOperation";
 
 export { countsAsRealVoucher };
@@ -158,24 +168,74 @@ export const getAuthorized = query({
   args: { lookupToken: v.string() },
   returns: v.union(publicVoucherValidator, v.null()),
   handler: async (ctx, args) => {
+    const voucher = await findVoucherByLookupToken(ctx, args.lookupToken);
+    return voucher ? summarizeForPublic(voucher) : null;
+  },
+});
+
+/**
+ * Resolves a lookup capability to its live Voucher. Malformed tokens, unknown
+ * tokens and soft-deleted Vouchers all resolve to null, so callers cannot
+ * tell them apart.
+ */
+async function findVoucherByLookupToken(
+  ctx: QueryCtx,
+  lookupToken: string,
+): Promise<Doc<"vouchers"> | null> {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+      lookupToken,
+    )
+  ) {
+    return null;
+  }
+
+  const voucher = await ctx.db
+    .query("vouchers")
+    .withIndex("by_lookupToken", (q) => q.eq("lookupToken", lookupToken))
+    .unique();
+
+  return voucher && voucher.deletedAt === undefined ? voucher : null;
+}
+
+/**
+ * Lets a customer move their Pending or Valid voucher (whose Expiry has not
+ * passed) to another day, authorized by the lookup capability alone. The new
+ * day must satisfy the same Visit Date rule as a purchase, with the current
+ * settings. There is no limit on how many times a voucher can be moved.
+ */
+export const rescheduleByCustomer = mutation({
+  args: { lookupToken: v.string(), visitDate: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const voucher = await findVoucherByLookupToken(ctx, args.lookupToken);
+    if (!voucher) {
+      throw new ConvexError("Voucher não encontrado.");
+    }
     if (
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
-        args.lookupToken,
-      )
+      (voucher.status !== "pending" && voucher.status !== "valid") ||
+      voucher.expiresAt <= Date.now()
     ) {
-      return null;
+      throw new ConvexError("Este voucher não pode mais ter a data alterada.");
     }
 
-    const voucher = await ctx.db
-      .query("vouchers")
-      .withIndex("by_lookupToken", (q) => q.eq("lookupToken", args.lookupToken))
-      .unique();
-
-    if (!voucher || voucher.deletedAt !== undefined) {
-      return null;
+    const settings = mergeSettings(await ctx.db.query("settings").collect());
+    const rejection = getVisitDateRejection(args.visitDate, {
+      todayKey: getSaoPauloDateKey(),
+      rules: {
+        maxIntendedDays: settings["max.intended.days"],
+        disabledDays: settings["disabled.days"],
+      },
+    });
+    if (rejection !== null) {
+      throw new ConvexError(rejection);
     }
 
-    return summarizeForPublic(voucher);
+    await applyReschedule(ctx, voucher, {
+      visitDate: args.visitDate,
+      by: { kind: "customer" },
+    });
+    return null;
   },
 });
 
@@ -1791,6 +1851,9 @@ const gateVoucherAdminValidator = v.object({
   // Voucher was already redeemed (see `confirmPayment`). Undefined for
   // every Voucher this never happened to.
   reversal: v.optional(v.object({ reason: v.string(), notedAt: v.number() })),
+  // The most recent Reschedule, shown in the admin drawer.
+  rescheduledAt: v.optional(v.number()),
+  rescheduledBy: v.optional(rescheduledByValidator),
 });
 
 function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
@@ -1800,6 +1863,8 @@ function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
     preferenceId: voucher.preferenceId,
     referrer: voucher.referrer,
     reversal: voucher.reversal,
+    rescheduledAt: voucher.rescheduledAt,
+    rescheduledBy: voucher.rescheduledBy,
   };
 }
 
@@ -2111,6 +2176,50 @@ export const updateStatus = mutation({
       );
     }
     await patchVoucher(ctx, voucher, { status: args.status });
+    return null;
+  },
+});
+
+/**
+ * Moves a voucher to another Visit Date as an admin. Allowed on Pending, Valid
+ * and Expired vouchers (Expired returns to Valid; the nightly job only deletes
+ * overdue Pending vouchers, so Expired always means previously paid). Any day
+ * from today on is accepted: the booking window and closed days are for
+ * customers. The admin's username is recorded as the author.
+ */
+export const rescheduleByAdmin = mutation({
+  args: { code: v.string(), visitDate: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user || typeof user.username !== "string") {
+      throw new ConvexError("Não foi possível identificar o administrador.");
+    }
+
+    const voucher = await requireVoucherByCode(ctx, args.code);
+    if (voucher.deletedAt !== undefined) {
+      throw new ConvexError("Voucher excluído não pode ser reagendado.");
+    }
+    if (!isAdminReschedulable(voucher.status)) {
+      throw new ConvexError(
+        "Só é possível reagendar vouchers pendentes, válidos ou expirados.",
+      );
+    }
+
+    const rejection = getVisitDateRejection(args.visitDate, {
+      todayKey: getSaoPauloDateKey(),
+    });
+    if (rejection !== null) {
+      throw new ConvexError(rejection);
+    }
+
+    await applyReschedule(ctx, voucher, {
+      visitDate: args.visitDate,
+      by: { kind: "admin", username: user.username },
+      revive: true,
+    });
     return null;
   },
 });
