@@ -71,7 +71,8 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
       );
     });
   }, [voucher?.status, entry.code, entry.managementToken, reconcilePayment]);
-  const imageUrl = `/api/og?code=${encodeURIComponent(entry.code)}&lookupToken=${encodeURIComponent(lookupToken ?? "")}`;
+  // `v` changes on reschedule so the browser refetches the image with the new dates.
+  const imageUrl = `/api/og?code=${encodeURIComponent(entry.code)}&lookupToken=${encodeURIComponent(lookupToken ?? "")}&v=${voucher?.expiresAt ?? ""}`;
 
   // Each saved voucher's own anonymous lookup, spending shared rate-limiter
   // capacity once per card — unless another component already authorized
@@ -247,7 +248,7 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
               alt={`Voucher ${entry.code}`}
               className="w-full rounded-lg"
             />
-            <Button asChild variant="outline">
+            <Button asChild variant="inverseOutline">
               <a href={imageUrl} download={`voucher-${entry.code}.png`}>
                 Baixar imagem
               </a>

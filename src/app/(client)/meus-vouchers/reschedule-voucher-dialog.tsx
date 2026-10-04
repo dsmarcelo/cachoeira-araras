@@ -66,7 +66,7 @@ export function RescheduleVoucherDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline">Alterar data</Button>
+        <Button variant="inverseOutline">Alterar data</Button>
       </DialogTrigger>
       <DialogContent className="w-auto max-w-[calc(100vw-2rem)] rounded-2xl">
         <DialogHeader>
