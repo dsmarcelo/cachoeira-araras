@@ -292,7 +292,9 @@ export default function MyVouchersPage() {
           <Link href="/">Comprar outro voucher</Link>
         </Button>
         <ul className="grid gap-4">
-          {vouchers.map((entry) => (
+          {[...vouchers]
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .map((entry) => (
             <SavedVoucherCard key={entry.code} entry={entry} />
           ))}
         </ul>

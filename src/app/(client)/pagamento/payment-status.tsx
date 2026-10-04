@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useConvex, useQuery } from "convex/react";
 
 import { Button } from "@/components/ui/button";
@@ -28,13 +29,15 @@ interface PaymentStatusProps {
  * the only thing that ever flips `pending` to `valid` (see
  * convex/vouchers.ts confirmPayment), and this component just watches for
  * it, so a customer who lands here before their payment clears sees it
- * become valid on its own, without a reload.
+ * become valid on its own, without a reload. Once the voucher is paid and saved in
+ * this browser, the customer is sent straight to Meus Vouchers.
  */
 export default function PaymentStatus({
   code,
   initialCookieVoucher = null,
 }: PaymentStatusProps) {
   const convex = useConvex();
+  const router = useRouter();
   const [lookupToken, setLookupToken] = useState<string | null>(() =>
     getCachedLookupToken(code) ?? null,
   );
@@ -107,6 +110,7 @@ export default function PaymentStatus({
     if (!isPaid || !savedReady || !voucher) return;
     if (hasLocalEntry) {
       touchEvent(code, { eventAt: Date.now() });
+      router.replace("/meus-vouchers");
       return;
     }
     const ok = save({
@@ -115,7 +119,8 @@ export default function PaymentStatus({
       createdAt: voucher.createdAt,
       lastFinancialEventAt: Date.now(),
     });
-    if (!ok) setPersistFailed(true);
+    if (ok) router.replace("/meus-vouchers");
+    else setPersistFailed(true);
   }, [
     isPaid,
     savedReady,
@@ -125,6 +130,7 @@ export default function PaymentStatus({
     cookieVoucher,
     save,
     touchEvent,
+    router,
   ]);
 
   if (lookupFailure === "rate_limited") {

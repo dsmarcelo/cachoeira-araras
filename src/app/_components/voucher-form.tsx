@@ -95,7 +95,7 @@ export default function VoucherForm({
   );
   const payment_sucess_url =
     voucherStatus && voucherStatus.status !== "pending"
-      ? `/pagamento?external_reference=${code}`
+      ? "/meus-vouchers"
       : "";
 
   // Destructure settings with defaults; prices are stored in cents and
