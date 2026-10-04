@@ -4,7 +4,7 @@ import { type NextRequest } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import { formatVoucherStatusWithoutBg, formatQuantity } from '@/lib/voucher';
-import { formateDateDayMonthYear, formatPhone, truncateName } from '@/lib/utils';
+import { formatPhone, truncateName } from '@/lib/utils';
 import { getVoucherImageData } from '@/server/voucher-image-data';
 
 // Switch OG generation to node runtime to avoid Edge invocations on Vercel Free
@@ -38,8 +38,10 @@ export async function GET(request: NextRequest) {
 
   const interSemiBoldFontData = await interSemiBold;
 
-  const formatedExpiredDate = formateDateDayMonthYear(new Date(voucher.expiresAt));
-  const formatedStatus = formatVoucherStatusWithoutBg(voucher.status, formatedExpiredDate);
+  // Visit Date is a Sao Paulo calendar day, so it is reformatted as text instead of going through `Date`.
+  const [year, month, day] = voucher.visitDate.split("-");
+  const formatedVisitDate = `${day}/${month}/${year}`;
+  const formatedStatus = formatVoucherStatusWithoutBg(voucher.status, formatedVisitDate);
   const formatedName = truncateName(voucher.name);
   const formatedPhone = formatPhone(voucher.phone);
   const formatedQuantity = formatQuantity({

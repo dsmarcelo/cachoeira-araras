@@ -20,14 +20,14 @@ export function formatVoucherStatus(status: string) {
   }
 }
 
-export function formatVoucherStatusWithoutBg(status: string, expiration_date: string) {
+export function formatVoucherStatusWithoutBg(status: string, visit_date: string) {
   if (!status) return <span style={{ color: 'red' }}>Voucher inválido</span>;
 
   switch (status) {
     case "pending":
       return <span style={{ color: 'yellow' }}>Aguardando pagamento</span>;
     case "valid":
-      return <span style={{ color: '#10b981' }}>Valido até: {expiration_date}</span>;
+      return <span style={{ color: '#10b981' }}>Válido para: {visit_date}</span>;
     case "redeemed":
       return <span style={{ color: 'red' }}>Voucher já resgatado</span>;
     case "expired":

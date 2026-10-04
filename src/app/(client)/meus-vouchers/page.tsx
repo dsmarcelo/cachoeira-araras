@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -34,7 +34,14 @@ function formatVisitDate(visitDate: string) {
   return `${day}/${month}/${year}`;
 }
 
-function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
+function SavedVoucherCard({
+  entry,
+  onStatusChange,
+}: {
+  entry: SavedVoucher;
+  /** Reports the live status so the list can group Valid vouchers on top. */
+  onStatusChange: (code: string, status: string | undefined) => void;
+}) {
   const { touchEvent } = useSavedVouchers();
   const convex = useConvex();
   const resumePayment = useMutation(api.vouchers.resumePayment);
@@ -54,6 +61,11 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
     api.vouchers.getAuthorized,
     lookupToken ? { lookupToken } : "skip",
   );
+
+  const liveStatus = voucher?.status;
+  useEffect(() => {
+    onStatusChange(entry.code, liveStatus);
+  }, [entry.code, liveStatus, onStatusChange]);
 
   useEffect(() => {
     if (
@@ -196,7 +208,7 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
           <p className="text-base text-fg-muted">
             {statuses[voucher.status]}
           </p>
-          <p>Visita: {formatVisitDate(voucher.visitDate)}</p>
+          <p>Válido para: {formatVisitDate(voucher.visitDate)}</p>
           <p>
             {formatQuantity({
               adults: voucher.adults,
@@ -262,6 +274,16 @@ function SavedVoucherCard({ entry }: { entry: SavedVoucher }) {
 export default function MyVouchersPage() {
   const { vouchers, ready, warning } = useSavedVouchers();
   const router = useRouter();
+  const [liveStatuses, setLiveStatuses] = useState<
+    Record<string, string | undefined>
+  >({});
+  const handleStatusChange = useCallback(
+    (code: string, status: string | undefined) =>
+      setLiveStatuses((current) =>
+        current[code] === status ? current : { ...current, [code]: status },
+      ),
+    [],
+  );
   useEffect(() => {
     if (ready && vouchers.length === 0) router.replace("/");
   }, [ready, vouchers.length, router]);
@@ -292,11 +314,21 @@ export default function MyVouchersPage() {
           <Link href="/">Comprar outro voucher</Link>
         </Button>
         <ul className="grid gap-4">
+          {/* Valid vouchers first, then the rest; newest purchase first in each group. */}
           {[...vouchers]
-            .sort((a, b) => b.createdAt - a.createdAt)
+            .sort(
+              (a, b) =>
+                Number(liveStatuses[b.code] === "valid") -
+                  Number(liveStatuses[a.code] === "valid") ||
+                b.createdAt - a.createdAt,
+            )
             .map((entry) => (
-            <SavedVoucherCard key={entry.code} entry={entry} />
-          ))}
+              <SavedVoucherCard
+                key={entry.code}
+                entry={entry}
+                onStatusChange={handleStatusChange}
+              />
+            ))}
         </ul>
       </div>
     </main>
