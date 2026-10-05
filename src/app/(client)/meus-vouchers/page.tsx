@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { voucherImageUrl } from "@/lib/voucher/image-url";
 import { RescheduleVoucherDialog } from "./reschedule-voucher-dialog";
+import { VerifyVoucherDialog } from "./verify-voucher-dialog";
 import { formatQuantity } from "@/lib/voucher";
 import { formatToBRL } from "@/lib/utils";
 import {
@@ -315,6 +316,7 @@ export default function MyVouchersPage() {
           <Button asChild variant="brand">
             <Link href="/">Comprar outro voucher</Link>
           </Button>
+          <VerifyVoucherDialog />
         </div>
         <ul className="grid gap-4">
           {/* Valid vouchers first, then the rest; newest purchase first in each group. */}
