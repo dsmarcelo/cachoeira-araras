@@ -17,7 +17,7 @@ import type { FunctionReturnType } from "convex/server";
 import type { internal } from "../../../../convex/_generated/api";
 
 type ConfirmPaymentResult = FunctionReturnType<
-  typeof internal.vouchers.confirmPayment
+  typeof internal.paymentSync.syncPayment
 >;
 
 function isValidSignature(
@@ -117,6 +117,8 @@ async function confirmVoucherPaymentViaConvex({
   paymentAmountCents,
   paymentTypeId,
   paymentMethodId,
+  statusDetail,
+  refundedCents,
 }: {
   code: string;
   paymentId: string;
@@ -124,6 +126,8 @@ async function confirmVoucherPaymentViaConvex({
   paymentAmountCents?: number;
   paymentTypeId?: string;
   paymentMethodId?: string;
+  statusDetail?: string;
+  refundedCents?: number;
 }) {
   const result = await callConvexService<ConfirmPaymentResult>(
     "/webhooks/mercadopago/confirmPayment",
@@ -134,6 +138,8 @@ async function confirmVoucherPaymentViaConvex({
       paymentAmountCents,
       paymentTypeId,
       paymentMethodId,
+      statusDetail,
+      refundedCents,
     },
   );
 

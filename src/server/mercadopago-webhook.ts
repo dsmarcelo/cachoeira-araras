@@ -28,6 +28,8 @@ type MercadoPagoPaymentWebhookPayload = {
   transaction_amount?: unknown;
   payment_type_id?: unknown;
   payment_method_id?: unknown;
+  status_detail?: unknown;
+  transaction_amount_refunded?: unknown;
 };
 
 type ProcessMercadoPagoPaymentWebhookInput = {
@@ -43,6 +45,8 @@ type ProcessMercadoPagoPaymentWebhookInput = {
     paymentAmountCents?: number;
     paymentTypeId?: string;
     paymentMethodId?: string;
+    statusDetail?: string;
+    refundedCents?: number;
   }) => Promise<VoucherPaymentWebhookResult>;
   sendConversionEvents?: (
     payment: MercadoPagoPaymentWebhookPayload,
@@ -235,6 +239,17 @@ export async function processMercadoPagoPaymentWebhook({
       : {}),
     ...(typeof payment.payment_method_id === "string" && payment.payment_method_id
       ? { paymentMethodId: payment.payment_method_id }
+      : {}),
+    ...(typeof payment.status_detail === "string" && payment.status_detail
+      ? { statusDetail: payment.status_detail }
+      : {}),
+    // MP reports reais; Convex only handles integer cents.
+    ...(typeof payment.transaction_amount_refunded === "number" &&
+    Number.isFinite(payment.transaction_amount_refunded) &&
+    payment.transaction_amount_refunded >= 0
+      ? {
+          refundedCents: Math.round(payment.transaction_amount_refunded * 100),
+        }
       : {}),
   });
 

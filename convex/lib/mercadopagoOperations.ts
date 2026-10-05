@@ -2,6 +2,7 @@ import { z } from "zod";
 import { env } from "../_generated/server";
 import type { ProviderIntent } from "./paymentOperation";
 import { MercadoPagoApiError } from "./mercadopagoError";
+import type { ChargebackOutcome } from "./paymentReversal";
 
 function safeProviderDetail(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
@@ -270,7 +271,7 @@ export async function findChargebacksByPayment(paymentId: string) {
  */
 export function chargebackOutcome(
   cases: readonly ChargebackCase[],
-): "open" | "won" | "lost" | undefined {
+): ChargebackOutcome | undefined {
   const recency = (c: ChargebackCase) => {
     const time = Date.parse(c.dateLastUpdated ?? c.dateCreated ?? "");
     return Number.isNaN(time) ? 0 : time;
