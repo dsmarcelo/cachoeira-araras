@@ -7,7 +7,7 @@ import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CalendarIcon } from "lucide-react"
 
-import { formatDateWeekDay, formatReferrer, formatToBRL, getErrorMessage } from "@/lib/utils"
+import { formatDateWeekDay, formatReferrer, getErrorMessage } from "@/lib/utils"
 import { getSaoPauloDateKey } from "@/lib/utils/date"
 import { getVisitDateRejection } from "@/lib/voucher/visit-date"
 import { Calendar } from "@/components/ui/calendar"
@@ -24,6 +24,8 @@ import { api } from "../../../convex/_generated/api"
 import { isAdminReschedulable } from "../../../convex/lib/voucherReschedule"
 import { AdminVoucherRefundButton } from "./admin-voucher-refund-button"
 import { VoucherImage, canShowVoucherImage } from "./_components/voucher-image"
+import { formatCents } from "./dashboard/financeiro/format"
+import { providerCodeLabel } from "./_components/use-gate-reconcile"
 import { DetailList, describeEntries, voucherStatusMeta } from "./_components/admin-ui"
 import {
   VoucherSheet,
@@ -148,21 +150,21 @@ export function VoucherInfoCard({
             ? [
                 {
                   label: "Situação do pagamento",
-                  value: `${data.paymentIssue.kind === "dispute" ? "Pagamento contestado" : "Reembolso parcial"} (${data.paymentIssue.status}${data.paymentIssue.statusDetail ? `, ${data.paymentIssue.statusDetail}` : ""})`,
+                  value: `${data.paymentIssue.kind === "dispute" ? "Pagamento contestado" : "Reembolso parcial"} (${providerCodeLabel(data.paymentIssue.status)}${data.paymentIssue.statusDetail ? `, ${providerCodeLabel(data.paymentIssue.statusDetail)}` : ""})`,
                 },
                 {
                   label: "Sinalizado em",
                   value: new Date(data.paymentIssue.notedAt).toLocaleString("pt-BR"),
                 },
                 ...(data.paymentIssue.refundedCents !== undefined
-                  ? [{ label: "Valor reembolsado", value: formatToBRL(data.paymentIssue.refundedCents / 100) }]
+                  ? [{ label: "Valor reembolsado", value: formatCents(data.paymentIssue.refundedCents) }]
                   : []),
               ]
             : []),
           ...(data.reversal && data.status !== "refunded"
             ? [{
                 label: "Estorno",
-                value: `${data.reversal.reason} em ${new Date(data.reversal.notedAt).toLocaleString("pt-BR")}`,
+                value: `${providerCodeLabel(data.reversal.reason)} em ${new Date(data.reversal.notedAt).toLocaleString("pt-BR")}`,
               }]
             : []),
           { label: "Preferência", value: data.preferenceId, copy: data.preferenceId },
