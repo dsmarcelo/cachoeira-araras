@@ -92,6 +92,7 @@ test("a reversal after confirmation takes the voucher back out of the summary", 
     code: "a1b2",
     paymentId: "pay-1",
     paymentStatus: "charged_back",
+    chargebackOutcome: "lost",
   });
   await settle(t);
 

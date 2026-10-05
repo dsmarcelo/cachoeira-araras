@@ -195,6 +195,8 @@ test.each(["refunded", "charged_back", "cancelled"])(
       code: "a1b2",
       paymentId: "pay-1",
       paymentStatus,
+      // Only a lost case reverses a chargeback; the other statuses ignore it.
+      chargebackOutcome: "lost",
     });
 
     expect(result).toMatchObject({ outcome: "reversed", becameValid: false });
@@ -221,6 +223,8 @@ test.each(["refunded", "charged_back", "cancelled"])(
       code: "a1b2",
       paymentId: "pay-1",
       paymentStatus,
+      // Only a lost case reverses a chargeback; the other statuses ignore it.
+      chargebackOutcome: "lost",
     });
 
     expect(result).toMatchObject({ outcome: "redeemed", becameValid: false });

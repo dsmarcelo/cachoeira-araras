@@ -72,9 +72,10 @@ export function isRevertibleReversal(
  *
  * - `approved`: unchanged, except `partially_refunded` flags a partial refund
  *   and any other approval clears the flag.
- * - `in_mediation`, or `charged_back` with an open case: flags a dispute.
- * - `charged_back` lost (or with no case information): reversed. The reason
- *   stays `charged_back`, so a later win can undo it.
+ * - `in_mediation`, or `charged_back` with an open or unknown case: flags a
+ *   dispute. The outcome is never guessed, so only a lost case reverses.
+ * - `charged_back` lost: reversed. The reason stays `charged_back`, so a
+ *   later win can undo it.
  * - `charged_back` won: flag cleared; a chargeback-caused reversal is undone
  *   (refunded goes back to valid, or expired when past its expiry).
  * - `refunded`, `cancelled`: reversed permanently.
@@ -101,13 +102,13 @@ export function decideReversalPatch(
     case "in_mediation":
       return flag(voucher, "dispute", provider, now);
     case "charged_back":
-      if (provider.chargebackOutcome === "open") {
-        return flag(voucher, "dispute", provider, now);
+      if (provider.chargebackOutcome === "lost") {
+        return reverse(voucher, "charged_back", now);
       }
       if (provider.chargebackOutcome === "won") {
         return resolveWonChargeback(voucher, now);
       }
-      return reverse(voucher, "charged_back", now);
+      return flag(voucher, "dispute", provider, now);
     case "refunded":
     case "cancelled":
       return reverse(voucher, provider.status, now);

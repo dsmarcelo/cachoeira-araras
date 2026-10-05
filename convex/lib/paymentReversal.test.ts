@@ -191,10 +191,9 @@ describe("lost chargeback", () => {
     });
   });
 
-  test("a chargeback with no case information is treated as lost", () => {
-    expect(decide(voucher(), { status: "charged_back" })).toMatchObject({
-      status: "refunded",
-      reversal: { reason: "charged_back" },
+  test("a chargeback with no case information is only flagged as a dispute", () => {
+    expect(decide(voucher(), { status: "charged_back" })).toEqual({
+      paymentIssue: expect.objectContaining({ kind: "dispute" }),
     });
   });
 
