@@ -895,6 +895,37 @@ export const getByCodeForStaff = query({
   },
 });
 
+const voucherImageValidator = v.object({
+  code: v.string(),
+  name: v.string(),
+  phone: v.string(),
+  adults: v.number(),
+  elderly: v.number(),
+  adultsPool: v.number(),
+  elderlyPool: v.number(),
+  priceCents: v.number(),
+  status: voucherStatusValidator,
+  visitDate: v.string(),
+  expiresAt: v.number(),
+});
+
+/** The fields the OG image renders, shared by the customer and staff paths. */
+function summarizeForImage(voucher: Doc<"vouchers">) {
+  return {
+    code: voucher.code,
+    name: voucher.name,
+    phone: voucher.phone,
+    adults: voucher.adults,
+    elderly: voucher.elderly,
+    adultsPool: voucher.adultsPool,
+    elderlyPool: voucher.elderlyPool,
+    priceCents: voucher.priceCents,
+    status: voucher.status,
+    visitDate: voucher.visitDate,
+    expiresAt: voucher.expiresAt,
+  };
+}
+
 /**
  * The full record needed to render the "Meus Vouchers" OG image, including
  * name and phone. Internal only, deliberately not a public query — reached
@@ -906,22 +937,7 @@ export const getByCodeForStaff = query({
  */
 export const getVoucherForImage = internalQuery({
   args: { code: v.string(), lookupToken: v.string() },
-  returns: v.union(
-    v.object({
-      code: v.string(),
-      name: v.string(),
-      phone: v.string(),
-      adults: v.number(),
-      elderly: v.number(),
-      adultsPool: v.number(),
-      elderlyPool: v.number(),
-      priceCents: v.number(),
-      status: voucherStatusValidator,
-      visitDate: v.string(),
-      expiresAt: v.number(),
-    }),
-    v.null(),
-  ),
+  returns: v.union(voucherImageValidator, v.null()),
   handler: async (ctx, args) => {
     const voucher = await ctx.db
       .query("vouchers")
@@ -937,19 +953,42 @@ export const getVoucherForImage = internalQuery({
       return null;
     }
 
-    return {
-      code: voucher.code,
-      name: voucher.name,
-      phone: voucher.phone,
-      adults: voucher.adults,
-      elderly: voucher.elderly,
-      adultsPool: voucher.adultsPool,
-      elderlyPool: voucher.elderlyPool,
-      priceCents: voucher.priceCents,
-      status: voucher.status,
-      visitDate: voucher.visitDate,
-      expiresAt: voucher.expiresAt,
-    };
+    return summarizeForImage(voucher);
+  },
+});
+
+/**
+ * The same image record for a signed-in staff member (admin or employee),
+ * authorized by the session instead of the customer's lookup token — the
+ * token also authorizes rescheduling, which employees must not have. Reached
+ * by `/api/og` when no token is present. Null for unknown, deleted, pending
+ * or cancelled vouchers.
+ */
+export const getVoucherForStaffImage = query({
+  args: { code: v.string() },
+  returns: v.union(voucherImageValidator, v.null()),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "employee");
+
+    if (args.code.length === 0 || args.code.length > 64) {
+      return null;
+    }
+
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (
+      !voucher ||
+      voucher.deletedAt !== undefined ||
+      voucher.status === "pending" ||
+      voucher.status === "cancelled"
+    ) {
+      return null;
+    }
+
+    return summarizeForImage(voucher);
   },
 });
 
@@ -1883,6 +1922,49 @@ export const listTodayAdmin = query({
 
     const vouchers = await todaysRealVouchers(ctx);
     return vouchers.map(summarizeForGateAdmin);
+  },
+});
+
+/** Reads one non-deleted voucher by code; null for unknown or malformed codes. */
+async function findLiveVoucherByCode(ctx: { db: QueryCtx["db"] }, code: string) {
+  if (code.length === 0 || code.length > 64) {
+    return null;
+  }
+
+  const voucher = await ctx.db
+    .query("vouchers")
+    .withIndex("by_code", (q) => q.eq("code", code))
+    .unique();
+
+  return voucher && voucher.deletedAt === undefined ? voucher : null;
+}
+
+/**
+ * One voucher in the employee gate shape, for the gate drawer and the
+ * "Validar voucher" info button. Unlike `listToday` it is not limited to
+ * today or real vouchers: a staff member who typed a code (Test Vouchers
+ * included) sees that voucher. Null for unknown or deleted codes.
+ */
+export const getGateByCode = query({
+  args: { code: v.string() },
+  returns: v.union(gateVoucherValidator, v.null()),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "employee");
+
+    const voucher = await findLiveVoucherByCode(ctx, args.code);
+    return voucher ? summarizeForGate(voucher) : null;
+  },
+});
+
+/** Admin variant of `getGateByCode`, with payment identifiers and referrer. */
+export const getGateAdminByCode = query({
+  args: { code: v.string() },
+  returns: v.union(gateVoucherAdminValidator, v.null()),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const voucher = await findLiveVoucherByCode(ctx, args.code);
+    return voucher ? summarizeForGateAdmin(voucher) : null;
   },
 });
 

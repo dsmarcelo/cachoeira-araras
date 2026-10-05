@@ -15,7 +15,7 @@ export default async function AdminPage() {
 
   return (
     <PageShell className="md:grid md:max-w-5xl md:grid-cols-2 md:items-start">
-      <ValidateVoucher />
+      <ValidateVoucher role={user.role} />
       {user.role === "admin" ? <TodayVouchers /> : <EmployeeTodayVouchers />}
     </PageShell>
   );

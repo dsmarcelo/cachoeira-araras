@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { Check } from "lucide-react";
 
@@ -10,24 +10,45 @@ import { toast } from "@/components/ui/use-toast";
 import { api } from "../../../convex/_generated/api";
 import { AdminVoucherRefundButton } from "./admin-voucher-refund-button";
 import { DetailList, describeEntries } from "./_components/admin-ui";
+import { VoucherImage, canShowVoucherImage } from "./_components/voucher-image";
 import {
   VoucherSheet,
+  VoucherSheetPlaceholder,
   WhatsAppLink,
   describeValidity,
   primaryActionClass,
   secondaryActionClass,
 } from "./_components/voucher-sheet";
 
-type AdminGateVoucher = FunctionReturnType<typeof api.vouchers.listTodayAdmin>[number];
-
 /**
- * The admin gate card: today's-voucher list drawer, backed directly by
- * Convex (`listTodayAdmin`). Distinct from `VoucherInfoCard`, the
+ * The admin gate card: drawer for one voucher by code, backed directly by
+ * Convex (`getGateAdminByCode`) so it stays live. Used by the today list and
+ * "Validar voucher". Distinct from `VoucherInfoCard`, the
  * all-vouchers table's drawer under /admin/tabela — the two stay separate
  * components rather than sharing a type, since the gate list and the admin
  * table read different Convex queries with different shapes.
  */
 export function GateVoucherInfoCard({
+  code,
+  onClose,
+  open,
+}: {
+  code: string;
+  onClose: () => void;
+  open: boolean;
+}) {
+  const data = useQuery(api.vouchers.getGateAdminByCode, { code });
+
+  if (!data) {
+    return <VoucherSheetPlaceholder code={code} loading={data === undefined} open={open} onClose={onClose} />;
+  }
+
+  return <GateVoucherSheet data={data} open={open} onClose={onClose} />;
+}
+
+type AdminGateVoucher = NonNullable<FunctionReturnType<typeof api.vouchers.getGateAdminByCode>>;
+
+function GateVoucherSheet({
   data,
   onClose,
   open,
@@ -69,14 +90,17 @@ export function GateVoucherInfoCard({
             <Check className="size-[18px]" aria-hidden />
             Usar voucher
           </button>
-          <button
-            type="button"
-            className={secondaryActionClass}
-            disabled={isPending}
-            onClick={() => run(() => reactivate({ code: data.code }), "Voucher ativado com sucesso", "Erro ao ativar voucher")}
-          >
-            Reativar voucher
-          </button>
+          {/* A valid voucher has nothing to reactivate. */}
+          {data.status !== "valid" ? (
+            <button
+              type="button"
+              className={secondaryActionClass}
+              disabled={isPending}
+              onClick={() => run(() => reactivate({ code: data.code }), "Voucher ativado com sucesso", "Erro ao ativar voucher")}
+            >
+              Reativar voucher
+            </button>
+          ) : null}
         </>
       }
     >
@@ -98,6 +122,9 @@ export function GateVoucherInfoCard({
         ]}
       />
       <AdminVoucherRefundButton code={data.code} paymentId={data.paymentId} status={data.status} />
+      {canShowVoucherImage(data.status) ? (
+        <VoucherImage code={data.code} phone={data.phone} version={`${data.status}-${data.expiresAt}`} />
+      ) : null}
     </VoucherSheet>
   );
 }
