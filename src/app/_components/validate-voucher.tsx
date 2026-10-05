@@ -10,6 +10,9 @@ import {
   describeEntries,
   type VoucherStatus,
 } from "@/app/admin/_components/admin-ui";
+import EmployeeVoucherInfoCard from "@/app/admin/employee-voucher-info-card";
+import { GateVoucherInfoCard } from "@/app/admin/gate-voucher-info-card";
+import { secondaryActionClass } from "@/app/admin/_components/voucher-sheet";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 
@@ -34,13 +37,15 @@ const resultSurface: Partial<Record<VoucherStatus, string>> = {
  * gated on the caller's staff role rather than the anonymous rate limiter
  * applied to public lookups. `redeemByCode` is staff-gated server-side too,
  * so a public caller can neither read nor redeem anything even if this
- * component were reachable by one.
+ * component were reachable by one. "Mostrar Informações" opens the role's
+ * gate drawer (admins see payment details, employees do not) for the result.
  */
-export default function ValidateVoucher() {
+export default function ValidateVoucher({ role }: { role: "admin" | "employee" }) {
   const [voucherCode, setVoucherCode] = useState("");
   const [lookupCode, setLookupCode] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [isRedeeming, setIsRedeeming] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
 
   const voucher = useQuery(
     api.vouchers.getByCodeForStaff,
@@ -157,7 +162,24 @@ export default function ValidateVoucher() {
           ) : null}
         </div>
       ) : null}
+
+      {voucher ? (
+        <button
+          type="button"
+          className={secondaryActionClass}
+          onClick={() => setShowInfo(true)}
+        >
+          Mostrar Informações
+        </button>
+      ) : null}
       </form>
+      {voucher && showInfo ? (
+        role === "admin" ? (
+          <GateVoucherInfoCard code={voucher.code} open onClose={() => setShowInfo(false)} />
+        ) : (
+          <EmployeeVoucherInfoCard code={voucher.code} open onClose={() => setShowInfo(false)} />
+        )
+      ) : null}
     </Panel>
   );
 }
