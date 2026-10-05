@@ -92,6 +92,7 @@ test("a reversal after confirmation takes the voucher back out of the summary", 
     code: "a1b2",
     paymentId: "pay-1",
     paymentStatus: "charged_back",
+    chargebackOutcome: "lost",
   });
   await settle(t);
 
@@ -137,6 +138,8 @@ test("staff status changes, restore and reactivate keep the summary in step", as
   await settle(t);
   expect(await todaySummary(t)).toBeNull();
 
+  // Refunded vouchers cannot be reactivated, so reactivate from Redeemed.
+  await asAdmin.mutation(api.vouchers.updateStatus, { code: "a1b2", status: "redeemed" });
   await asAdmin.mutation(api.vouchers.reactivate, { code: "a1b2" });
   await settle(t);
   expect(await todaySummary(t)).toMatchObject({ voucherCount: 1 });
@@ -179,4 +182,37 @@ test("rebuildAll walks every day from the earliest purchase to today and drops s
   expect(days).toHaveLength(2);
   expect(days.every((d) => d.netCents === 5000 && d.voucherCount === 1)).toBe(true);
   expect(days.some((d) => d.date === today)).toBe(true);
+});
+
+test("a chargeback lost then won takes the voucher out of the summary and puts it back", async () => {
+  const t = createConvexTest();
+  await t.run((ctx) => ctx.db.insert("vouchers", voucherDoc()));
+  await t.mutation(internal.vouchers.confirmPayment, {
+    code: "a1b2",
+    paymentId: "pay-1",
+    paymentStatus: "approved",
+  });
+  await settle(t);
+  expect(await todaySummary(t)).toMatchObject({ voucherCount: 1 });
+
+  await t.mutation(internal.vouchers.confirmPayment, {
+    code: "a1b2",
+    paymentId: "pay-1",
+    paymentStatus: "charged_back",
+    chargebackOutcome: "lost",
+  });
+  await settle(t);
+  expect(await todaySummary(t)).toBeNull();
+
+  await t.mutation(internal.vouchers.confirmPayment, {
+    code: "a1b2",
+    paymentId: "pay-1",
+    paymentStatus: "charged_back",
+    chargebackOutcome: "won",
+  });
+  await settle(t);
+  expect(await todaySummary(t)).toMatchObject({
+    netCents: 5000,
+    voucherCount: 1,
+  });
 });

@@ -1,9 +1,12 @@
 /// <reference types="vite/client" />
-import { convexTest } from "convex-test";
+import { convexTest, type TestConvex as ConvexTestOf } from "convex-test";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { api, internal } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import schema from "./schema";
+
+type TestConvex = ConvexTestOf<typeof schema>;
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -192,6 +195,8 @@ test.each(["refunded", "charged_back", "cancelled"])(
       code: "a1b2",
       paymentId: "pay-1",
       paymentStatus,
+      // Only a lost case reverses a chargeback; the other statuses ignore it.
+      chargebackOutcome: "lost",
     });
 
     expect(result).toMatchObject({ outcome: "reversed", becameValid: false });
@@ -218,6 +223,8 @@ test.each(["refunded", "charged_back", "cancelled"])(
       code: "a1b2",
       paymentId: "pay-1",
       paymentStatus,
+      // Only a lost case reverses a chargeback; the other statuses ignore it.
+      chargebackOutcome: "lost",
     });
 
     expect(result).toMatchObject({ outcome: "redeemed", becameValid: false });
@@ -698,3 +705,399 @@ test("reversal of an excess payment marks it no longer owing refund and leaves t
   expect(storedPayment?.owesRefund).toBe(false);
 });
 
+
+// --- Payment reversals reconciled from Mercado Pago (ADR 0007) ---
+
+/** A voucher paid through the real flow, so its payment row is the Official Payment. */
+async function insertPaidVoucher(
+  t: TestConvex,
+  overrides: Partial<ReturnType<typeof defaults>> = {},
+) {
+  await insertVoucher(t, overrides);
+  await t.mutation(internal.vouchers.confirmPayment, {
+    code: "a1b2",
+    paymentId: "pay-1",
+    paymentStatus: "approved",
+    statusDetail: "accredited",
+  });
+}
+
+function observe(
+  t: TestConvex,
+  args: {
+    paymentStatus: string;
+    statusDetail?: string;
+    refundedCents?: number;
+    chargebackOutcome?: "open" | "won" | "lost";
+    paymentId?: string;
+  },
+) {
+  const { paymentId = "pay-1", ...rest } = args;
+  return t.mutation(internal.vouchers.confirmPayment, {
+    code: "a1b2",
+    paymentId,
+    ...rest,
+  });
+}
+
+function storedVoucher(t: TestConvex) {
+  return t.run((ctx) =>
+    ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", "a1b2"))
+      .unique(),
+  );
+}
+
+function storedPayment(t: TestConvex, paymentId = "pay-1") {
+  return t.run((ctx) =>
+    ctx.db
+      .query("payments")
+      .withIndex("by_paymentId", (q) => q.eq("paymentId", paymentId))
+      .unique(),
+  );
+}
+
+/** Rewrites the stored voucher, e.g. to put it in a state the flow cannot reach quickly. */
+async function patchStoredVoucher(
+  t: TestConvex,
+  patch: Partial<Doc<"vouchers">>,
+) {
+  await t.run(async (ctx) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", "a1b2"))
+      .unique();
+    await ctx.db.patch("vouchers", voucher!._id, patch);
+  });
+}
+
+const pastExpiry = () => Date.now() - 1000 * 60;
+
+test("in_mediation flags a dispute, keeps the voucher valid and keeps the payment official", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+
+  await observe(t, { paymentStatus: "in_mediation", statusDetail: "pending" });
+
+  const voucher = await storedVoucher(t);
+  expect(voucher?.status).toBe("valid");
+  expect(voucher?.paymentIssue).toMatchObject({
+    kind: "dispute",
+    status: "in_mediation",
+    statusDetail: "pending",
+  });
+  expect(await storedPayment(t)).toMatchObject({
+    isOfficial: true,
+    status: "in_mediation",
+    statusDetail: "pending",
+  });
+});
+
+test("an approval that returns to accredited clears the dispute flag", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  await observe(t, { paymentStatus: "in_mediation" });
+
+  await observe(t, { paymentStatus: "approved", statusDetail: "accredited" });
+
+  const voucher = await storedVoucher(t);
+  expect(voucher?.status).toBe("valid");
+  expect(voucher?.paymentIssue).toBeUndefined();
+  expect(await storedPayment(t)).toMatchObject({ isOfficial: true });
+});
+
+test("approved/partially_refunded flags a partial refund instead of being swallowed as a repeat", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+
+  const result = await observe(t, {
+    paymentStatus: "approved",
+    statusDetail: "partially_refunded",
+    refundedCents: 1500,
+  });
+
+  expect(result).toMatchObject({ outcome: "updated", becameValid: false });
+  const voucher = await storedVoucher(t);
+  expect(voucher?.status).toBe("valid");
+  expect(voucher?.paymentIssue).toMatchObject({
+    kind: "partial_refund",
+    refundedCents: 1500,
+    statusDetail: "partially_refunded",
+  });
+  // Still the Official Payment: it is not turned into an Excess Payment.
+  expect(await storedPayment(t)).toMatchObject({
+    isOfficial: true,
+    owesRefund: false,
+  });
+  expect(
+    await t.run((ctx) => ctx.db.query("paymentRefunds").collect()),
+  ).toHaveLength(0);
+});
+
+test("a partial refund redelivery is idempotent and a larger refund updates the amount", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  const partial = {
+    paymentStatus: "approved",
+    statusDetail: "partially_refunded",
+    refundedCents: 1500,
+  };
+  await observe(t, partial);
+  const first = await storedVoucher(t);
+
+  const repeat = await observe(t, partial);
+  expect(repeat).toMatchObject({ outcome: "already_processed" });
+  expect((await storedVoucher(t))?.paymentIssue).toEqual(first?.paymentIssue);
+
+  await observe(t, { ...partial, refundedCents: 2500 });
+  const updated = await storedVoucher(t);
+  expect(updated?.paymentIssue?.refundedCents).toBe(2500);
+  expect(updated?.paymentIssue?.notedAt).toBe(first?.paymentIssue?.notedAt);
+});
+
+test("an undecided chargeback flags a dispute and the voucher stays valid", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+
+  await observe(t, {
+    paymentStatus: "charged_back",
+    statusDetail: "in_process",
+    chargebackOutcome: "open",
+  });
+
+  const voucher = await storedVoucher(t);
+  expect(voucher?.status).toBe("valid");
+  expect(voucher?.reversal).toBeUndefined();
+  expect(voucher?.paymentIssue).toMatchObject({ kind: "dispute" });
+});
+
+test("an unreported chargeback outcome keeps an open dispute from becoming a reversal", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  await observe(t, {
+    paymentStatus: "charged_back",
+    statusDetail: "in_process",
+    chargebackOutcome: "open",
+  });
+
+  // Same status, new detail, but the case lookup did not answer this time.
+  await observe(t, { paymentStatus: "charged_back", statusDetail: "settled" });
+
+  const voucher = await storedVoucher(t);
+  expect(voucher?.status).toBe("valid");
+  expect(voucher?.reversal).toBeUndefined();
+  expect((await storedPayment(t))?.chargebackOutcome).toBe("open");
+});
+
+test("a lost chargeback reverses the voucher and a later win restores it to valid", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  await observe(t, {
+    paymentStatus: "charged_back",
+    chargebackOutcome: "open",
+  });
+
+  const lost = await observe(t, {
+    paymentStatus: "charged_back",
+    chargebackOutcome: "lost",
+  });
+  expect(lost).toMatchObject({ outcome: "reversed" });
+  const reversed = await storedVoucher(t);
+  expect(reversed?.status).toBe("refunded");
+  expect(reversed?.reversal?.reason).toBe("charged_back");
+  expect(reversed?.paymentIssue).toBeUndefined();
+
+  const won = await observe(t, {
+    paymentStatus: "charged_back",
+    chargebackOutcome: "won",
+  });
+  expect(won).toMatchObject({ outcome: "updated" });
+  const restored = await storedVoucher(t);
+  expect(restored?.status).toBe("valid");
+  expect(restored?.reversal).toBeUndefined();
+  expect(restored?.paymentIssue).toBeUndefined();
+});
+
+test("a chargeback-reversed voucher is restored when the payment returns to approved", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  await observe(t, { paymentStatus: "charged_back", chargebackOutcome: "lost" });
+  expect((await storedVoucher(t))?.status).toBe("refunded");
+
+  // Mercado Pago may report a won case as a plain approval: the money stayed.
+  await observe(t, { paymentStatus: "approved", statusDetail: "accredited" });
+  const restored = await storedVoucher(t);
+  expect(restored?.status).toBe("valid");
+  expect(restored?.reversal).toBeUndefined();
+});
+
+test("a lost chargeback won after the expiry restores the voucher to expired", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  await observe(t, {
+    paymentStatus: "charged_back",
+    chargebackOutcome: "lost",
+  });
+  await patchStoredVoucher(t, { expiresAt: pastExpiry() });
+
+  await observe(t, { paymentStatus: "charged_back", chargebackOutcome: "won" });
+
+  const voucher = await storedVoucher(t);
+  expect(voucher?.status).toBe("expired");
+  expect(voucher?.reversal).toBeUndefined();
+});
+
+test("a redeemed voucher keeps its status through a lost and won chargeback and only its warning changes", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  await patchStoredVoucher(t, { status: "redeemed" });
+
+  await observe(t, {
+    paymentStatus: "charged_back",
+    chargebackOutcome: "lost",
+  });
+  expect((await storedVoucher(t))?.reversal?.reason).toBe("charged_back");
+
+  await observe(t, { paymentStatus: "charged_back", chargebackOutcome: "won" });
+  const voucher = await storedVoucher(t);
+  expect(voucher?.status).toBe("redeemed");
+  expect(voucher?.reversal).toBeUndefined();
+});
+
+test("an expired voucher gets a reversal when its Official Payment is refunded", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  await patchStoredVoucher(t, { status: "expired", expiresAt: pastExpiry() });
+
+  const result = await observe(t, { paymentStatus: "refunded" });
+
+  expect(result).toMatchObject({ outcome: "updated" });
+  const voucher = await storedVoucher(t);
+  expect(voucher?.status).toBe("expired");
+  expect(voucher?.reversal?.reason).toBe("refunded");
+});
+
+test("a refund never reverts, even if a chargeback is later reported as won", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  await observe(t, { paymentStatus: "refunded" });
+
+  await observe(t, { paymentStatus: "charged_back", chargebackOutcome: "won" });
+
+  const voucher = await storedVoucher(t);
+  expect(voucher?.status).toBe("refunded");
+  expect(voucher?.reversal?.reason).toBe("refunded");
+});
+
+test("a refund after a lost chargeback makes the reversal permanent", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  await observe(t, {
+    paymentStatus: "charged_back",
+    chargebackOutcome: "lost",
+  });
+  await observe(t, { paymentStatus: "refunded" });
+
+  await observe(t, { paymentStatus: "charged_back", chargebackOutcome: "won" });
+
+  const voucher = await storedVoucher(t);
+  expect(voucher?.status).toBe("refunded");
+  expect(voucher?.reversal?.reason).toBe("refunded");
+});
+
+test("a legacy reversal reason is never reverted by a won chargeback", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  await patchStoredVoucher(t, {
+    status: "refunded",
+    reversal: { reason: "something_old", notedAt: 1 },
+  });
+
+  await observe(t, { paymentStatus: "charged_back", chargebackOutcome: "won" });
+
+  expect((await storedVoucher(t))?.status).toBe("refunded");
+});
+
+test("an Excess Payment's dispute or chargeback never touches the voucher", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  await observe(t, { paymentId: "pay-2", paymentStatus: "approved" });
+
+  await observe(t, { paymentId: "pay-2", paymentStatus: "in_mediation" });
+  await observe(t, {
+    paymentId: "pay-2",
+    paymentStatus: "charged_back",
+    chargebackOutcome: "lost",
+  });
+
+  const voucher = await storedVoucher(t);
+  expect(voucher?.status).toBe("valid");
+  expect(voucher?.reversal).toBeUndefined();
+  expect(voucher?.paymentIssue).toBeUndefined();
+  expect(await storedPayment(t, "pay-2")).toMatchObject({
+    isOfficial: false,
+    status: "charged_back",
+  });
+});
+
+test("a repeated chargeback delivery with the same outcome changes nothing", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  const lost = {
+    paymentStatus: "charged_back",
+    statusDetail: "settled",
+    chargebackOutcome: "lost" as const,
+  };
+  await observe(t, lost);
+  const first = await storedVoucher(t);
+
+  const repeat = await observe(t, lost);
+
+  expect(repeat).toMatchObject({ outcome: "already_processed" });
+  expect((await storedVoucher(t))?.reversal).toEqual(first?.reversal);
+});
+
+/** A paid voucher whose Official Payment row lost `isOfficial`, as the old non-approved update left it. */
+async function insertVoucherWithUnflaggedOfficialRow(t: TestConvex) {
+  await insertVoucher(t, { status: "valid", paymentId: "pay-1" });
+  await t.run((ctx) =>
+    ctx.db.insert("payments", {
+      paymentId: "pay-1",
+      voucherCode: "a1b2",
+      status: "in_mediation",
+      isOfficial: false,
+      owesRefund: false,
+      createdAt: Date.now(),
+    }),
+  );
+}
+
+test("an Official Payment row that lost isOfficial is repaired and not refunded as an Excess Payment", async () => {
+  const t = convexTest(schema, modules);
+  await insertVoucherWithUnflaggedOfficialRow(t);
+
+  await observe(t, { paymentStatus: "approved", statusDetail: "accredited" });
+
+  expect(await storedPayment(t)).toMatchObject({
+    isOfficial: true,
+    owesRefund: false,
+  });
+  expect(
+    await t.run((ctx) => ctx.db.query("paymentRefunds").collect()),
+  ).toHaveLength(0);
+  expect((await storedVoucher(t))?.status).toBe("valid");
+});
+
+test("a lost chargeback still reverses a voucher whose Official Payment row lost isOfficial", async () => {
+  const t = convexTest(schema, modules);
+  await insertVoucherWithUnflaggedOfficialRow(t);
+
+  await observe(t, {
+    paymentStatus: "charged_back",
+    chargebackOutcome: "lost",
+  });
+
+  expect((await storedVoucher(t))?.status).toBe("refunded");
+  expect(await storedPayment(t)).toMatchObject({ isOfficial: true });
+});

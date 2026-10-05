@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { rescheduledByValidator } from "./lib/voucherReschedule";
 import { operationRequest, operationResult } from "./lib/paymentOperation";
+import { paymentIssueValidator } from "./lib/paymentReversal";
 
 // A Voucher Code is the identity of a voucher; there is no separate surrogate
 // id. `status` is the single source of truth for voucher state (no parallel
@@ -25,8 +26,10 @@ const vouchers = defineTable({
 
   // `refunded` covers any negative-terminal Mercado Pago notification
   // (refund, chargeback, or cancellation) that arrives for a Voucher that
-  // was never redeemed: it is a dead end like `expired`, never redeemable,
-  // and never reverts to `valid`.
+  // was never redeemed: it is never redeemable. It reverts only when a lost
+  // chargeback is later won (`reversal.reason === "charged_back"`, see
+  // `convex/lib/paymentReversal.ts`), back to `valid` (or `expired` when past
+  // `expiresAt`). Refunds and cancellations never revert.
   status: v.union(
     v.literal("pending"),
     v.literal("valid"),
@@ -56,18 +59,28 @@ const vouchers = defineTable({
   paymentTypeId: v.optional(v.string()),
   paymentMethodId: v.optional(v.string()),
 
-  // Set once, the first time a negative-terminal Mercado Pago notification
+  // Set the first time a negative-terminal Mercado Pago notification
   // (refund, chargeback, cancellation) arrives after the Voucher was already
-  // `valid` or `redeemed`. `reason` is the raw Mercado Pago payment status.
-  // Present alongside `status: "redeemed"`, this is the administrative
+  // `valid`, `redeemed` or `expired`. `reason` is the raw Mercado Pago payment
+  // status. Present alongside `status: "redeemed"`, this is the administrative
   // warning staff see: the entry already happened and is never undone, but
-  // the payment behind it was reversed afterwards.
+  // the payment behind it was reversed afterwards. A reversal
+  // whose reason is `charged_back` (legacy or recorded now) is revertible: a
+  // won chargeback clears it. Any other reason is permanent.
   reversal: v.optional(
     v.object({
       reason: v.string(),
       notedAt: v.number(),
     }),
   ),
+
+  // Staff-visible flag on the Official Payment: an open dispute (mediation or
+  // undecided chargeback) or a partial refund. Mirrors the provider's state
+  // while the Voucher keeps its status; cleared when the payment returns to
+  // plain `approved`, and when the Voucher is reversed. Never shown to
+  // customers. `notedAt` is when the flag was first raised. `refundedCents`
+  // is set for `partial_refund` only.
+  paymentIssue: v.optional(paymentIssueValidator),
 
   // Replaces the separate 1:1 Referrer table.
   referrer: v.optional(
@@ -96,6 +109,9 @@ const vouchers = defineTable({
   // Limits payment-provider reads triggered by page visits.
   paymentReconciliationCheckedAt: v.optional(v.number()),
   paymentReconciliationOpId: v.optional(v.id("paymentOperations")),
+  // When the last on-view check failed; cleared by the next one that
+  // succeeds. Lets a throttled re-check still report the failure.
+  paymentReconciliationFailedAt: v.optional(v.number()),
 
   // Internal cancellation coordination: timestamp when cancellation begins,
   // preventing concurrent payment resumption.
@@ -122,6 +138,13 @@ const vouchers = defineTable({
   // express "field is set"). Rewrite it on every write that changes
   // `deletedAt` or `isTest`. TODO: make required after the backfill.
   isActive: v.optional(v.boolean()),
+
+  // `true` while `paymentIssue.kind === "dispute"`, absent otherwise. Derived
+  // by `patchVoucher` (convex/lib/voucherWrites.ts) on every write that sets
+  // or clears `paymentIssue`, so the admin "Pagamento contestado" filter can
+  // read an index range instead of scanning. No backfill needed: `paymentIssue`
+  // is new and only ever written through `patchVoucher`.
+  paymentDisputed: v.optional(v.literal(true)),
 
   deletedAt: v.optional(v.number()),
 })
@@ -158,13 +181,21 @@ const vouchers = defineTable({
     "status",
     "purchasedAt",
   ])
+  // Admin "Pagamento contestado" filter (`listAdmin`): disputed real vouchers,
+  // newest sale first. Equality on `paymentDisputed: true` keeps the range tiny.
+  .index("by_paymentDisputed_and_isTest_and_deletedAt_and_purchasedAt", [
+    "paymentDisputed",
+    "isTest",
+    "deletedAt",
+    "purchasedAt",
+  ])
   // Admin "deleted" view (`listDeleted`).
   .index("by_deletedAt", ["deletedAt"])
   // Admin search by code, name or phone. `isActive` (not `deletedAt`) is the
   // filter for live vs. deleted because search filters only support equality.
   .searchIndex("search_text", {
     searchField: "searchText",
-    filterFields: ["isActive", "status"],
+    filterFields: ["isActive", "status", "paymentDisputed"],
   });
 
 // One document per key so concurrent admins editing settings cannot clobber
@@ -190,6 +221,13 @@ const payments = defineTable({
   paymentId: v.string(),
   voucherCode: v.string(),
   status: v.union(v.string(), v.null()),
+  // Mercado Pago `status_detail`, e.g. "partially_refunded" or "in_process".
+  statusDetail: v.optional(v.string()),
+  // Last chargeback outcome seen for this payment; with `status` and
+  // `statusDetail`, it makes `confirmPayment` idempotent.
+  chargebackOutcome: v.optional(
+    v.union(v.literal("open"), v.literal("won"), v.literal("lost")),
+  ),
   isOfficial: v.boolean(),
   owesRefund: v.boolean(),
   createdAt: v.number(),

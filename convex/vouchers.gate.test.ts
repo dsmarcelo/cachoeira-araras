@@ -200,6 +200,24 @@ test("reactivating moves expiresAt and leaves visitDate untouched", async () => 
   expect(stored?.visitDate).toBe(yesterday);
 });
 
+test("reactivating a refunded voucher is refused and leaves it refunded", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t, { status: "refunded" });
+  const asEmployee = await withAuth(t, "employee");
+
+  await expect(
+    asEmployee.mutation(api.vouchers.reactivate, { code: "a1b2" }),
+  ).rejects.toThrow("reembolsado");
+
+  const stored = await t.run(async (ctx) =>
+    ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", "a1b2"))
+      .unique(),
+  );
+  expect(stored?.status).toBe("refunded");
+});
+
 test("a public caller cannot reactivate", async () => {
   const t = createConvexTest();
   await insertVoucher(t);

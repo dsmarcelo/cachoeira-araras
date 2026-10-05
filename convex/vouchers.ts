@@ -37,6 +37,12 @@ import {
 } from "./lib/voucherCode";
 import { countsAsRealVoucher } from "./lib/financeSummary";
 import { patchVoucher } from "./lib/voucherWrites";
+import {
+  confirmPaymentResult,
+  decideReversalPatch,
+  paidVoucherStatuses,
+  paymentIssueValidator,
+} from "./lib/paymentReversal";
 import { normalizeSearchQuery, voucherSearchText } from "./lib/voucherSearch";
 import { validateVoucherPurchase } from "./lib/voucherPurchase";
 import {
@@ -950,9 +956,15 @@ export const cancelPendingPurchase = action({
  * anonymous shared bucket, protects this direct Voucher Code query so gate
  * validation remains available even when public lookup traffic is blocked.
  */
+const staffVoucherValidator = v.object({
+  ...publicVoucherValidator.fields,
+  // Neutral warning for gate staff; no payment identifiers.
+  paymentIssueKind: v.optional(paymentIssueValidator.fields.kind),
+});
+
 export const getByCodeForStaff = query({
   args: { code: v.string() },
-  returns: v.union(publicVoucherValidator, v.null()),
+  returns: v.union(staffVoucherValidator, v.null()),
   handler: async (ctx, args) => {
     await requireRole(ctx, "employee");
 
@@ -969,7 +981,10 @@ export const getByCodeForStaff = query({
       return null;
     }
 
-    return summarizeForPublic(voucher);
+    return {
+      ...summarizeForPublic(voucher),
+      paymentIssueKind: voucher.paymentIssue?.kind,
+    };
   },
 });
 
@@ -1490,6 +1505,8 @@ export const insertPendingVoucher = internalMutation({
  * after the fact: a refund, a chargeback, or a cancellation. Distinct from
  * "not approved yet" (`in_process`, `rejected`, ...), which the fallthrough
  * below already handles without touching a `valid`/`redeemed` Voucher.
+ * Used for payments outside the Voucher policy (Excess Payments); the
+ * Official Payment goes through `decideReversalPatch`.
  */
 const negativeTerminalPaymentStatuses = new Set([
   "refunded",
@@ -1514,17 +1531,27 @@ const negativeTerminalPaymentStatuses = new Set([
  * cannot both validate the same Voucher.
  *
  * Every further approval is an Excess Payment, recorded with `isOfficial: false`
- * and `owesRefund: true`. It leaves a Valid, Redeemed, Expired, Cancelled, or
- * Refunded Voucher untouched.
+ * and `owesRefund: true`. It leaves the Voucher untouched, whatever its status.
+ * Only the Official Payment's provider state can change a paid Voucher (see
+ * the reversal policy below).
  *
- * Redelivering the same payment identifier with the same status is idempotent
- * and reports no new conversion.
+ * Redelivering the same payment identifier with the same status, status
+ * detail and chargeback outcome is idempotent and reports no new conversion.
+ * For that check, an omitted `statusDetail` or `chargebackOutcome` means "not
+ * reported" and matches whatever is stored.
  *
- * A negative-terminal notification (`refunded`, `charged_back`, `cancelled`)
- * for the Official Payment moves a `valid` Voucher to `refunded`, or records
- * a `reversal` warning on an already `redeemed` Voucher. A negative-terminal
- * notification for an Excess Payment updates that payment record and leaves the
- * Voucher untouched.
+ * The Official Payment of a paid Voucher (`valid`, `redeemed`, `expired` or
+ * `refunded`) applies the reversal policy in `convex/lib/paymentReversal.ts`
+ * (ADR 0007): refunds and cancellations reverse the Voucher permanently, a
+ * lost chargeback reverses it revocably, a won one undoes that reversal, and
+ * a dispute or partial refund only flags it (`paymentIssue`). A non-approved
+ * update never clears the Official Payment's `isOfficial`. An Excess Payment
+ * reversal only updates that payment record and leaves the Voucher untouched.
+ *
+ * `statusDetail` is Mercado Pago's `status_detail`; `refundedCents` the
+ * integer cents already returned (the caller converts from reais);
+ * `chargebackOutcome` is the chargeback case result for a `charged_back`
+ * payment, and `undefined` when none was found.
  *
  * `paymentTypeId`/`paymentMethodId` are Mercado Pago's `payment_type_id`
  * ("credit_card", "debit_card", "bank_transfer", …) and `payment_method_id`
@@ -1539,20 +1566,13 @@ export const confirmPayment = internalMutation({
     paymentAmountCents: v.optional(v.number()),
     paymentTypeId: v.optional(v.string()),
     paymentMethodId: v.optional(v.string()),
+    statusDetail: v.optional(v.string()),
+    refundedCents: v.optional(v.number()),
+    chargebackOutcome: v.optional(
+      v.union(v.literal("open"), v.literal("won"), v.literal("lost")),
+    ),
   },
-  returns: v.union(
-    v.object({
-      outcome: v.union(
-        v.literal("redeemed"),
-        v.literal("already_processed"),
-        v.literal("updated"),
-        v.literal("reversed"),
-      ),
-      becameValid: v.boolean(),
-      isTest: v.boolean(),
-    }),
-    v.object({ outcome: v.literal("not_found") }),
-  ),
+  returns: confirmPaymentResult,
   handler: async (ctx, args) => {
     const voucher = await ctx.db
       .query("vouchers")
@@ -1568,185 +1588,125 @@ export const confirmPayment = internalMutation({
       .withIndex("by_paymentId", (q) => q.eq("paymentId", args.paymentId))
       .unique();
 
-    // Idempotent redelivery check: if this payment was already recorded with the same status
+    const now = Date.now();
+    const reply = (
+      outcome: "redeemed" | "already_processed" | "updated" | "reversed",
+    ) => ({ outcome, becameValid: false as const, isTest: voucher.isTest });
+
+    // An unknown chargeback outcome keeps the one already recorded for the
+    // same status, so a failed case lookup never turns an open dispute into a
+    // reversal.
+    const chargebackOutcome =
+      args.chargebackOutcome ??
+      (existingPayment?.status === args.paymentStatus
+        ? existingPayment.chargebackOutcome
+        : undefined);
+
+    const isPartialRefund =
+      args.paymentStatus === "approved" &&
+      args.statusDetail === "partially_refunded";
+
+    // Idempotent redelivery check: the payment was already recorded with the
+    // same status, status detail and chargeback outcome (and, for a partial
+    // refund, the same refunded amount). Omitted optional fields mean "not
+    // reported" and match whatever is stored.
     if (
       existingPayment !== null &&
-      existingPayment.status === args.paymentStatus
+      existingPayment.status === args.paymentStatus &&
+      (args.statusDetail === undefined ||
+        existingPayment.statusDetail === args.statusDetail) &&
+      chargebackOutcome === existingPayment.chargebackOutcome &&
+      (!isPartialRefund ||
+        args.refundedCents === undefined ||
+        !existingPayment.isOfficial ||
+        voucher.paymentIssue?.refundedCents === args.refundedCents)
     ) {
-      if (voucher.status === "redeemed") {
-        return {
-          outcome: "redeemed" as const,
-          becameValid: false,
-          isTest: voucher.isTest,
-        };
-      }
-      return {
-        outcome: "already_processed" as const,
-        becameValid: false,
-        isTest: voucher.isTest,
-      };
+      return reply(
+        voucher.status === "redeemed" ? "redeemed" : "already_processed",
+      );
     }
 
-    // Handle legacy or test vouchers with paymentId on voucher but no row in payments
+    // Writes what Mercado Pago reported to this payment's own row.
+    const recordPayment = async (flags: {
+      isOfficial: boolean;
+      owesRefund: boolean;
+    }) => {
+      const observed = {
+        status: args.paymentStatus,
+        statusDetail: args.statusDetail,
+        chargebackOutcome,
+        ...flags,
+      };
+      if (existingPayment) {
+        await ctx.db.patch("payments", existingPayment._id, {
+          ...observed,
+          updatedAt: now,
+        });
+      } else {
+        await ctx.db.insert("payments", {
+          paymentId: args.paymentId,
+          voucherCode: voucher.code,
+          ...observed,
+          createdAt: now,
+        });
+      }
+    };
+
+    // On a paid voucher `paymentId` is written only with the Official
+    // Payment's approval, so it also identifies that payment when its row is
+    // missing (vouchers paid before `payments` existed) or wrongly lost
+    // `isOfficial` (a non-approved update used to clear it). The write below
+    // repairs the row.
+    const isOfficialPayment =
+      (existingPayment?.isOfficial ?? false) ||
+      (voucher.paymentId === args.paymentId &&
+        paidVoucherStatuses.has(voucher.status));
+
+    // The Official Payment of a paid Voucher: its provider state decides the
+    // Voucher's status, reversal and payment-issue flag.
+    if (isOfficialPayment && paidVoucherStatuses.has(voucher.status)) {
+      await recordPayment({ isOfficial: true, owesRefund: false });
+      const patch = decideReversalPatch(
+        voucher,
+        {
+          status: args.paymentStatus,
+          statusDetail: args.statusDetail,
+          refundedCents: args.refundedCents,
+          chargebackOutcome,
+        },
+        now,
+      );
+      if (patch !== null) {
+        await patchVoucher(ctx, voucher, patch);
+      }
+      if (voucher.status === "redeemed") return reply("redeemed");
+      if (patch?.status === "refunded") return reply("reversed");
+      return reply(patch === null ? "already_processed" : "updated");
+    }
+
+    // Handle legacy or test vouchers with paymentId on voucher but no row in
+    // payments (a cancelled voucher; paid ones are handled above).
     if (
       existingPayment === null &&
       voucher.paymentId === args.paymentId &&
       args.paymentStatus === "approved" &&
       voucher.status !== "pending"
     ) {
-      await ctx.db.insert("payments", {
-        paymentId: args.paymentId,
-        voucherCode: voucher.code,
-        status: args.paymentStatus,
-        isOfficial: true,
-        owesRefund: false,
-        createdAt: Date.now(),
-      });
-      if (voucher.status === "redeemed") {
-        return {
-          outcome: "redeemed" as const,
-          becameValid: false,
-          isTest: voucher.isTest,
-        };
-      }
-      return {
-        outcome: "already_processed" as const,
-        becameValid: false,
-        isTest: voucher.isTest,
-      };
+      await recordPayment({ isOfficial: true, owesRefund: false });
+      return reply("already_processed");
     }
 
-    const reversalReason: string | null =
+    // A reversal arriving for an Excess Payment, or for a Voucher that never
+    // became paid: only the payment row changes.
+    if (
       args.paymentStatus !== null &&
       negativeTerminalPaymentStatuses.has(args.paymentStatus)
-        ? args.paymentStatus
-        : null;
-
-    const isOfficialPayment =
-      Boolean(existingPayment?.isOfficial) ||
-      voucher.paymentId === args.paymentId;
-
-    if (reversalReason !== null) {
-      if (isOfficialPayment) {
-        if (voucher.status === "redeemed") {
-          if (voucher.reversal === undefined) {
-            const reversal = { reason: reversalReason, notedAt: Date.now() };
-            await patchVoucher(ctx, voucher, { reversal });
-          }
-          if (existingPayment) {
-            await ctx.db.patch(existingPayment._id, {
-              status: args.paymentStatus,
-              updatedAt: Date.now(),
-            });
-          } else {
-            await ctx.db.insert("payments", {
-              paymentId: args.paymentId,
-              voucherCode: voucher.code,
-              status: args.paymentStatus,
-              isOfficial: true,
-              owesRefund: false,
-              createdAt: Date.now(),
-            });
-          }
-          return {
-            outcome: "redeemed" as const,
-            becameValid: false,
-            isTest: voucher.isTest,
-          };
-        }
-
-        if (voucher.status === "refunded") {
-          if (existingPayment) {
-            await ctx.db.patch(existingPayment._id, {
-              status: args.paymentStatus,
-              updatedAt: Date.now(),
-            });
-          } else {
-            await ctx.db.insert("payments", {
-              paymentId: args.paymentId,
-              voucherCode: voucher.code,
-              status: args.paymentStatus,
-              isOfficial: true,
-              owesRefund: false,
-              createdAt: Date.now(),
-            });
-          }
-          return {
-            outcome: "already_processed" as const,
-            becameValid: false,
-            isTest: voucher.isTest,
-          };
-        }
-
-        if (voucher.status === "valid") {
-          const reversal = { reason: reversalReason, notedAt: Date.now() };
-          await patchVoucher(ctx, voucher, { status: "refunded", reversal });
-          if (existingPayment) {
-            await ctx.db.patch(existingPayment._id, {
-              status: args.paymentStatus,
-              updatedAt: Date.now(),
-            });
-          } else {
-            await ctx.db.insert("payments", {
-              paymentId: args.paymentId,
-              voucherCode: voucher.code,
-              status: args.paymentStatus,
-              isOfficial: true,
-              owesRefund: false,
-              createdAt: Date.now(),
-            });
-          }
-          return {
-            outcome: "reversed" as const,
-            becameValid: false,
-            isTest: voucher.isTest,
-          };
-        }
-
-        if (existingPayment) {
-          await ctx.db.patch(existingPayment._id, {
-            status: args.paymentStatus,
-            updatedAt: Date.now(),
-          });
-        } else {
-          await ctx.db.insert("payments", {
-            paymentId: args.paymentId,
-            voucherCode: voucher.code,
-            status: args.paymentStatus,
-            isOfficial: false,
-            owesRefund: false,
-            createdAt: Date.now(),
-          });
-        }
-        return {
-          outcome: "updated" as const,
-          becameValid: false,
-          isTest: voucher.isTest,
-        };
-      } else {
-        // Reversal of an Excess Payment
-        if (existingPayment) {
-          await ctx.db.patch(existingPayment._id, {
-            status: args.paymentStatus,
-            owesRefund: false,
-            updatedAt: Date.now(),
-          });
-        } else {
-          await ctx.db.insert("payments", {
-            paymentId: args.paymentId,
-            voucherCode: voucher.code,
-            status: args.paymentStatus,
-            isOfficial: false,
-            owesRefund: false,
-            createdAt: Date.now(),
-          });
-        }
-        return {
-          outcome: "updated" as const,
-          becameValid: false,
-          isTest: voucher.isTest,
-        };
-      }
+    ) {
+      await recordPayment({
+        isOfficial: existingPayment?.isOfficial ?? false,
+        owesRefund: false,
+      });
+      return reply("updated");
     }
 
     if (args.paymentStatus === "approved") {
@@ -1760,7 +1720,7 @@ export const confirmPayment = internalMutation({
       const canBeOfficial =
         voucher.status === "pending" &&
         voucher.deletedAt === undefined &&
-        voucher.expiresAt > Date.now() &&
+        voucher.expiresAt > now &&
         (!existingOfficialPayment ||
           existingOfficialPayment.paymentId === args.paymentId);
 
@@ -1771,24 +1731,7 @@ export const confirmPayment = internalMutation({
           paymentTypeId: args.paymentTypeId,
           paymentMethodId: args.paymentMethodId,
         });
-
-        if (existingPayment) {
-          await ctx.db.patch(existingPayment._id, {
-            status: "approved",
-            isOfficial: true,
-            owesRefund: false,
-            updatedAt: Date.now(),
-          });
-        } else {
-          await ctx.db.insert("payments", {
-            paymentId: args.paymentId,
-            voucherCode: voucher.code,
-            status: "approved",
-            isOfficial: true,
-            owesRefund: false,
-            createdAt: Date.now(),
-          });
-        }
+        await recordPayment({ isOfficial: true, owesRefund: false });
 
         return {
           outcome: "updated" as const,
@@ -1798,23 +1741,7 @@ export const confirmPayment = internalMutation({
       }
 
       // Excess Payment: voucher is Valid, Redeemed, Expired, Cancelled or Refunded
-      if (existingPayment) {
-        await ctx.db.patch(existingPayment._id, {
-          status: "approved",
-          isOfficial: false,
-          owesRefund: true,
-          updatedAt: Date.now(),
-        });
-      } else {
-        await ctx.db.insert("payments", {
-          paymentId: args.paymentId,
-          voucherCode: voucher.code,
-          status: "approved",
-          isOfficial: false,
-          owesRefund: true,
-          createdAt: Date.now(),
-        });
-      }
+      await recordPayment({ isOfficial: false, owesRefund: true });
 
       const existingRefund = await ctx.db
         .query("paymentRefunds")
@@ -1822,7 +1749,6 @@ export const confirmPayment = internalMutation({
         .first();
 
       if (!existingRefund) {
-        const now = Date.now();
         const refundId = await ctx.db.insert("paymentRefunds", {
           paymentId: args.paymentId,
           voucherCode: voucher.code,
@@ -1839,41 +1765,22 @@ export const confirmPayment = internalMutation({
         });
       }
 
-      return {
-        outcome: "updated" as const,
-        becameValid: false,
-        isTest: voucher.isTest,
-      };
+      return reply("updated");
     }
 
-    // Non-approved payment (e.g. in_process, pending, rejected)
-    if (existingPayment) {
-      await ctx.db.patch(existingPayment._id, {
-        status: args.paymentStatus,
-        isOfficial: false,
-        owesRefund: false,
-        updatedAt: Date.now(),
-      });
-    } else {
-      await ctx.db.insert("payments", {
-        paymentId: args.paymentId,
-        voucherCode: voucher.code,
-        status: args.paymentStatus,
-        isOfficial: false,
-        owesRefund: false,
-        createdAt: Date.now(),
-      });
-    }
+    // Non-approved payment (e.g. in_process, pending, rejected, in_mediation)
+    // that is not the Official Payment of a paid Voucher. An Official Payment
+    // row keeps its flag.
+    await recordPayment({
+      isOfficial: existingPayment?.isOfficial ?? false,
+      owesRefund: false,
+    });
 
     if (voucher.status === "pending" && voucher.paymentId === undefined) {
       await patchVoucher(ctx, voucher, { paymentId: args.paymentId });
     }
 
-    return {
-      outcome: "updated" as const,
-      becameValid: false,
-      isTest: voucher.isTest,
-    };
+    return reply("updated");
   },
 });
 
@@ -1889,6 +1796,9 @@ const gateVoucherValidator = v.object({
   visitDate: v.string(),
   expiresAt: v.number(),
   createdAt: v.number(),
+  // Kind of the Official Payment's open issue, without payment details, so
+  // gate staff can warn about a dispute or partial refund.
+  paymentIssueKind: v.optional(paymentIssueValidator.fields.kind),
 });
 
 function summarizeForGate(voucher: Doc<"vouchers">) {
@@ -1904,6 +1814,7 @@ function summarizeForGate(voucher: Doc<"vouchers">) {
     visitDate: voucher.visitDate,
     expiresAt: voucher.expiresAt,
     createdAt: voucher.purchasedAt ?? voucher._creationTime,
+    paymentIssueKind: voucher.paymentIssue?.kind,
   };
 }
 
@@ -1961,6 +1872,7 @@ const gateVoucherAdminValidator = v.object({
   visitDate: v.string(),
   expiresAt: v.number(),
   createdAt: v.number(),
+  paymentIssueKind: v.optional(paymentIssueValidator.fields.kind),
   paymentId: v.optional(v.string()),
   preferenceId: v.string(),
   referrer: v.optional(referrerValidator),
@@ -1968,6 +1880,9 @@ const gateVoucherAdminValidator = v.object({
   // Voucher was already redeemed (see `confirmPayment`). Undefined for
   // every Voucher this never happened to.
   reversal: v.optional(v.object({ reason: v.string(), notedAt: v.number() })),
+  // Full provider details of an open dispute or partial refund, for the
+  // admin drawer.
+  paymentIssue: v.optional(paymentIssueValidator),
   // The most recent Reschedule, shown in the admin drawer.
   rescheduledAt: v.optional(v.number()),
   rescheduledBy: v.optional(rescheduledByValidator),
@@ -1980,6 +1895,7 @@ function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
     preferenceId: voucher.preferenceId,
     referrer: voucher.referrer,
     reversal: voucher.reversal,
+    paymentIssue: voucher.paymentIssue,
     rescheduledAt: voucher.rescheduledAt,
     rescheduledBy: voucher.rescheduledBy,
   };
@@ -2089,6 +2005,20 @@ export const redeemByCode = mutation({
   },
 });
 
+const PAYMENT_REVERSED_MESSAGE =
+  "O pagamento deste voucher foi estornado; ele não pode voltar a ser válido.";
+
+/**
+ * Staff cannot undo a payment reversal: a voucher carrying a `reversal` never
+ * returns to Valid by hand. Only a won chargeback does, through
+ * `confirmPayment`.
+ */
+function assertNotReversed(voucher: Doc<"vouchers">) {
+  if (voucher.reversal !== undefined) {
+    throw new ConvexError(PAYMENT_REVERSED_MESSAGE);
+  }
+}
+
 /**
  * Reactivates a voucher when a customer has a legitimate reason. Staff-only.
  * Moves only `expiresAt`, extending it to the end of today in Sao Paulo, and
@@ -2119,6 +2049,14 @@ export const reactivate = mutation({
     if (voucher.status === "cancelled") {
       throw new ConvexError("Um voucher cancelado não pode ser reativado.");
     }
+
+    // A refund/chargeback is a payment reversal; reactivating would bypass it.
+    if (voucher.status === "refunded") {
+      throw new ConvexError(
+        "Um voucher reembolsado não pode ser reativado.",
+      );
+    }
+    assertNotReversed(voucher);
 
     const expiresAt = endOfSaoPauloDayMs(getSaoPauloDateKey());
     await patchVoucher(ctx, voucher, { status: "valid", expiresAt });
@@ -2151,6 +2089,8 @@ function parseAdminSearch(search: string | undefined): string | undefined {
  *
  * Without `search`, rows come newest sale first straight from an index, with
  * `status` and the `purchasedFrom`/`purchasedTo` range applied in the index.
+ * `paymentDisputed: true` narrows to vouchers whose payment is in dispute,
+ * read from the derived `paymentDisputed` field (index, or search filter).
  * With `search` (word or prefix match on code, name and phone, accents and
  * case ignored) the search index is used instead and rows come by relevance;
  * the date range then runs as a post-filter. `expiresAfter`/`expiresBefore`
@@ -2169,6 +2109,7 @@ export const listAdmin = query({
     expiresAfter: v.optional(v.number()),
     expiresBefore: v.optional(v.number()),
     search: v.optional(v.string()),
+    paymentDisputed: v.optional(v.literal(true)),
   },
   returns: paginationResultValidator(gateVoucherAdminValidator),
   handler: async (ctx, args) => {
@@ -2180,8 +2121,32 @@ export const listAdmin = query({
     const base = search
       ? ctx.db.query("vouchers").withSearchIndex("search_text", (q) => {
           const filtered = q.search("searchText", search).eq("isActive", true);
-          return status ? filtered.eq("status", status) : filtered;
+          const scoped = status ? filtered.eq("status", status) : filtered;
+          return args.paymentDisputed
+            ? scoped.eq("paymentDisputed", true)
+            : scoped;
         })
+      : args.paymentDisputed
+        ? ctx.db
+            .query("vouchers")
+            .withIndex(
+              "by_paymentDisputed_and_isTest_and_deletedAt_and_purchasedAt",
+              (q) => {
+                const scoped = q
+                  .eq("paymentDisputed", true)
+                  .eq("isTest", false)
+                  .eq("deletedAt", undefined);
+                if (purchasedFrom === undefined && purchasedTo === undefined) {
+                  return scoped;
+                }
+                return purchasedTo === undefined
+                  ? scoped.gte("purchasedAt", purchasedFrom ?? 0)
+                  : scoped
+                      .gte("purchasedAt", purchasedFrom ?? 0)
+                      .lte("purchasedAt", purchasedTo);
+              },
+            )
+            .order("desc")
       : status
         ? ctx.db
             .query("vouchers")
@@ -2221,6 +2186,11 @@ export const listAdmin = query({
     const result = await base
       .filter((q) =>
         q.and(
+          // The disputed index has no status column: a disputed set is tiny,
+          // so `status` is a post-filter there.
+          args.paymentDisputed && !search && status
+            ? q.eq(q.field("status"), status)
+            : true,
           // Date bounds already enforced by the index when not searching.
           search && args.purchasedFrom !== undefined
             ? q.gte(q.field("purchasedAt"), args.purchasedFrom)
@@ -2335,6 +2305,14 @@ export const updateStatus = mutation({
         "Um voucher cancelado é terminal e não pode ter o status alterado.",
       );
     }
+    if (args.status === "valid") {
+      // `assertNotReversed` covers reversed Expired/Redeemed vouchers; Refunded
+      // ones carry a reversal too, but stay explicit for legacy data.
+      if (voucher.status === "refunded") {
+        throw new ConvexError(PAYMENT_REVERSED_MESSAGE);
+      }
+      assertNotReversed(voucher);
+    }
     await patchVoucher(ctx, voucher, { status: args.status });
     return null;
   },
@@ -2367,6 +2345,8 @@ export const rescheduleByAdmin = mutation({
         "Só é possível reagendar vouchers pendentes, válidos ou expirados.",
       );
     }
+    // Rescheduling revives Expired vouchers, which would undo a reversal.
+    assertNotReversed(voucher);
 
     const rejection = getVisitDateRejection(args.visitDate, {
       todayKey: getSaoPauloDateKey(),

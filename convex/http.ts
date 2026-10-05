@@ -41,6 +41,8 @@ http.route({
       paymentAmountCents,
       paymentTypeId,
       paymentMethodId,
+      statusDetail,
+      refundedCents,
     } = body as Record<string, unknown>;
     if (typeof code !== "string" || typeof paymentId !== "string") {
       return new Response("Bad Request", { status: 400 });
@@ -58,19 +60,42 @@ http.route({
     }
     if (
       (paymentTypeId !== undefined && typeof paymentTypeId !== "string") ||
-      (paymentMethodId !== undefined && typeof paymentMethodId !== "string")
+      (paymentMethodId !== undefined && typeof paymentMethodId !== "string") ||
+      (statusDetail !== undefined && typeof statusDetail !== "string")
+    ) {
+      return new Response("Bad Request", { status: 400 });
+    }
+    if (
+      refundedCents !== undefined &&
+      (typeof refundedCents !== "number" ||
+        !Number.isSafeInteger(refundedCents) ||
+        refundedCents < 0)
     ) {
       return new Response("Bad Request", { status: 400 });
     }
 
-    const result = await ctx.runMutation(internal.vouchers.confirmPayment, {
-      code,
-      paymentId,
-      paymentStatus,
-      ...(typeof paymentAmountCents === "number" ? { paymentAmountCents } : {}),
-      ...(paymentTypeId ? { paymentTypeId: paymentTypeId.slice(0, 40) } : {}),
-      ...(paymentMethodId ? { paymentMethodId: paymentMethodId.slice(0, 40) } : {}),
-    });
+    // A failed chargeback lookup rejects before any voucher write; answering
+    // 502 makes the Next route fail so Mercado Pago redelivers the webhook.
+    let result;
+    try {
+      result = await ctx.runAction(internal.paymentSync.syncPayment, {
+        code,
+        paymentId,
+        paymentStatus,
+        ...(typeof paymentAmountCents === "number"
+          ? { paymentAmountCents }
+          : {}),
+        ...(paymentTypeId ? { paymentTypeId: paymentTypeId.slice(0, 40) } : {}),
+        ...(paymentMethodId
+          ? { paymentMethodId: paymentMethodId.slice(0, 40) }
+          : {}),
+        ...(statusDetail ? { statusDetail: statusDetail.slice(0, 80) } : {}),
+        ...(refundedCents !== undefined ? { refundedCents } : {}),
+      });
+    } catch (error) {
+      console.error("Mercado Pago payment sync failed", error);
+      return new Response("Payment sync failed", { status: 502 });
+    }
 
     return new Response(JSON.stringify(result), {
       status: 200,

@@ -3,13 +3,15 @@
 import { useTransition } from "react";
 import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 
 import { formateDate, formatReferrer, getErrorMessage } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { api } from "../../../convex/_generated/api";
+import { formatCents } from "./dashboard/financeiro/format";
 import { AdminVoucherRefundButton } from "./admin-voucher-refund-button";
 import { DetailList, describeEntries } from "./_components/admin-ui";
+import { gateReconcileFailedMessage, paymentIssueLabel, providerCodeLabel, useGateReconcile } from "./_components/use-gate-reconcile";
 import { VoucherImage, canShowVoucherImage } from "./_components/voucher-image";
 import {
   VoucherSheet,
@@ -60,6 +62,7 @@ function GateVoucherSheet({
   const redeemByCode = useMutation(api.vouchers.redeemByCode);
   const reactivate = useMutation(api.vouchers.reactivate);
   const [isPending, startTransition] = useTransition();
+  const reconcileState = useGateReconcile(data.code);
 
   function run(action: () => Promise<unknown>, success: string, failure: string) {
     startTransition(async () => {
@@ -84,14 +87,18 @@ function GateVoucherSheet({
           <button
             type="button"
             className={primaryActionClass}
-            disabled={isPending || data.status !== "valid"}
+            disabled={isPending || reconcileState === "checking" || data.status !== "valid"}
             onClick={() => run(() => redeemByCode({ code: data.code }), "Voucher resgatado com sucesso", "Erro ao usar voucher")}
           >
-            <Check className="size-[18px]" aria-hidden />
+            {reconcileState === "checking" ? (
+              <Loader2 className="size-[18px] animate-spin" aria-hidden />
+            ) : (
+              <Check className="size-[18px]" aria-hidden />
+            )}
             Usar voucher
           </button>
-          {/* A valid voucher has nothing to reactivate. */}
-          {data.status !== "valid" ? (
+          {/* Valid vouchers have nothing to reactivate; refunded or reversed ones cannot be revived. */}
+          {data.status !== "valid" && data.status !== "refunded" && !data.reversal ? (
             <button
               type="button"
               className={secondaryActionClass}
@@ -104,9 +111,28 @@ function GateVoucherSheet({
         </>
       }
     >
+      {reconcileState === "failed" ? (
+        <p role="status" className="rounded-[10px] border border-zinc-200 bg-zinc-50 px-3.5 py-3 text-sm text-zinc-700">
+          {gateReconcileFailedMessage}
+        </p>
+      ) : null}
+      {data.paymentIssue ? (
+        <div role="alert" className="rounded-[10px] border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-900">
+          <p className="font-medium">{paymentIssueLabel(data.paymentIssue.kind)}</p>
+          <p className="mt-1 break-words">
+            Status: {providerCodeLabel(data.paymentIssue.status)}
+            {data.paymentIssue.statusDetail ? ` (${providerCodeLabel(data.paymentIssue.statusDetail)})` : ""}
+            {" · "}
+            {formateDate(new Date(data.paymentIssue.notedAt).toISOString())}
+            {data.paymentIssue.refundedCents !== undefined
+              ? ` · Reembolsado: ${formatCents(data.paymentIssue.refundedCents)}`
+              : ""}
+          </p>
+        </div>
+      ) : null}
       {data.reversal ? (
         <p role="alert" className="rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-medium text-red-700">
-          Atenção: pagamento estornado após o resgate ({formateDate(new Date(data.reversal.notedAt).toISOString())}).
+          Atenção: pagamento estornado ({providerCodeLabel(data.reversal.reason)}, {formateDate(new Date(data.reversal.notedAt).toISOString())}).
         </p>
       ) : null}
       <DetailList

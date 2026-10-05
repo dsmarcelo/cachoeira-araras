@@ -24,6 +24,8 @@ import { api } from "../../../convex/_generated/api"
 import { isAdminReschedulable } from "../../../convex/lib/voucherReschedule"
 import { AdminVoucherRefundButton } from "./admin-voucher-refund-button"
 import { VoucherImage, canShowVoucherImage } from "./_components/voucher-image"
+import { formatCents } from "./dashboard/financeiro/format"
+import { providerCodeLabel } from "./_components/use-gate-reconcile"
 import { DetailList, describeEntries, voucherStatusMeta } from "./_components/admin-ui"
 import {
   VoucherSheet,
@@ -107,7 +109,12 @@ export function VoucherInfoCard({
     })
   }
 
-  const canReschedule = !isDeleted && isAdminReschedulable(data.status)
+  // A reversed payment cannot be revived by staff (the server refuses it too).
+  const isPaymentReversed = data.reversal !== undefined || data.status === "refunded"
+  const canReschedule = !isDeleted && !isPaymentReversed && isAdminReschedulable(data.status)
+  const selectableStatuses = isPaymentReversed
+    ? correctableStatuses.filter((status) => status !== "valid")
+    : correctableStatuses
 
   return (
     <VoucherSheet
@@ -139,6 +146,27 @@ export function VoucherInfoCard({
           { label: "Gerado em", value: formatDateWeekDay(new Date(data.createdAt)) },
           { label: "Origem", value: data.referrer ? formatReferrer(data.referrer.source) : "—" },
           { label: "Pagamento", value: data.paymentId ?? "Nenhum pagamento", copy: data.paymentId ?? null },
+          ...(data.paymentIssue
+            ? [
+                {
+                  label: "Situação do pagamento",
+                  value: `${data.paymentIssue.kind === "dispute" ? "Pagamento contestado" : "Reembolso parcial"} (${providerCodeLabel(data.paymentIssue.status)}${data.paymentIssue.statusDetail ? `, ${providerCodeLabel(data.paymentIssue.statusDetail)}` : ""})`,
+                },
+                {
+                  label: "Sinalizado em",
+                  value: new Date(data.paymentIssue.notedAt).toLocaleString("pt-BR"),
+                },
+                ...(data.paymentIssue.refundedCents !== undefined
+                  ? [{ label: "Valor reembolsado", value: formatCents(data.paymentIssue.refundedCents) }]
+                  : []),
+              ]
+            : []),
+          ...(data.reversal && data.status !== "refunded"
+            ? [{
+                label: "Estorno",
+                value: `${providerCodeLabel(data.reversal.reason)} em ${new Date(data.reversal.notedAt).toLocaleString("pt-BR")}`,
+              }]
+            : []),
           { label: "Preferência", value: data.preferenceId, copy: data.preferenceId },
         ]}
       />
@@ -154,7 +182,7 @@ export function VoucherInfoCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {correctableStatuses.map((status) => (
+              {selectableStatuses.map((status) => (
                 <SelectItem key={status} value={status}>
                   {voucherStatusMeta[status].label}
                 </SelectItem>

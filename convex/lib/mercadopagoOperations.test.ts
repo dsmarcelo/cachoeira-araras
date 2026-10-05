@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   cancelPayment,
+  chargebackOutcome,
+  findChargebacksByPayment,
   findPaymentsByExternalReference,
+  searchPaymentsUpdatedBetween,
   invalidatePreference,
+  PROVIDER_READ_TIMEOUT_MS,
   refundPayment,
 } from "./mercadopagoOperations";
 
@@ -214,3 +218,157 @@ test.each([
     ).rejects.toThrow();
   },
 );
+
+test("payment snapshot carries status detail and refunded amount in integer cents", async () => {
+  replies = [
+    {
+      paging: { total: 1 },
+      results: [
+        {
+          ...payment,
+          status: "approved",
+          status_detail: "partially_refunded",
+          transaction_amount_refunded: 10.1,
+        },
+      ],
+    },
+  ];
+  const [found] = await searchPaymentsUpdatedBetween(0, 1000);
+  expect(found).toMatchObject({
+    statusDetail: "partially_refunded",
+    refundedCents: 1010,
+  });
+});
+
+test("updated-since search filters by date_last_updated and pages", async () => {
+  replies = [
+    {
+      paging: { total: 51 },
+      results: Array.from({ length: 50 }, (_, id) => ({
+        ...payment,
+        id: id + 1,
+      })),
+    },
+    { paging: { total: 51 }, results: [{ ...payment, id: 51 }] },
+  ];
+  expect(await searchPaymentsUpdatedBetween(0, 86_400_000)).toHaveLength(51);
+  const urls = calls.map((c) => new URL(c.url));
+  expect(urls.map((u) => u.searchParams.get("offset"))).toEqual(["0", "50"]);
+  expect(urls[0]!.searchParams.get("range")).toBe("date_last_updated");
+  expect(urls[0]!.searchParams.get("begin_date")).toBe(
+    "1970-01-01T00:00:00.000Z",
+  );
+  expect(urls[0]!.searchParams.get("end_date")).toBe(
+    "1970-01-02T00:00:00.000Z",
+  );
+});
+
+test("updated-since search fails on incomplete results and HTTP errors", async () => {
+  replies = [{ paging: { total: 80 }, results: [{ ...payment, id: 1 }] }];
+  await expect(searchPaymentsUpdatedBetween(0, 1000)).rejects.toThrow(
+    "Incomplete payment search",
+  );
+  replies = [new Response(null, { status: 500 })];
+  await expect(searchPaymentsUpdatedBetween(0, 1000)).rejects.toThrow(
+    "Mercado Pago API failed with 500",
+  );
+});
+
+test("chargeback lookup sends the seller id derived from the token", async () => {
+  replies = [
+    { id: 777 },
+    {
+      paging: { total: 1 },
+      results: [
+        {
+          id: "234000062890459000",
+          payments: [123],
+          coverage_applied: false,
+          date_created: "2026-09-01T10:00:00.000-03:00",
+          date_last_updated: "2026-09-05T10:00:00.000-03:00",
+        },
+      ],
+    },
+  ];
+  expect(await findChargebacksByPayment("123")).toEqual([
+    {
+      id: "234000062890459000",
+      coverageApplied: false,
+      dateCreated: "2026-09-01T10:00:00.000-03:00",
+      dateLastUpdated: "2026-09-05T10:00:00.000-03:00",
+    },
+  ]);
+  expect(calls[0]!.url).toBe("https://api.mercadopago.com/users/me");
+  expect(calls[1]!.url).toBe(
+    "https://api.mercadopago.com/v1/chargebacks/search?payment_id=123&limit=50&offset=0",
+  );
+  expect(calls[1]!.init.headers).toMatchObject({ "X-Caller-Id": "777" });
+});
+
+test("chargeback lookup fails closed on errors and malformed pages", async () => {
+  replies = [{ id: 777 }, new Response(null, { status: 403 })];
+  await expect(findChargebacksByPayment("123")).rejects.toThrow(
+    "Mercado Pago API failed with 403",
+  );
+  replies = [{ id: 777 }, { results: [] }];
+  await expect(findChargebacksByPayment("123")).rejects.toThrow();
+  replies = [{ id: 777 }, { paging: { total: 2 }, results: [] }];
+  await expect(findChargebacksByPayment("123")).rejects.toThrow(
+    "Incomplete chargeback search",
+  );
+});
+
+const chargebackCase = (
+  coverageApplied: boolean | null,
+  dateLastUpdated: string | null,
+  dateCreated: string | null = null,
+) => ({ id: "c", coverageApplied, dateCreated, dateLastUpdated });
+
+test("chargeback outcome maps coverage_applied and the latest case decides", () => {
+  expect(chargebackOutcome([])).toBeUndefined();
+  expect(
+    chargebackOutcome([chargebackCase(true, "2026-09-01T00:00:00Z")]),
+  ).toBe("won");
+  expect(
+    chargebackOutcome([chargebackCase(false, "2026-09-01T00:00:00Z")]),
+  ).toBe("lost");
+  expect(
+    chargebackOutcome([chargebackCase(null, "2026-09-01T00:00:00Z")]),
+  ).toBe("open");
+  expect(
+    chargebackOutcome([
+      chargebackCase(false, "2026-09-01T00:00:00Z"),
+      chargebackCase(true, "2026-09-05T00:00:00Z"),
+    ]),
+  ).toBe("won");
+  // Falls back to date_created when there is no update date.
+  expect(
+    chargebackOutcome([
+      chargebackCase(true, null, "2026-09-02T00:00:00Z"),
+      chargebackCase(false, null, "2026-09-03T00:00:00Z"),
+    ]),
+  ).toBe("lost");
+});
+
+test("a stalled read is aborted after the timeout instead of hanging", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal(
+      "fetch",
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+    const outcome = findChargebacksByPayment("123").then(
+      () => "resolved",
+      (error: Error) => error.name,
+    );
+    await vi.advanceTimersByTimeAsync(PROVIDER_READ_TIMEOUT_MS + 1);
+    expect(await outcome).toBe("AbortError");
+  } finally {
+    vi.useRealTimers();
+  }
+});

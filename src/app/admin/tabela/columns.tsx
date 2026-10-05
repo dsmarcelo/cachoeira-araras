@@ -4,6 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 
 import type { AdminVoucher } from "../voucher-info-card"
 import { VoucherStatusBadge } from "../_components/admin-ui"
+import { PaymentBadges } from "./payment-badges"
 
 export const columns: ColumnDef<AdminVoucher>[] = [
   {
@@ -39,6 +40,11 @@ export const columns: ColumnDef<AdminVoucher>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ getValue }) => <VoucherStatusBadge status={getValue<AdminVoucher["status"]>()} />,
+    cell: ({ row }) => (
+      <span className="flex flex-wrap items-center gap-1">
+        <VoucherStatusBadge status={row.original.status} />
+        <PaymentBadges voucher={row.original} />
+      </span>
+    ),
   },
 ]

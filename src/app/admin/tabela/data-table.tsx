@@ -5,6 +5,7 @@ import { useAction, usePaginatedQuery, useQuery } from "convex/react"
 import { VoucherTable, type VoucherView } from "./voucher-table"
 import { columns } from "./columns"
 import { api } from "../../../../convex/_generated/api"
+import { paidVoucherStatuses } from "../../../../convex/lib/paymentReversal"
 import type { AdminVoucher } from "../voucher-info-card"
 import type { DateRangeValue } from "./date-range-filter"
 
@@ -38,6 +39,7 @@ export default function DataTable() {
   const [view, setView] = React.useState<VoucherView>('active')
   const [created, setCreated] = React.useState<DateRangeValue>({ from: '', to: '' })
   const [expires, setExpires] = React.useState<DateRangeValue>({ from: '', to: '' })
+  const [paymentDisputed, setPaymentDisputed] = React.useState(false)
   const [reconciliationError, setReconciliationError] = React.useState('')
   const checkedCodes = React.useRef(new Set<string>())
   const reconcilePayments = useAction(api.voucherReconciliation.reconcileAdmin)
@@ -54,6 +56,7 @@ export default function DataTable() {
         expiresAfter: expires.from ? startOfSaoPauloDayMs(expires.from) : undefined,
         expiresBefore: expires.to ? endOfSaoPauloDayMs(expires.to) : undefined,
         search: searchArg,
+        paymentDisputed: paymentDisputed || undefined,
       }
       : 'skip',
     { initialNumItems: PAGE_SIZE },
@@ -69,9 +72,21 @@ export default function DataTable() {
     view === 'active' ? {} : 'skip',
   )
 
+  // Paid vouchers in the loaded rows: their payment may have been refunded or
+  // disputed since the last check, so they are re-checked once per mount too.
+  const paidCodes = React.useMemo(
+    () =>
+      active.results
+        .filter((voucher) => voucher.paymentId && paidVoucherStatuses.has(voucher.status))
+        .map((voucher) => voucher.code),
+    [active.results],
+  )
+
   React.useEffect(() => {
-    if (!pendingCodes) return
-    const codes = pendingCodes.filter((code) => !checkedCodes.current.has(code))
+    if (view !== 'active') return
+    const codes = [...(pendingCodes ?? []), ...paidCodes].filter(
+      (code) => !checkedCodes.current.has(code),
+    )
     if (codes.length === 0) return
     codes.forEach((code) => checkedCodes.current.add(code))
 
@@ -88,7 +103,7 @@ export default function DataTable() {
       }
     }
     void checkPayments()
-  }, [pendingCodes, reconcilePayments])
+  }, [view, pendingCodes, paidCodes, reconcilePayments])
 
   const { results, status: loadStatus, loadMore } = view === 'active' ? active : deleted
 
@@ -105,11 +120,13 @@ export default function DataTable() {
         view={view}
         created={created}
         expires={expires}
+        paymentDisputed={paymentDisputed}
         onStatusChange={(nextStatus) => setStatus(nextStatus as StatusFilter)}
         onSearchChange={setSearch}
         onViewChange={setView}
         onCreatedChange={setCreated}
         onExpiresChange={setExpires}
+        onPaymentDisputedChange={setPaymentDisputed}
       />
     </div>
   )
