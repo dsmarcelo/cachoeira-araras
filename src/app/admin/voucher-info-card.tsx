@@ -22,6 +22,7 @@ import {
 import { toast } from "@/components/ui/use-toast"
 import { api } from "../../../convex/_generated/api"
 import { isAdminReschedulable } from "../../../convex/lib/voucherReschedule"
+import { AdminVoucherImage } from "./admin-voucher-image"
 import { AdminVoucherRefundButton } from "./admin-voucher-refund-button"
 import { DetailList, describeEntries, voucherStatusMeta } from "./_components/admin-ui"
 import {
@@ -208,6 +209,14 @@ export function VoucherInfoCard({
 
       {!isDeleted ? (
         <AdminVoucherRefundButton code={data.code} paymentId={data.paymentId} status={data.status} />
+      ) : null}
+
+      {!isDeleted && data.status !== "pending" ? (
+        <AdminVoucherImage
+          code={data.code}
+          phone={data.phone}
+          version={`${data.status}-${data.expiresAt}`}
+        />
       ) : null}
     </VoucherSheet>
   )
