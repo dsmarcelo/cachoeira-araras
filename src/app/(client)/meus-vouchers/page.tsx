@@ -68,24 +68,27 @@ function SavedVoucherCard({
     onStatusChange(entry.code, liveStatus);
   }, [entry.code, liveStatus, onStatusChange]);
 
+  // Re-checks the payment once per mount for every voucher that can have one
+  // (pending or paid), so a refund or lost chargeback shows its resulting
+  // status. The server skips vouchers without an Official Payment or checked
+  // within the last minute. Customers only ever see the resulting status.
+  const reconcilable = voucher !== undefined && voucher !== null && voucher.status !== "cancelled";
   useEffect(() => {
-    if (
-      voucher?.status !== "pending" ||
-      !entry.managementToken ||
-      reconciliationAttempted.current
-    ) return;
+    const token = entry.managementToken
+      ? { managementToken: entry.managementToken }
+      : lookupToken
+        ? { lookupToken }
+        : null;
+    if (!reconcilable || !token || reconciliationAttempted.current) return;
     reconciliationAttempted.current = true;
-    void reconcilePayment({
-      code: entry.code,
-      managementToken: entry.managementToken,
-    }).then((result) => {
+    void reconcilePayment({ code: entry.code, ...token }).then((result) => {
       if (result === "failed") throw new Error("reconciliation failed");
     }).catch(() => {
       setReconciliationError(
         "Não foi possível conferir o pagamento agora. Tente novamente em instantes.",
       );
     });
-  }, [voucher?.status, entry.code, entry.managementToken, reconcilePayment]);
+  }, [reconcilable, entry.code, entry.managementToken, lookupToken, reconcilePayment]);
   // `v` changes on reschedule so the browser refetches the image with the new dates.
   const imageUrl = voucherImageUrl(entry.code, lookupToken ?? "", voucher?.expiresAt ?? "");
 
@@ -251,7 +254,7 @@ function SavedVoucherCard({
         </Button>
       )}
       {resumeError && <p role="alert">{resumeError}</p>}
-      {reconciliationError && voucher?.status === "pending" && (
+      {reconciliationError && (
         <p role="alert">{reconciliationError}</p>
       )}
       {voucher &&
