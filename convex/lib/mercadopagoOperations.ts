@@ -10,6 +10,17 @@ function safeProviderDetail(value: unknown) {
   return value.replace(/[\r\n\x00-\x1f]/g, " ").slice(0, 200);
 }
 
+/**
+ * Reads (GET) give up after this long, so a stalled provider becomes a
+ * failure the caller handles (Validar reports "could not confirm" and still
+ * lets staff redeem) instead of a hang. It sits under the gate UI's own safety
+ * timeout. Writes are never aborted client-side: a refund or preference update
+ * may already be applied, and retries rely on idempotency keys.
+ * `AbortController` + `setTimeout` rather than `AbortSignal.timeout`, which
+ * the Convex runtime may not provide.
+ */
+export const PROVIDER_READ_TIMEOUT_MS = 10_000;
+
 // Unlike the admin listing, financial operations must never interpret an HTTP
 // error or malformed response as absence of payments or successful completion.
 async function request(
@@ -21,30 +32,41 @@ async function request(
 ): Promise<unknown> {
   const token = env.MERCADOPAGO_TOKEN;
   if (!token) throw new Error("MERCADOPAGO_TOKEN não está configurado.");
-  const response = await fetch(`https://api.mercadopago.com${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      // Read-only lookups carry no intent and need no idempotency key.
-      ...(intent ? { "X-Idempotency-Key": intent.idempotencyKey } : {}),
-      ...extraHeaders,
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-  if (!response.ok) {
-    const body: unknown = await response.json().catch(() => null);
-    const details =
-      body && typeof body === "object" && !Array.isArray(body)
-        ? (body as Record<string, unknown>)
-        : null;
-    throw new MercadoPagoApiError(
-      response.status,
-      safeProviderDetail(details?.error),
-      safeProviderDetail(details?.message),
-    );
+  const controller = new AbortController();
+  const timer =
+    method === "GET"
+      ? setTimeout(() => controller.abort(), PROVIDER_READ_TIMEOUT_MS)
+      : undefined;
+  try {
+    const response = await fetch(`https://api.mercadopago.com${path}`, {
+      method,
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        // Read-only lookups carry no intent and need no idempotency key.
+        ...(intent ? { "X-Idempotency-Key": intent.idempotencyKey } : {}),
+        ...extraHeaders,
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (!response.ok) {
+      const errorBody: unknown = await response.json().catch(() => null);
+      const details =
+        errorBody && typeof errorBody === "object" && !Array.isArray(errorBody)
+          ? (errorBody as Record<string, unknown>)
+          : null;
+      throw new MercadoPagoApiError(
+        response.status,
+        safeProviderDetail(details?.error),
+        safeProviderDetail(details?.message),
+      );
+    }
+    // The timer stays armed until the body is read, so a stalled body aborts too.
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
   }
-  return await response.json();
 }
 
 const providerId = z

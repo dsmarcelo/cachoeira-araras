@@ -6,6 +6,7 @@ import {
   findPaymentsByExternalReference,
   searchPaymentsUpdatedBetween,
   invalidatePreference,
+  PROVIDER_READ_TIMEOUT_MS,
   refundPayment,
 } from "./mercadopagoOperations";
 
@@ -347,4 +348,27 @@ test("chargeback outcome maps coverage_applied and the latest case decides", () 
       chargebackCase(false, null, "2026-09-03T00:00:00Z"),
     ]),
   ).toBe("lost");
+});
+
+test("a stalled read is aborted after the timeout instead of hanging", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal(
+      "fetch",
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+    const outcome = findChargebacksByPayment("123").then(
+      () => "resolved",
+      (error: Error) => error.name,
+    );
+    await vi.advanceTimersByTimeAsync(PROVIDER_READ_TIMEOUT_MS + 1);
+    expect(await outcome).toBe("AbortError");
+  } finally {
+    vi.useRealTimers();
+  }
 });
