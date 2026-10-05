@@ -19,7 +19,6 @@ import { formatPhone } from "@/lib/utils";
 import { setCachedLookupToken } from "@/lib/voucher/lookup-token-cache";
 import {
   sanitizeVoucherCode,
-  VOUCHER_CODE_MAX_LENGTH,
   VOUCHER_CODE_MIN_LENGTH,
 } from "@/lib/voucher/verify-code";
 
@@ -128,7 +127,6 @@ export function VerifyVoucherDialog() {
               id="verify-code"
               autoComplete="off"
               autoCapitalize="none"
-              maxLength={VOUCHER_CODE_MAX_LENGTH}
               value={code}
               onChange={(e) => setCode(sanitizeVoucherCode(e.target.value))}
             />
