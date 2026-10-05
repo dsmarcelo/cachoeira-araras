@@ -160,45 +160,6 @@ export const authorizeLookup = mutation({
 });
 
 /**
- * Hands an admin a voucher's lookup capability (issuing one if missing) so the
- * admin drawer can render the same `/api/og` image the customer sees. Admin
- * only, so it never spends the shared anonymous lookup budget. Returns null for
- * unknown, deleted, pending or cancelled vouchers.
- */
-export const adminImageToken = mutation({
-  args: { code: v.string() },
-  returns: v.union(v.object({ lookupToken: v.string() }), v.null()),
-  handler: async (ctx, args) => {
-    await requireRole(ctx, "admin");
-
-    if (args.code.length === 0 || args.code.length > 64) {
-      return null;
-    }
-
-    const voucher = await ctx.db
-      .query("vouchers")
-      .withIndex("by_code", (q) => q.eq("code", args.code))
-      .unique();
-
-    if (
-      !voucher ||
-      voucher.deletedAt !== undefined ||
-      voucher.status === "pending" ||
-      voucher.status === "cancelled"
-    ) {
-      return null;
-    }
-
-    const lookupToken = voucher.lookupToken ?? crypto.randomUUID();
-    if (voucher.lookupToken === undefined) {
-      await patchVoucher(ctx, voucher, { lookupToken });
-    }
-
-    return { lookupToken };
-  },
-});
-
-/**
  * Reactively reads exactly the Voucher authorized by `lookupToken`. The query
  * accepts no Voucher Code, so it cannot be repurposed into an unthrottled code
  * sweep. Unknown capabilities and soft-deleted Vouchers both resolve to null.
@@ -934,6 +895,37 @@ export const getByCodeForStaff = query({
   },
 });
 
+const voucherImageValidator = v.object({
+  code: v.string(),
+  name: v.string(),
+  phone: v.string(),
+  adults: v.number(),
+  elderly: v.number(),
+  adultsPool: v.number(),
+  elderlyPool: v.number(),
+  priceCents: v.number(),
+  status: voucherStatusValidator,
+  visitDate: v.string(),
+  expiresAt: v.number(),
+});
+
+/** The fields the OG image renders, shared by the customer and staff paths. */
+function summarizeForImage(voucher: Doc<"vouchers">) {
+  return {
+    code: voucher.code,
+    name: voucher.name,
+    phone: voucher.phone,
+    adults: voucher.adults,
+    elderly: voucher.elderly,
+    adultsPool: voucher.adultsPool,
+    elderlyPool: voucher.elderlyPool,
+    priceCents: voucher.priceCents,
+    status: voucher.status,
+    visitDate: voucher.visitDate,
+    expiresAt: voucher.expiresAt,
+  };
+}
+
 /**
  * The full record needed to render the "Meus Vouchers" OG image, including
  * name and phone. Internal only, deliberately not a public query — reached
@@ -945,22 +937,7 @@ export const getByCodeForStaff = query({
  */
 export const getVoucherForImage = internalQuery({
   args: { code: v.string(), lookupToken: v.string() },
-  returns: v.union(
-    v.object({
-      code: v.string(),
-      name: v.string(),
-      phone: v.string(),
-      adults: v.number(),
-      elderly: v.number(),
-      adultsPool: v.number(),
-      elderlyPool: v.number(),
-      priceCents: v.number(),
-      status: voucherStatusValidator,
-      visitDate: v.string(),
-      expiresAt: v.number(),
-    }),
-    v.null(),
-  ),
+  returns: v.union(voucherImageValidator, v.null()),
   handler: async (ctx, args) => {
     const voucher = await ctx.db
       .query("vouchers")
@@ -976,19 +953,42 @@ export const getVoucherForImage = internalQuery({
       return null;
     }
 
-    return {
-      code: voucher.code,
-      name: voucher.name,
-      phone: voucher.phone,
-      adults: voucher.adults,
-      elderly: voucher.elderly,
-      adultsPool: voucher.adultsPool,
-      elderlyPool: voucher.elderlyPool,
-      priceCents: voucher.priceCents,
-      status: voucher.status,
-      visitDate: voucher.visitDate,
-      expiresAt: voucher.expiresAt,
-    };
+    return summarizeForImage(voucher);
+  },
+});
+
+/**
+ * The same image record for a signed-in staff member (admin or employee),
+ * authorized by the session instead of the customer's lookup token — the
+ * token also authorizes rescheduling, which employees must not have. Reached
+ * by `/api/og` when no token is present. Null for unknown, deleted, pending
+ * or cancelled vouchers.
+ */
+export const getVoucherForStaffImage = query({
+  args: { code: v.string() },
+  returns: v.union(voucherImageValidator, v.null()),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "employee");
+
+    if (args.code.length === 0 || args.code.length > 64) {
+      return null;
+    }
+
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (
+      !voucher ||
+      voucher.deletedAt !== undefined ||
+      voucher.status === "pending" ||
+      voucher.status === "cancelled"
+    ) {
+      return null;
+    }
+
+    return summarizeForImage(voucher);
   },
 });
 

@@ -2,7 +2,7 @@
 import { expect, test } from "vitest";
 
 import { getSaoPauloDateKey } from "../src/lib/utils/date";
-import { api, internal } from "./_generated/api";
+import { api } from "./_generated/api";
 import { voucherSearchText } from "./lib/voucherSearch";
 import { createConvexTest, withAuth } from "./test.setup";
 
@@ -316,84 +316,46 @@ test("a soft-deleted voucher surfaces only in the deleted view until restored", 
   expect(codesOf(searched)).toEqual(["a1b2"]);
 });
 
-const readToken = (t: ReturnType<typeof createConvexTest>, code: string) =>
-  t.run(async (ctx) => {
-    const voucher = await ctx.db
-      .query("vouchers")
-      .withIndex("by_code", (q) => q.eq("code", code))
-      .unique();
-    return voucher?.lookupToken;
-  });
-
-test("adminImageToken returns the stored lookup token", async () => {
+test("getVoucherForStaffImage returns the image fields to admins and employees", async () => {
   const t = createConvexTest();
   await insertVoucher(t);
-  await t.run(async (ctx) => {
-    const voucher = await ctx.db.query("vouchers").first();
-    await ctx.db.patch("vouchers", voucher!._id, { lookupToken: "stored-token" });
-  });
-  const asAdmin = await withAuth(t, "admin");
 
-  expect(await asAdmin.mutation(api.vouchers.adminImageToken, { code: "a1b2" }))
-    .toEqual({ lookupToken: "stored-token" });
+  for (const role of ["admin", "employee"] as const) {
+    const asStaff = await withAuth(t, role);
+    const image = await asStaff.query(api.vouchers.getVoucherForStaffImage, {
+      code: "a1b2",
+    });
+    expect(image).toMatchObject({
+      code: "a1b2",
+      name: "Visitante Teste",
+      phone: "11999999999",
+      priceCents: 5000,
+      status: "valid",
+    });
+    expect(image).not.toHaveProperty("lookupToken");
+    expect(image).not.toHaveProperty("paymentId");
+  }
 });
 
-test("adminImageToken issues and persists a token when the voucher has none", async () => {
-  const t = createConvexTest();
-  await insertVoucher(t);
-  const asAdmin = await withAuth(t, "admin");
-
-  const result = await asAdmin.mutation(api.vouchers.adminImageToken, {
-    code: "a1b2",
-  });
-
-  expect(result?.lookupToken).toBeTruthy();
-  expect(await readToken(t, "a1b2")).toBe(result?.lookupToken);
-  expect(
-    await asAdmin.mutation(api.vouchers.adminImageToken, { code: "a1b2" }),
-  ).toEqual(result);
-});
-
-test("adminImageToken is admin-only", async () => {
+test("getVoucherForStaffImage rejects anonymous callers", async () => {
   const t = createConvexTest();
   await insertVoucher(t);
 
   await expect(
-    t.mutation(api.vouchers.adminImageToken, { code: "a1b2" }),
+    t.query(api.vouchers.getVoucherForStaffImage, { code: "a1b2" }),
   ).rejects.toThrow("401");
-  const asEmployee = await withAuth(t, "employee");
-  await expect(
-    asEmployee.mutation(api.vouchers.adminImageToken, { code: "a1b2" }),
-  ).rejects.toThrow("403");
 });
 
-test("adminImageToken returns null for deleted, pending, cancelled, unknown and malformed codes", async () => {
+test("getVoucherForStaffImage returns null for deleted, pending, cancelled, unknown and malformed codes", async () => {
   const t = createConvexTest();
   await insertVoucher(t, { code: "dele", deletedAt: Date.now() });
   await insertVoucher(t, { code: "pend", status: "pending" });
   await insertVoucher(t, { code: "canc", status: "cancelled" });
-  const asAdmin = await withAuth(t, "admin");
+  const asEmployee = await withAuth(t, "employee");
 
   for (const code of ["dele", "pend", "canc", "nope", "", "x".repeat(65)]) {
     expect(
-      await asAdmin.mutation(api.vouchers.adminImageToken, { code }),
+      await asEmployee.query(api.vouchers.getVoucherForStaffImage, { code }),
     ).toBeNull();
   }
-  expect(await readToken(t, "pend")).toBeFalsy();
-});
-
-test("the token from adminImageToken unlocks the voucher image data", async () => {
-  const t = createConvexTest();
-  await insertVoucher(t);
-  const asAdmin = await withAuth(t, "admin");
-
-  const result = await asAdmin.mutation(api.vouchers.adminImageToken, {
-    code: "a1b2",
-  });
-  const image = await t.query(internal.vouchers.getVoucherForImage, {
-    code: "a1b2",
-    lookupToken: result!.lookupToken,
-  });
-
-  expect(image?.code).toBe("a1b2");
 });
