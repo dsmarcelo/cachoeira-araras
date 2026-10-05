@@ -137,6 +137,8 @@ test("staff status changes, restore and reactivate keep the summary in step", as
   await settle(t);
   expect(await todaySummary(t)).toBeNull();
 
+  // Refunded vouchers cannot be reactivated, so reactivate from Redeemed.
+  await asAdmin.mutation(api.vouchers.updateStatus, { code: "a1b2", status: "redeemed" });
   await asAdmin.mutation(api.vouchers.reactivate, { code: "a1b2" });
   await settle(t);
   expect(await todaySummary(t)).toMatchObject({ voucherCount: 1 });
