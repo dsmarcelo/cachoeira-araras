@@ -279,7 +279,6 @@ function SavedVoucherCard({
 
 export default function MyVouchersPage() {
   const { vouchers, ready, warning } = useSavedVouchers();
-  const router = useRouter();
   const [liveStatuses, setLiveStatuses] = useState<
     Record<string, string | undefined>
   >({});
@@ -290,10 +289,7 @@ export default function MyVouchersPage() {
       ),
     [],
   );
-  useEffect(() => {
-    if (ready && vouchers.length === 0) router.replace("/");
-  }, [ready, vouchers.length, router]);
-  if (!ready || vouchers.length === 0)
+  if (!ready)
     return (
       <main className="bg-page p-6 text-fg-muted">Carregando...</main>
     );
@@ -316,9 +312,21 @@ export default function MyVouchersPage() {
           criação. Limpar os dados do navegador remove este histórico.
         </p>
         {warning && <p role="alert">{warning}</p>}
-        <Button asChild variant="brand">
-          <Link href="/">Comprar outro voucher</Link>
-        </Button>
+        {vouchers.length === 0 && (
+          <p>Você ainda não tem vouchers salvos neste navegador.</p>
+        )}
+        {/* Shown in both the empty and non-empty states. */}
+        <div className="flex flex-col gap-3">
+          <Button asChild variant="brand">
+            <Link href="/">Comprar outro voucher</Link>
+          </Button>
+          <p className="text-center text-sm">
+            Procure vouchers comprados em outro navegador caso tenha perdido
+          </p>
+          <Button asChild variant="inverseOutline">
+            <Link href="/meus-vouchers/procurar">Procurar voucher</Link>
+          </Button>
+        </div>
         <ul className="grid gap-4">
           {/* Valid vouchers first, then the rest; newest purchase first in each group. */}
           {[...vouchers]
