@@ -179,7 +179,8 @@ export const authorizeLookup = mutation({
  * unknown code, a malformed input and a soft-deleted Voucher are all the same
  * `not_found`, so callers cannot confirm that a code exists. Phones compare by
  * digits only, so legacy formatted phones still match. Spends the shared
- * anonymous lookup limit on every attempt.
+ * anonymous lookup limit on every attempt, and each wrong try also spends the
+ * per-phone and per-code wrong-try limits.
  */
 export const authorizeLookupByPhone = mutation({
   args: { code: v.string(), phone: v.string() },
@@ -200,6 +201,22 @@ export const authorizeLookupByPhone = mutation({
       return { kind: "not_found" as const };
     }
 
+    const wrongTryLimits = [
+      { name: "voucherSearchWrongByPhone", key: phoneDigits },
+      { name: "voucherSearchWrongByCode", key: code },
+    ] as const;
+    const checks = await Promise.all(
+      wrongTryLimits.map(({ name, key }) =>
+        rateLimiter.check(ctx, name, { key }),
+      ),
+    );
+    if (checks.some((check) => !check.ok)) {
+      return {
+        kind: "rate_limited" as const,
+        retryAfterMs: Math.max(...checks.map((check) => check.retryAfter ?? 0)),
+      };
+    }
+
     const voucher = await ctx.db
       .query("vouchers")
       .withIndex("by_code", (q) => q.eq("code", code))
@@ -210,6 +227,9 @@ export const authorizeLookupByPhone = mutation({
       voucher.deletedAt !== undefined ||
       voucher.phone.replace(/\D/g, "") !== phoneDigits
     ) {
+      for (const { name, key } of wrongTryLimits) {
+        await rateLimiter.limit(ctx, name, { key });
+      }
       return { kind: "not_found" as const };
     }
 

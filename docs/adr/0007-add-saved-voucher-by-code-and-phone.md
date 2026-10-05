@@ -16,7 +16,9 @@ saves the Voucher into its local list. A mismatch, an unknown code and a
 soft-deleted Voucher all produce one generic answer, so the form cannot
 confirm whether a code exists. Every attempt spends from the shared anonymous
 lookup rate limit, so this form is no cheaper to sweep than the existing
-lookup.
+lookup. On top of that, wrong tries are capped at 5 per phone and 5 per
+Voucher Code in each 30-minute window, so one phone cannot sweep codes and
+one code cannot be phone-guessed; successful searches do not count.
 
 The form accepts Voucher Codes of 4 to 6 characters from `a-z0-9`,
 lowercased. This covers legacy 4-character codes, today's 6-character codes,

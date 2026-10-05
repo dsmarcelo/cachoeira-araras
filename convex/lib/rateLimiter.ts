@@ -19,6 +19,12 @@ import { components } from "../_generated/api";
  *   "Meus Vouchers" pages loading at once) enough headroom that they don't
  *   throttle each other. Successful authorization yields an opaque,
  *   voucher-scoped capability, so reactive status reads spend no more tokens.
+ * - `voucherSearchWrongByPhone` / `voucherSearchWrongByCode`: the
+ *   "Procurar voucher" form allows 5 wrong tries per phone and 5 per Voucher
+ *   Code in each 30-minute window; hitting either blocks the search. Only
+ *   wrong tries spend, so a customer adding several real Vouchers is never
+ *   blocked. Keyed by the submitted values, so the global limit above stays
+ *   the backstop against rotating both.
  * - `checkoutByPhone`: a customer phone number may attempt checkout at most
  *   3 times per 10 minutes (token bucket, capacity 3 — allows a short burst
  *   for a mistyped field, then throttles).
@@ -34,6 +40,16 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: VOUCHER_LOOKUP_BURST_LIMIT,
     period: MINUTE,
     capacity: VOUCHER_LOOKUP_BURST_LIMIT,
+  },
+  voucherSearchWrongByPhone: {
+    kind: "fixed window",
+    rate: 5,
+    period: 30 * MINUTE,
+  },
+  voucherSearchWrongByCode: {
+    kind: "fixed window",
+    rate: 5,
+    period: 30 * MINUTE,
   },
   checkoutByPhone: {
     kind: "token bucket",

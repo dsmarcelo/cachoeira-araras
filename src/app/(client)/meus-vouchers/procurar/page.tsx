@@ -55,8 +55,9 @@ export default function FindVoucherPage() {
       if (result.kind === "not_found") {
         setError("Código ou telefone não conferem.");
       } else if (result.kind === "rate_limited") {
+        const minutes = Math.max(1, Math.ceil(result.retryAfterMs / 60_000));
         setError(
-          "Muitas tentativas de consulta. Aguarde um instante e tente novamente.",
+          `Muitas tentativas erradas. Tente novamente em ${minutes} ${minutes === 1 ? "minuto" : "minutos"}.`,
         );
       } else {
         setCachedLookupToken(code, result.lookupToken);

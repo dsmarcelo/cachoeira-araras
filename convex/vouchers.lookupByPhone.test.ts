@@ -165,3 +165,58 @@ test("attempts spend the shared lookup limit with authorizeLookup", async () => 
   expect(lastAllowed.kind).toBe("authorized");
   expect(blocked).toMatchObject({ kind: "rate_limited" });
 });
+
+test("five wrong phones for one code block that code, even with the right phone", async () => {
+  const t = await setup();
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const miss = await t.mutation(api.vouchers.authorizeLookupByPhone, {
+      code: "a1b2",
+      phone: `1198888000${attempt}`,
+    });
+    expect(miss.kind).toBe("not_found");
+  }
+
+  const blocked = await t.mutation(api.vouchers.authorizeLookupByPhone, {
+    code: "a1b2",
+    phone: "11999999999",
+  });
+  if (blocked.kind !== "rate_limited") throw new Error("Expected rate limit");
+  expect(blocked.retryAfterMs).toBeGreaterThan(0);
+  expect(blocked.retryAfterMs).toBeLessThanOrEqual(30 * 60 * 1000);
+});
+
+test("five wrong codes from one phone block that phone for other codes", async () => {
+  const t = await setup();
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await t.mutation(api.vouchers.authorizeLookupByPhone, {
+      code: `zzz${attempt}`,
+      phone: "11999999999",
+    });
+  }
+
+  const blocked = await t.mutation(api.vouchers.authorizeLookupByPhone, {
+    code: "a1b2",
+    phone: "11999999999",
+  });
+  expect(blocked.kind).toBe("rate_limited");
+});
+
+test("successful searches do not count toward the wrong-try limit", async () => {
+  const t = await setup();
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await t.mutation(api.vouchers.authorizeLookupByPhone, {
+      code: "a1b2",
+      phone: `1198888000${attempt}`,
+    });
+  }
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const found = await t.mutation(api.vouchers.authorizeLookupByPhone, {
+      code: "a1b2",
+      phone: "11999999999",
+    });
+    expect(found.kind).toBe("authorized");
+  }
+});
