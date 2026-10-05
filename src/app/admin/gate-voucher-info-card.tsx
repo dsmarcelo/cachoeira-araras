@@ -90,8 +90,8 @@ function GateVoucherSheet({
             <Check className="size-[18px]" aria-hidden />
             Usar voucher
           </button>
-          {/* A valid voucher has nothing to reactivate. */}
-          {data.status !== "valid" ? (
+          {/* Valid vouchers have nothing to reactivate; refunded ones cannot be revived. */}
+          {data.status !== "valid" && data.status !== "refunded" ? (
             <button
               type="button"
               className={secondaryActionClass}

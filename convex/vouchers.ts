@@ -2042,6 +2042,13 @@ export const reactivate = mutation({
       throw new ConvexError("Um voucher cancelado não pode ser reativado.");
     }
 
+    // A refund/chargeback is a payment reversal; reactivating would bypass it.
+    if (voucher.status === "refunded") {
+      throw new ConvexError(
+        "Um voucher reembolsado não pode ser reativado.",
+      );
+    }
+
     const expiresAt = endOfSaoPauloDayMs(getSaoPauloDateKey());
     await patchVoucher(ctx, voucher, { status: "valid", expiresAt });
 
