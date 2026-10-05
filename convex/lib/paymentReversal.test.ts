@@ -192,9 +192,10 @@ describe("lost chargeback", () => {
   });
 
   test("a chargeback with no case information is only flagged as a dispute", () => {
-    expect(decide(voucher(), { status: "charged_back" })).toEqual({
-      paymentIssue: expect.objectContaining({ kind: "dispute" }),
-    });
+    const patch = decide(voucher(), { status: "charged_back" });
+    expect(patch).toMatchObject({ paymentIssue: { kind: "dispute" } });
+    expect(patch).not.toHaveProperty("status");
+    expect(patch).not.toHaveProperty("reversal");
   });
 
   test("clears the dispute flag", () => {
