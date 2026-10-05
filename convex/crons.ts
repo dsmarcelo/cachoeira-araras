@@ -33,6 +33,18 @@ crons.cron(
   {},
 );
 
+// Safety net for Payment Reversals: re-sync every payment Mercado Pago updated
+// in the last two days, so a refund or chargeback on a voucher nobody opens
+// still reaches it. 04:00 UTC (01:00 in Sao Paulo) leaves the 03:00
+// maintenance and 03:15 finance recompute jobs alone, and any day summary the
+// sweep changes is recomputed by the voucher writes themselves.
+crons.cron(
+  "sweep recent payments",
+  "0 4 * * *",
+  internal.paymentSweep.sweepRecentPayments,
+  {},
+);
+
 crons.interval(
   "sweep overdue payment refunds",
   { minutes: 15 },
