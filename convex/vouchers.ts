@@ -160,6 +160,45 @@ export const authorizeLookup = mutation({
 });
 
 /**
+ * Hands an admin a voucher's lookup capability (issuing one if missing) so the
+ * admin drawer can render the same `/api/og` image the customer sees. Admin
+ * only, so it never spends the shared anonymous lookup budget. Returns null for
+ * unknown, deleted, pending or cancelled vouchers.
+ */
+export const adminImageToken = mutation({
+  args: { code: v.string() },
+  returns: v.union(v.object({ lookupToken: v.string() }), v.null()),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    if (args.code.length === 0 || args.code.length > 64) {
+      return null;
+    }
+
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (
+      !voucher ||
+      voucher.deletedAt !== undefined ||
+      voucher.status === "pending" ||
+      voucher.status === "cancelled"
+    ) {
+      return null;
+    }
+
+    const lookupToken = voucher.lookupToken ?? crypto.randomUUID();
+    if (voucher.lookupToken === undefined) {
+      await patchVoucher(ctx, voucher, { lookupToken });
+    }
+
+    return { lookupToken };
+  },
+});
+
+/**
  * Reactively reads exactly the Voucher authorized by `lookupToken`. The query
  * accepts no Voucher Code, so it cannot be repurposed into an unthrottled code
  * sweep. Unknown capabilities and soft-deleted Vouchers both resolve to null.

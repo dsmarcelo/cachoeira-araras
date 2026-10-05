@@ -2,7 +2,7 @@
 import { expect, test } from "vitest";
 
 import { getSaoPauloDateKey } from "../src/lib/utils/date";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { voucherSearchText } from "./lib/voucherSearch";
 import { createConvexTest, withAuth } from "./test.setup";
 
@@ -314,4 +314,86 @@ test("a soft-deleted voucher surfaces only in the deleted view until restored", 
     search: "lima",
   });
   expect(codesOf(searched)).toEqual(["a1b2"]);
+});
+
+const readToken = (t: ReturnType<typeof createConvexTest>, code: string) =>
+  t.run(async (ctx) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .unique();
+    return voucher?.lookupToken;
+  });
+
+test("adminImageToken returns the stored lookup token", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t);
+  await t.run(async (ctx) => {
+    const voucher = await ctx.db.query("vouchers").first();
+    await ctx.db.patch("vouchers", voucher!._id, { lookupToken: "stored-token" });
+  });
+  const asAdmin = await withAuth(t, "admin");
+
+  expect(await asAdmin.mutation(api.vouchers.adminImageToken, { code: "a1b2" }))
+    .toEqual({ lookupToken: "stored-token" });
+});
+
+test("adminImageToken issues and persists a token when the voucher has none", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t);
+  const asAdmin = await withAuth(t, "admin");
+
+  const result = await asAdmin.mutation(api.vouchers.adminImageToken, {
+    code: "a1b2",
+  });
+
+  expect(result?.lookupToken).toBeTruthy();
+  expect(await readToken(t, "a1b2")).toBe(result?.lookupToken);
+  expect(
+    await asAdmin.mutation(api.vouchers.adminImageToken, { code: "a1b2" }),
+  ).toEqual(result);
+});
+
+test("adminImageToken is admin-only", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t);
+
+  await expect(
+    t.mutation(api.vouchers.adminImageToken, { code: "a1b2" }),
+  ).rejects.toThrow("401");
+  const asEmployee = await withAuth(t, "employee");
+  await expect(
+    asEmployee.mutation(api.vouchers.adminImageToken, { code: "a1b2" }),
+  ).rejects.toThrow("403");
+});
+
+test("adminImageToken returns null for deleted, pending, cancelled, unknown and malformed codes", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t, { code: "dele", deletedAt: Date.now() });
+  await insertVoucher(t, { code: "pend", status: "pending" });
+  await insertVoucher(t, { code: "canc", status: "cancelled" });
+  const asAdmin = await withAuth(t, "admin");
+
+  for (const code of ["dele", "pend", "canc", "nope", "", "x".repeat(65)]) {
+    expect(
+      await asAdmin.mutation(api.vouchers.adminImageToken, { code }),
+    ).toBeNull();
+  }
+  expect(await readToken(t, "pend")).toBeFalsy();
+});
+
+test("the token from adminImageToken unlocks the voucher image data", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t);
+  const asAdmin = await withAuth(t, "admin");
+
+  const result = await asAdmin.mutation(api.vouchers.adminImageToken, {
+    code: "a1b2",
+  });
+  const image = await t.query(internal.vouchers.getVoucherForImage, {
+    code: "a1b2",
+    lookupToken: result!.lookupToken,
+  });
+
+  expect(image?.code).toBe("a1b2");
 });
