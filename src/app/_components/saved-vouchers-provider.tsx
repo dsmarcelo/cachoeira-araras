@@ -181,10 +181,9 @@ export function useSavedVouchers() {
 }
 
 export function MyVouchersLink() {
-  const { ready, vouchers } = useSavedVouchers();
-  return ready && vouchers.length > 0 ? (
+  return (
     <Button asChild variant="brand" size="sm" className="mr-1">
       <Link href="/meus-vouchers">Meus Vouchers</Link>
     </Button>
-  ) : null;
+  );
 }
