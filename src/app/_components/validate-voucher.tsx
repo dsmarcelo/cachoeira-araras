@@ -56,6 +56,7 @@ export default function ValidateVoucher({ role }: { role: "admin" | "employee" }
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
     setLookupCode("");
     setMessage(null);
+    setShowInfo(false);
     setVoucherCode(e.target.value.replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 16));
   }
 
