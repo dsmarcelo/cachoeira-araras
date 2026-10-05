@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { rescheduledByValidator } from "./lib/voucherReschedule";
 import { operationRequest, operationResult } from "./lib/paymentOperation";
+import { paymentIssueValidator } from "./lib/paymentReversal";
 
 // A Voucher Code is the identity of a voucher; there is no separate surrogate
 // id. `status` is the single source of truth for voucher state (no parallel
@@ -79,15 +80,7 @@ const vouchers = defineTable({
   // plain `approved`, and when the Voucher is reversed. Never shown to
   // customers. `notedAt` is when the flag was first raised. `refundedCents`
   // is set for `partial_refund` only.
-  paymentIssue: v.optional(
-    v.object({
-      kind: v.union(v.literal("dispute"), v.literal("partial_refund")),
-      status: v.string(),
-      statusDetail: v.optional(v.string()),
-      refundedCents: v.optional(v.number()),
-      notedAt: v.number(),
-    }),
-  ),
+  paymentIssue: v.optional(paymentIssueValidator),
 
   // Replaces the separate 1:1 Referrer table.
   referrer: v.optional(

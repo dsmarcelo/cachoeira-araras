@@ -1,3 +1,5 @@
+import { v } from "convex/values";
+
 import type { Doc } from "../_generated/dataModel";
 
 /**
@@ -15,6 +17,15 @@ export type ProviderPaymentState = {
   refundedCents?: number;
   chargebackOutcome?: ChargebackOutcome;
 };
+
+/** Staff-visible flag on the Official Payment (`vouchers.paymentIssue`). */
+export const paymentIssueValidator = v.object({
+  kind: v.union(v.literal("dispute"), v.literal("partial_refund")),
+  status: v.string(),
+  statusDetail: v.optional(v.string()),
+  refundedCents: v.optional(v.number()),
+  notedAt: v.number(),
+});
 
 export type VoucherReversalState = Pick<
   Doc<"vouchers">,

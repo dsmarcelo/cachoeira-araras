@@ -40,6 +40,7 @@ import { patchVoucher } from "./lib/voucherWrites";
 import {
   decideReversalPatch,
   paidVoucherStatuses,
+  paymentIssueValidator,
 } from "./lib/paymentReversal";
 import { normalizeSearchQuery, voucherSearchText } from "./lib/voucherSearch";
 import { validateVoucherPurchase } from "./lib/voucherPurchase";
@@ -1718,6 +1719,9 @@ const gateVoucherValidator = v.object({
   visitDate: v.string(),
   expiresAt: v.number(),
   createdAt: v.number(),
+  // Kind of the Official Payment's open issue, without payment details, so
+  // gate staff can warn about a dispute or partial refund.
+  paymentIssueKind: v.optional(paymentIssueValidator.fields.kind),
 });
 
 function summarizeForGate(voucher: Doc<"vouchers">) {
@@ -1733,6 +1737,7 @@ function summarizeForGate(voucher: Doc<"vouchers">) {
     visitDate: voucher.visitDate,
     expiresAt: voucher.expiresAt,
     createdAt: voucher.purchasedAt ?? voucher._creationTime,
+    paymentIssueKind: voucher.paymentIssue?.kind,
   };
 }
 
@@ -1797,6 +1802,9 @@ const gateVoucherAdminValidator = v.object({
   // Voucher was already redeemed (see `confirmPayment`). Undefined for
   // every Voucher this never happened to.
   reversal: v.optional(v.object({ reason: v.string(), notedAt: v.number() })),
+  // Full provider details of an open dispute or partial refund, for the
+  // admin drawer.
+  paymentIssue: v.optional(paymentIssueValidator),
   // The most recent Reschedule, shown in the admin drawer.
   rescheduledAt: v.optional(v.number()),
   rescheduledBy: v.optional(rescheduledByValidator),
@@ -1809,6 +1817,7 @@ function summarizeForGateAdmin(voucher: Doc<"vouchers">) {
     preferenceId: voucher.preferenceId,
     referrer: voucher.referrer,
     reversal: voucher.reversal,
+    paymentIssue: voucher.paymentIssue,
     rescheduledAt: voucher.rescheduledAt,
     rescheduledBy: voucher.rescheduledBy,
   };
