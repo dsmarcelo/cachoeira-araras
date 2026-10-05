@@ -34,6 +34,7 @@ import type * as maintenance from "../maintenance.js";
 import type * as mercadopago from "../mercadopago.js";
 import type * as migrations from "../migrations.js";
 import type * as paymentOperations from "../paymentOperations.js";
+import type * as paymentSync from "../paymentSync.js";
 import type * as refunds from "../refunds.js";
 import type * as settings from "../settings.js";
 import type * as testing_mercadopagoFake from "../testing/mercadopagoFake.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   mercadopago: typeof mercadopago;
   migrations: typeof migrations;
   paymentOperations: typeof paymentOperations;
+  paymentSync: typeof paymentSync;
   refunds: typeof refunds;
   settings: typeof settings;
   "testing/mercadopagoFake": typeof testing_mercadopagoFake;

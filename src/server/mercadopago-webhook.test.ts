@@ -402,6 +402,28 @@ await test("forwards Mercado Pago's payment type and method", async () => {
   assert.equal(received.paymentMethodId, "pix");
 });
 
+await test("forwards status detail and the refunded amount as integer cents", async () => {
+  let received: { statusDetail?: string; refundedCents?: number } = {};
+  await processMercadoPagoPaymentWebhook({
+    dataId,
+    type: "payment",
+    getPayment: async () => ({
+      external_reference: "abcd",
+      status: "approved",
+      status_detail: "partially_refunded",
+      transaction_amount_refunded: 15.1,
+    }),
+    processVoucherPayment: async (input) => {
+      received = input;
+      return { outcome: "updated", shouldSendConversionEvents: false };
+    },
+    logger: silentLogger,
+  });
+
+  assert.equal(received.statusDetail, "partially_refunded");
+  assert.equal(received.refundedCents, 1510);
+});
+
 await test("does not send conversion events for already processed vouchers", async () => {
   let conversionCalls = 0;
   const result = await processMercadoPagoPaymentWebhook({
@@ -442,7 +464,10 @@ await test("plural webhook route reexports the singular handler", async () => {
 
 await test("site URL trailing slashes are stripped", () => {
   assert.equal(
-    assertOriginOnlyUrl("https://tough-totally-honeybee.ngrok-free.app/", "SITE_URL"),
+    assertOriginOnlyUrl(
+      "https://tough-totally-honeybee.ngrok-free.app/",
+      "SITE_URL",
+    ),
     "https://tough-totally-honeybee.ngrok-free.app",
   );
 });
