@@ -78,6 +78,8 @@ function SavedVoucherCard({
     void reconcilePayment({
       code: entry.code,
       managementToken: entry.managementToken,
+    }).then((result) => {
+      if (result === "failed") throw new Error("reconciliation failed");
     }).catch(() => {
       setReconciliationError(
         "Não foi possível conferir o pagamento agora. Tente novamente em instantes.",
