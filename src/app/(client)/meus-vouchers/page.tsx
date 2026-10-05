@@ -311,7 +311,7 @@ export default function MyVouchersPage() {
         {vouchers.length === 0 && (
           <p>Você ainda não tem vouchers salvos neste navegador.</p>
         )}
-        {/* Shared by the empty and non-empty states; add further actions here. */}
+        {/* Shown in both the empty and non-empty states. */}
         <div className="flex flex-col gap-3">
           <Button asChild variant="brand">
             <Link href="/">Comprar outro voucher</Link>

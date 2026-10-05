@@ -195,6 +195,7 @@ export const authorizeLookupByPhone = mutation({
 
     const code = args.code.trim().toLowerCase();
     const phoneDigits = args.phone.replace(/\D/g, "");
+    // 10 digits stays accepted for legacy landline-style phones.
     if (!/^[a-z0-9]{4,6}$/.test(code) || !/^\d{10,11}$/.test(phoneDigits)) {
       return { kind: "not_found" as const };
     }
