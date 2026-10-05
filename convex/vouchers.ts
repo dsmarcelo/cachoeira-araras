@@ -102,6 +102,40 @@ function summarizeForPublic(voucher: Doc<"vouchers">) {
 }
 
 /**
+ * Issues (or reuses) the voucher's lookup capability and pairs it with the
+ * public summary. Shared by every lookup entry point; never exposes the
+ * management capability.
+ */
+async function authorizeVoucherLookup(
+  ctx: MutationCtx,
+  voucher: Doc<"vouchers">,
+) {
+  const lookupToken = voucher.lookupToken ?? crypto.randomUUID();
+  if (voucher.lookupToken === undefined) {
+    await patchVoucher(ctx, voucher, { lookupToken });
+  }
+
+  return {
+    kind: "authorized" as const,
+    lookupToken,
+    voucher: summarizeForPublic(voucher),
+  };
+}
+
+const lookupResultValidator = v.union(
+  v.object({
+    kind: v.literal("authorized"),
+    lookupToken: v.string(),
+    voucher: publicVoucherValidator,
+  }),
+  v.object({ kind: v.literal("not_found") }),
+  v.object({
+    kind: v.literal("rate_limited"),
+    retryAfterMs: v.number(),
+  }),
+);
+
+/**
  * Exchanges a Voucher Code for an opaque, voucher-scoped lookup capability.
  * Every anonymous attempt — including a miss — spends from one shared token
  * bucket, preventing callers from spreading a keyspace sweep across fake
@@ -110,18 +144,7 @@ function summarizeForPublic(voucher: Doc<"vouchers">) {
  */
 export const authorizeLookup = mutation({
   args: { code: v.string() },
-  returns: v.union(
-    v.object({
-      kind: v.literal("authorized"),
-      lookupToken: v.string(),
-      voucher: publicVoucherValidator,
-    }),
-    v.object({ kind: v.literal("not_found") }),
-    v.object({
-      kind: v.literal("rate_limited"),
-      retryAfterMs: v.number(),
-    }),
-  ),
+  returns: lookupResultValidator,
   handler: async (ctx, args) => {
     const limit = await rateLimiter.limit(ctx, "voucherLookupGlobal");
     if (!limit.ok) {
@@ -146,16 +169,50 @@ export const authorizeLookup = mutation({
       return { kind: "not_found" as const };
     }
 
-    const lookupToken = voucher.lookupToken ?? crypto.randomUUID();
-    if (voucher.lookupToken === undefined) {
-      await patchVoucher(ctx, voucher, { lookupToken });
+    return await authorizeVoucherLookup(ctx, voucher);
+  },
+});
+
+/**
+ * Exchanges a Voucher Code plus the purchase phone for the same lookup
+ * capability `authorizeLookup` issues. Both must match: a wrong phone, an
+ * unknown code, a malformed input and a soft-deleted Voucher are all the same
+ * `not_found`, so callers cannot confirm that a code exists. Phones compare by
+ * digits only, so legacy formatted phones still match. Spends the shared
+ * anonymous lookup limit on every attempt.
+ */
+export const authorizeLookupByPhone = mutation({
+  args: { code: v.string(), phone: v.string() },
+  returns: lookupResultValidator,
+  handler: async (ctx, args) => {
+    const limit = await rateLimiter.limit(ctx, "voucherLookupGlobal");
+    if (!limit.ok) {
+      return {
+        kind: "rate_limited" as const,
+        retryAfterMs: limit.retryAfter ?? 0,
+      };
     }
 
-    return {
-      kind: "authorized" as const,
-      lookupToken,
-      voucher: summarizeForPublic(voucher),
-    };
+    const code = args.code.trim().toLowerCase();
+    const phoneDigits = args.phone.replace(/\D/g, "");
+    if (!/^[a-z0-9]{4,6}$/.test(code) || !/^\d{10,11}$/.test(phoneDigits)) {
+      return { kind: "not_found" as const };
+    }
+
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .unique();
+
+    if (
+      !voucher ||
+      voucher.deletedAt !== undefined ||
+      voucher.phone.replace(/\D/g, "") !== phoneDigits
+    ) {
+      return { kind: "not_found" as const };
+    }
+
+    return await authorizeVoucherLookup(ctx, voucher);
   },
 });
 
