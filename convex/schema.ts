@@ -136,6 +136,13 @@ const vouchers = defineTable({
   // `deletedAt` or `isTest`. TODO: make required after the backfill.
   isActive: v.optional(v.boolean()),
 
+  // `true` while `paymentIssue.kind === "dispute"`, absent otherwise. Derived
+  // by `patchVoucher` (convex/lib/voucherWrites.ts) on every write that sets
+  // or clears `paymentIssue`, so the admin "Pagamento contestado" filter can
+  // read an index range instead of scanning. No backfill needed: `paymentIssue`
+  // is new and only ever written through `patchVoucher`.
+  paymentDisputed: v.optional(v.literal(true)),
+
   deletedAt: v.optional(v.number()),
 })
   .index("by_code", ["code"])
@@ -171,13 +178,21 @@ const vouchers = defineTable({
     "status",
     "purchasedAt",
   ])
+  // Admin "Pagamento contestado" filter (`listAdmin`): disputed real vouchers,
+  // newest sale first. Equality on `paymentDisputed: true` keeps the range tiny.
+  .index("by_paymentDisputed_and_isTest_and_deletedAt_and_purchasedAt", [
+    "paymentDisputed",
+    "isTest",
+    "deletedAt",
+    "purchasedAt",
+  ])
   // Admin "deleted" view (`listDeleted`).
   .index("by_deletedAt", ["deletedAt"])
   // Admin search by code, name or phone. `isActive` (not `deletedAt`) is the
   // filter for live vs. deleted because search filters only support equality.
   .searchIndex("search_text", {
     searchField: "searchText",
-    filterFields: ["isActive", "status"],
+    filterFields: ["isActive", "status", "paymentDisputed"],
   });
 
 // One document per key so concurrent admins editing settings cannot clobber

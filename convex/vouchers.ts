@@ -1795,6 +1795,7 @@ const gateVoucherAdminValidator = v.object({
   visitDate: v.string(),
   expiresAt: v.number(),
   createdAt: v.number(),
+  paymentIssueKind: v.optional(paymentIssueValidator.fields.kind),
   paymentId: v.optional(v.string()),
   preferenceId: v.string(),
   referrer: v.optional(referrerValidator),
@@ -1996,6 +1997,8 @@ function parseAdminSearch(search: string | undefined): string | undefined {
  *
  * Without `search`, rows come newest sale first straight from an index, with
  * `status` and the `purchasedFrom`/`purchasedTo` range applied in the index.
+ * `paymentDisputed: true` narrows to vouchers whose payment is in dispute,
+ * read from the derived `paymentDisputed` field (index, or search filter).
  * With `search` (word or prefix match on code, name and phone, accents and
  * case ignored) the search index is used instead and rows come by relevance;
  * the date range then runs as a post-filter. `expiresAfter`/`expiresBefore`
@@ -2014,6 +2017,7 @@ export const listAdmin = query({
     expiresAfter: v.optional(v.number()),
     expiresBefore: v.optional(v.number()),
     search: v.optional(v.string()),
+    paymentDisputed: v.optional(v.literal(true)),
   },
   returns: paginationResultValidator(gateVoucherAdminValidator),
   handler: async (ctx, args) => {
@@ -2025,8 +2029,32 @@ export const listAdmin = query({
     const base = search
       ? ctx.db.query("vouchers").withSearchIndex("search_text", (q) => {
           const filtered = q.search("searchText", search).eq("isActive", true);
-          return status ? filtered.eq("status", status) : filtered;
+          const scoped = status ? filtered.eq("status", status) : filtered;
+          return args.paymentDisputed
+            ? scoped.eq("paymentDisputed", true)
+            : scoped;
         })
+      : args.paymentDisputed
+        ? ctx.db
+            .query("vouchers")
+            .withIndex(
+              "by_paymentDisputed_and_isTest_and_deletedAt_and_purchasedAt",
+              (q) => {
+                const scoped = q
+                  .eq("paymentDisputed", true)
+                  .eq("isTest", false)
+                  .eq("deletedAt", undefined);
+                if (purchasedFrom === undefined && purchasedTo === undefined) {
+                  return scoped;
+                }
+                return purchasedTo === undefined
+                  ? scoped.gte("purchasedAt", purchasedFrom ?? 0)
+                  : scoped
+                      .gte("purchasedAt", purchasedFrom ?? 0)
+                      .lte("purchasedAt", purchasedTo);
+              },
+            )
+            .order("desc")
       : status
         ? ctx.db
             .query("vouchers")
@@ -2066,6 +2094,11 @@ export const listAdmin = query({
     const result = await base
       .filter((q) =>
         q.and(
+          // The disputed index has no status column: a disputed set is tiny,
+          // so `status` is a post-filter there.
+          args.paymentDisputed && !search && status
+            ? q.eq(q.field("status"), status)
+            : true,
           // Date bounds already enforced by the index when not searching.
           search && args.purchasedFrom !== undefined
             ? q.gte(q.field("purchasedAt"), args.purchasedFrom)

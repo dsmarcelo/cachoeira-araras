@@ -7,7 +7,7 @@ import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CalendarIcon } from "lucide-react"
 
-import { formatDateWeekDay, formatReferrer, getErrorMessage } from "@/lib/utils"
+import { formatDateWeekDay, formatReferrer, formatToBRL, getErrorMessage } from "@/lib/utils"
 import { getSaoPauloDateKey } from "@/lib/utils/date"
 import { getVisitDateRejection } from "@/lib/voucher/visit-date"
 import { Calendar } from "@/components/ui/calendar"
@@ -139,6 +139,27 @@ export function VoucherInfoCard({
           { label: "Gerado em", value: formatDateWeekDay(new Date(data.createdAt)) },
           { label: "Origem", value: data.referrer ? formatReferrer(data.referrer.source) : "—" },
           { label: "Pagamento", value: data.paymentId ?? "Nenhum pagamento", copy: data.paymentId ?? null },
+          ...(data.paymentIssue
+            ? [
+                {
+                  label: "Situação do pagamento",
+                  value: `${data.paymentIssue.kind === "dispute" ? "Pagamento contestado" : "Reembolso parcial"} (${data.paymentIssue.status}${data.paymentIssue.statusDetail ? `, ${data.paymentIssue.statusDetail}` : ""})`,
+                },
+                {
+                  label: "Sinalizado em",
+                  value: new Date(data.paymentIssue.notedAt).toLocaleString("pt-BR"),
+                },
+                ...(data.paymentIssue.refundedCents !== undefined
+                  ? [{ label: "Valor reembolsado", value: formatToBRL(data.paymentIssue.refundedCents / 100) }]
+                  : []),
+              ]
+            : []),
+          ...(data.reversal && data.status !== "refunded"
+            ? [{
+                label: "Estorno",
+                value: `${data.reversal.reason} em ${new Date(data.reversal.notedAt).toLocaleString("pt-BR")}`,
+              }]
+            : []),
           { label: "Preferência", value: data.preferenceId, copy: data.preferenceId },
         ]}
       />
