@@ -315,6 +315,9 @@ export default function MyVouchersPage() {
           <Button asChild variant="brand">
             <Link href="/">Comprar outro voucher</Link>
           </Button>
+          <p className="text-center text-sm">
+            Procure vouchers comprados em outro navegador caso tenha perdido
+          </p>
           <Button asChild variant="inverseOutline">
             <Link href="/meus-vouchers/procurar">Procurar voucher</Link>
           </Button>
