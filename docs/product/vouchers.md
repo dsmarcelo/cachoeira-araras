@@ -10,7 +10,7 @@ A phone number can have one unexpired Pending purchase at a time. Visitors can r
 
 ## Adding a Voucher in another browser
 
-Meus Vouchers lists Vouchers saved in the current browser. A customer can add a Voucher there, in any status, with "Verificar voucher" by typing its Voucher Code and the phone used at purchase; both must match, and a wrong code or phone gets the same generic answer. This grants viewing, the image and Reschedule, but not resuming or cancelling a Pending payment.
+Meus Vouchers lists Vouchers saved in the current browser. A customer can add a Voucher there, in any status, with "Procurar voucher" by typing its Voucher Code and the phone used at purchase; both must match, and a wrong code or phone gets the same generic answer. This grants viewing, the image and Reschedule, but not resuming or cancelling a Pending payment.
 
 ## Rescheduling
 

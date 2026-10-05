@@ -1,18 +1,12 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { useConvex } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import { useSavedVouchers } from "../../_components/saved-vouchers-provider";
+import { api } from "../../../../../convex/_generated/api";
+import { useSavedVouchers } from "../../../_components/saved-vouchers-provider";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatPhone } from "@/lib/utils";
@@ -23,27 +17,19 @@ import {
 } from "@/lib/voucher/verify-code";
 
 /**
- * "Verificar voucher" flow: the customer types a Voucher Code and the phone
+ * "Procurar voucher" page: the customer types a Voucher Code and the phone
  * used at purchase; only when both match is the voucher saved into this
  * browser's list (ADR 0007). The server answers every mismatch the same way.
+ * A full page rather than a dialog keeps the inputs above mobile keyboards.
  */
-export function VerifyVoucherDialog() {
+export default function FindVoucherPage() {
   const convex = useConvex();
+  const router = useRouter();
   const { vouchers, save } = useSavedVouchers();
-  const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  function handleOpenChange(next: boolean) {
-    setOpen(next);
-    if (next) {
-      setPhone("");
-      setCode("");
-      setError(null);
-    }
-  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -79,7 +65,7 @@ export function VerifyVoucherDialog() {
           initPoint: "",
           createdAt: result.voucher.createdAt,
         });
-        if (saved) setOpen(false);
+        if (saved) router.replace("/meus-vouchers");
         else
           setError(
             "Não foi possível salvar o voucher neste navegador. Verifique o armazenamento do navegador e tente novamente.",
@@ -87,7 +73,7 @@ export function VerifyVoucherDialog() {
       }
     } catch {
       setError(
-        "Não foi possível verificar o voucher agora. Tente novamente em instantes.",
+        "Não foi possível procurar o voucher agora. Tente novamente em instantes.",
       );
     } finally {
       setIsChecking(false);
@@ -95,23 +81,32 @@ export function VerifyVoucherDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="inverseOutline">Verificar voucher</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-[calc(100vw-2rem)] rounded-2xl">
-        <DialogHeader>
-          <DialogTitle>Verificar voucher</DialogTitle>
-          <DialogDescription>
-            Informe o telefone usado na compra e o código do voucher para
-            adicioná-lo a este navegador.
-          </DialogDescription>
-        </DialogHeader>
-        <form className="grid gap-4" onSubmit={(e) => void handleSubmit(e)}>
+    <main className="bg-page px-4 py-8 text-fg-muted">
+      <div className="mx-auto flex max-w-sm flex-col gap-6">
+        <Button
+          asChild
+          variant="inverseGhost"
+          className="-ml-3 w-fit gap-2 text-base"
+        >
+          <Link href="/meus-vouchers">
+            <ArrowLeft className="h-5 w-5" aria-hidden />
+            Voltar
+          </Link>
+        </Button>
+        <h1 className="text-3xl font-bold">Procurar voucher</h1>
+        <p>
+          Informe o telefone usado na compra e o código do voucher para
+          adicioná-lo a este navegador.
+        </p>
+        <form
+          className="grid gap-4 rounded-xl bg-surface p-6"
+          onSubmit={(e) => void handleSubmit(e)}
+        >
           <div className="grid gap-2">
-            <Label htmlFor="verify-phone">Telefone</Label>
+            <Label htmlFor="find-phone">Telefone</Label>
             <Input
-              id="verify-phone"
+              className="rounded-xl text-field-fg"
+              id="find-phone"
               type="tel"
               inputMode="tel"
               autoComplete="tel-national"
@@ -122,9 +117,10 @@ export function VerifyVoucherDialog() {
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="verify-code">Código do voucher</Label>
+            <Label htmlFor="find-code">Código do voucher</Label>
             <Input
-              id="verify-code"
+              className="rounded-xl text-field-fg"
+              id="find-code"
               autoComplete="off"
               autoCapitalize="none"
               value={code}
@@ -132,16 +128,15 @@ export function VerifyVoucherDialog() {
             />
           </div>
           {error && <p role="alert">{error}</p>}
-          <DialogFooter>
-            <Button
-              type="submit"
-              disabled={isChecking || code.length < VOUCHER_CODE_MIN_LENGTH}
-            >
-              {isChecking ? "Verificando..." : "Verificar"}
-            </Button>
-          </DialogFooter>
+          <Button
+            type="submit"
+            variant="brand"
+            disabled={isChecking || code.length < VOUCHER_CODE_MIN_LENGTH}
+          >
+            {isChecking ? "Procurando..." : "Procurar"}
+          </Button>
         </form>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </main>
   );
 }
