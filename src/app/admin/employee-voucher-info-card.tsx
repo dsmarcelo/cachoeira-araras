@@ -93,14 +93,17 @@ function EmployeeVoucherSheet({
             <Check className="size-[18px]" aria-hidden />
             Usar voucher
           </button>
-          <button
-            type="button"
-            className={secondaryActionClass}
-            disabled={isPending}
-            onClick={() => run(() => reactivate({ code: data.code }), "Voucher ativado com sucesso", "Erro ao ativar voucher")}
-          >
-            Reativar voucher
-          </button>
+          {/* A valid voucher has nothing to reactivate. */}
+          {data.status !== "valid" ? (
+            <button
+              type="button"
+              className={secondaryActionClass}
+              disabled={isPending}
+              onClick={() => run(() => reactivate({ code: data.code }), "Voucher ativado com sucesso", "Erro ao ativar voucher")}
+            >
+              Reativar voucher
+            </button>
+          ) : null}
         </>
       }
     >
