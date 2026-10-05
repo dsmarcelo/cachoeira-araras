@@ -5,22 +5,28 @@ import { FaWhatsapp } from "react-icons/fa"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "@/components/ui/use-toast"
 import { voucherImageUrl } from "@/lib/voucher/image-url"
-import { secondaryActionClass } from "./_components/voucher-sheet"
+import { type VoucherStatus } from "./admin-ui"
+import { secondaryActionClass } from "./voucher-sheet"
 
 const loadErrorMessage = "Não foi possível carregar a imagem do voucher. Tente novamente em instantes."
 
-type VoucherImage = { file: File; objectUrl: string }
+type LoadedImage = { file: File; objectUrl: string }
+
+/** Pending and cancelled vouchers have no image to show (the route 404s them). */
+export function canShowVoucherImage(status: VoucherStatus) {
+  return status !== "pending" && status !== "cancelled"
+}
 
 /**
- * The customer's voucher image (same `/api/og` render as Meus Vouchers) with
- * "Baixar" and "Enviar". Fetches the PNG once (authorized by the staff session); the preview, download and share all reuse
- * that file, so "Enviar" calls the share sheet straight from the click (iOS
+ * The voucher image (same `/api/og` render as Meus Vouchers) with "Baixar"
+ * and "Enviar", for any staff drawer. Fetches the PNG once (authorized by the
+ * staff session); the preview, download and share all reuse that file, so "Enviar" calls the share sheet straight from the click (iOS
  * rejects sharing after an awaited fetch). `version` must change whenever the
  * image content does (status, expiry). The app never sends anything:
  * "Enviar" opens the share sheet, or downloads the PNG and opens the
  * customer's WhatsApp chat so the admin can attach it.
  */
-export function AdminVoucherImage({
+export function VoucherImage({
   code,
   phone,
   version,
@@ -29,7 +35,7 @@ export function AdminVoucherImage({
   phone: string
   version: string
 }) {
-  const [image, setImage] = React.useState<VoucherImage | null>(null)
+  const [image, setImage] = React.useState<LoadedImage | null>(null)
   const [error, setError] = React.useState<string | null>(null)
 
   const fileName = `voucher-${code}.png`
