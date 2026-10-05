@@ -374,7 +374,7 @@ test("cancelled and deleted vouchers are never checked", async () => {
   expect(paymentFetches).toHaveLength(0);
 });
 
-test("a provider failure on a paid voucher reports failed, leaves it unchanged and still uses up the window", async () => {
+test("a provider failure on a paid voucher reports failed, leaves it unchanged and keeps reporting it while throttled", async () => {
   const t = await paidSetup({ status: "charged_back", statusDetail: "in_process" });
   fake.failNext("chargebacks");
   const employee = await withAuth(t, "employee");
@@ -387,8 +387,14 @@ test("a provider failure on a paid voucher reports failed, leaves it unchanged a
   expect(voucher?.reversal).toBeUndefined();
   expect(voucher?.paymentIssue).toBeUndefined();
 
-  // Throttled even though the provider is now healthy.
+  // Throttled even though the provider is now healthy: the failure is still
+  // reported, so a re-opened Validar sheet keeps showing the notice.
   fake.failNext("chargebacks", false);
+  expect(await check()).toBe("failed");
+
+  // The next real check succeeds and clears it.
+  await liftThrottle(t);
+  expect(await check()).toBe("updated");
   expect(await check()).toBe("skipped");
 
   fake.payments.delete("pay-paid");

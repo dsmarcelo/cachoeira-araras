@@ -1,6 +1,7 @@
 import { ConvexError, v, type Infer } from "convex/values";
 
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { action, internalMutation, type ActionCtx } from "./_generated/server";
 import { requireRole } from "./lib/auth";
 import { getPayment } from "./lib/mercadopagoOperations";
@@ -17,10 +18,10 @@ const MAX_TOKEN_LENGTH = 200;
 /**
  * What a check reports to the UI. `skipped` means no provider call was made
  * (unknown code, wrong token, not eligible, or checked within the last
- * minute, which includes a recent check that itself failed); the UI must
- * treat it as settled, never as an error. `failed` means
- * Mercado Pago could not be asked or answered badly: the voucher is untouched
- * and Validar still lets staff redeem. `updated` means the voucher changed
+ * minute); the UI must treat it as settled, never as an error. `failed`
+ * means Mercado Pago could not be asked or answered badly, now or in the
+ * throttled check before it: the voucher is untouched and Validar still lets
+ * staff redeem. `updated` means the voucher changed
  * (a pending purchase became valid, or a paid voucher was reversed, reverted
  * or flagged); `checked` means the provider answered and nothing changed.
  * A Redeemed voucher always reports `checked`, even when a reversal was
@@ -58,6 +59,7 @@ export const claim = internalMutation({
   args: { code: v.string(), access },
   returns: v.union(
     v.null(),
+    v.object({ kind: v.literal("recentlyFailed") }),
     v.object({ kind: v.literal("search"), operationId: v.id("paymentOperations") }),
     v.object({ kind: v.literal("payment"), paymentId: v.string() }),
   ),
@@ -100,7 +102,10 @@ export const claim = internalMutation({
       voucher.paymentReconciliationCheckedAt !== undefined &&
       now - voucher.paymentReconciliationCheckedAt < RECHECK_INTERVAL_MS
     ) {
-      return null;
+      // The caller is authorized here, so reporting the last failure leaks nothing.
+      return voucher.paymentReconciliationFailedAt !== undefined
+        ? { kind: "recentlyFailed" as const }
+        : null;
     }
 
     if (isPaid) {
@@ -124,6 +129,24 @@ export const claim = internalMutation({
   },
 });
 
+/** Remembers whether the last claimed check failed (see `claim`). */
+export const recordOutcome = internalMutation({
+  args: { code: v.string(), failed: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const voucher = await ctx.db
+      .query("vouchers")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+    if (!voucher) return null;
+    const failedAt = args.failed ? Date.now() : undefined;
+    if ((voucher.paymentReconciliationFailedAt === undefined) !== (failedAt === undefined)) {
+      await patchVoucher(ctx, voucher, { paymentReconciliationFailedAt: failedAt });
+    }
+    return null;
+  },
+});
+
 /**
  * Runs one check and never throws: the callers authenticate staff before
  * calling, and any other error (provider, sync, database) becomes `failed`.
@@ -133,12 +156,39 @@ async function reconcile(
   code: string,
   accessArgs: Access,
 ): Promise<ReconcileResult> {
+  let claimed;
   try {
-    const claimed = await ctx.runMutation(internal.voucherReconciliation.claim, {
+    claimed = await ctx.runMutation(internal.voucherReconciliation.claim, {
       code,
       access: accessArgs,
     });
-    if (!claimed) return "skipped";
+  } catch (error) {
+    console.error("Falha ao conferir pagamento do voucher", code, error);
+    return "failed";
+  }
+  if (!claimed) return "skipped";
+  if (claimed.kind === "recentlyFailed") return "failed";
+
+  const result = await runClaimedCheck(ctx, code, claimed);
+  try {
+    await ctx.runMutation(internal.voucherReconciliation.recordOutcome, {
+      code,
+      failed: result === "failed",
+    });
+  } catch (error) {
+    console.error("Falha ao registrar conferência do voucher", code, error);
+  }
+  return result;
+}
+
+async function runClaimedCheck(
+  ctx: ActionCtx,
+  code: string,
+  claimed:
+    | { kind: "search"; operationId: Id<"paymentOperations"> }
+    | { kind: "payment"; paymentId: string },
+): Promise<ReconcileResult> {
+  try {
 
     if (claimed.kind === "search") {
       const payments = (await ctx.runAction(internal.paymentOperations.execute, {

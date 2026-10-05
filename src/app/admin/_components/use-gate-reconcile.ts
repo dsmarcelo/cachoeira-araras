@@ -14,16 +14,33 @@ export type GateReconcileState = "checking" | "settled" | "failed";
 const GATE_RECONCILE_TIMEOUT_MS = 15_000;
 
 /**
- * Runs the fresh payment check (`reconcileAtGate`) once per code per mount.
+ * Checks started per code. The Validar result and its info sheet (and React's
+ * dev double-mount) share one in-flight call, so a throttled duplicate never
+ * reports `skipped` while the real check is still running or failing.
+ */
+const inFlight = new Map<string, Promise<"settled" | "failed">>();
+
+/**
+ * Runs the fresh payment check (`reconcileAtGate`) for `code` (null skips).
  * "Usar voucher" waits while `checking`; `failed` only shows a notice and
  * never blocks, because `redeemByCode` stays the authority. The voucher
  * query updates reactively, so the result value is not needed here.
  */
-export function useGateReconcile(code: string): GateReconcileState {
+export function useGateReconcile(code: string | null): GateReconcileState {
   const reconcile = useAction(api.voucherReconciliation.reconcileAtGate);
   const [result, setResult] = useState<{ code: string; state: "settled" | "failed" } | null>(null);
 
   useEffect(() => {
+    if (code === null) return;
+    let check = inFlight.get(code);
+    if (!check) {
+      check = reconcile({ code })
+        .then((outcome): "settled" | "failed" => (outcome === "failed" ? "failed" : "settled"))
+        .catch(() => "failed" as const)
+        .finally(() => inFlight.delete(code));
+      inFlight.set(code, check);
+    }
+
     // The first of result or timeout wins; the other is ignored.
     let settled = false;
     const settle = (state: "settled" | "failed") => {
@@ -33,9 +50,7 @@ export function useGateReconcile(code: string): GateReconcileState {
       setResult({ code, state });
     };
     const timer = setTimeout(() => settle("failed"), GATE_RECONCILE_TIMEOUT_MS);
-    reconcile({ code })
-      .then((outcome) => settle(outcome === "failed" ? "failed" : "settled"))
-      .catch(() => settle("failed"));
+    void check.then(settle);
     return () => {
       settled = true;
       clearTimeout(timer);

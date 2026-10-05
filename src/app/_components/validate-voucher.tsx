@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "convex/react";
 import { useState, type ChangeEvent, type FormEvent } from "react";
-import { Check, CircleX } from "lucide-react";
+import { Check, CircleX, Loader2 } from "lucide-react";
 
 import {
   Panel,
@@ -12,6 +12,11 @@ import {
 } from "@/app/admin/_components/admin-ui";
 import EmployeeVoucherInfoCard from "@/app/admin/employee-voucher-info-card";
 import { GateVoucherInfoCard } from "@/app/admin/gate-voucher-info-card";
+import {
+  gateReconcileFailedMessage,
+  paymentIssueLabel,
+  useGateReconcile,
+} from "@/app/admin/_components/use-gate-reconcile";
 import { secondaryActionClass } from "@/app/admin/_components/voucher-sheet";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
@@ -52,6 +57,8 @@ export default function ValidateVoucher({ role }: { role: "admin" | "employee" }
     lookupCode ? { code: lookupCode } : "skip",
   );
   const redeemByCode = useMutation(api.vouchers.redeemByCode);
+  // The fresh Mercado Pago check starts on lookup; redemption waits for it.
+  const reconcileState = useGateReconcile(lookupCode || null);
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
     setLookupCode("");
@@ -137,15 +144,34 @@ export default function ValidateVoucher({ role }: { role: "admin" | "employee" }
           </div>
           <p className="text-[13px] text-zinc-600">{statusHints[voucher.status]}</p>
 
+          {voucher.paymentIssueKind ? (
+            <p role="alert" className="rounded-[10px] border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm font-medium text-amber-900">
+              {paymentIssueLabel(voucher.paymentIssueKind)}
+            </p>
+          ) : null}
+          {reconcileState === "failed" ? (
+            <p role="status" className="rounded-[10px] border border-zinc-200 bg-white px-3.5 py-3 text-sm text-zinc-700">
+              {gateReconcileFailedMessage}
+            </p>
+          ) : null}
+
           {voucher.status === "valid" ? (
             <button
               type="button"
               onClick={() => void handleRedeem()}
-              disabled={isRedeeming}
+              disabled={isRedeeming || reconcileState === "checking"}
               className="flex h-[52px] items-center justify-center gap-2 rounded-[10px] bg-teal-700 text-base font-semibold text-white transition-colors hover:bg-teal-800 disabled:opacity-60"
             >
-              <Check className="size-[18px]" aria-hidden />
-              {isRedeeming ? "Registrando..." : "Usar voucher"}
+              {reconcileState === "checking" ? (
+                <Loader2 className="size-[18px] animate-spin" aria-hidden />
+              ) : (
+                <Check className="size-[18px]" aria-hidden />
+              )}
+              {isRedeeming
+                ? "Registrando..."
+                : reconcileState === "checking"
+                  ? "Conferindo pagamento..."
+                  : "Usar voucher"}
             </button>
           ) : null}
 

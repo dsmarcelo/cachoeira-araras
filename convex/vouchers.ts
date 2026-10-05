@@ -956,9 +956,15 @@ export const cancelPendingPurchase = action({
  * anonymous shared bucket, protects this direct Voucher Code query so gate
  * validation remains available even when public lookup traffic is blocked.
  */
+const staffVoucherValidator = v.object({
+  ...publicVoucherValidator.fields,
+  // Neutral warning for gate staff; no payment identifiers.
+  paymentIssueKind: v.optional(paymentIssueValidator.fields.kind),
+});
+
 export const getByCodeForStaff = query({
   args: { code: v.string() },
-  returns: v.union(publicVoucherValidator, v.null()),
+  returns: v.union(staffVoucherValidator, v.null()),
   handler: async (ctx, args) => {
     await requireRole(ctx, "employee");
 
@@ -975,7 +981,10 @@ export const getByCodeForStaff = query({
       return null;
     }
 
-    return summarizeForPublic(voucher);
+    return {
+      ...summarizeForPublic(voucher),
+      paymentIssueKind: voucher.paymentIssue?.kind,
+    };
   },
 });
 

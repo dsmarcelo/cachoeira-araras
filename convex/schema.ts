@@ -109,6 +109,9 @@ const vouchers = defineTable({
   // Limits payment-provider reads triggered by page visits.
   paymentReconciliationCheckedAt: v.optional(v.number()),
   paymentReconciliationOpId: v.optional(v.id("paymentOperations")),
+  // When the last on-view check failed; cleared by the next one that
+  // succeeds. Lets a throttled re-check still report the failure.
+  paymentReconciliationFailedAt: v.optional(v.number()),
 
   // Internal cancellation coordination: timestamp when cancellation begins,
   // preventing concurrent payment resumption.
