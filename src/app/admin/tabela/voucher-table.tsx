@@ -17,8 +17,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formateDateDayMonthYear, formatPhone, formatReferrer } from "@/lib/utils"
+import { cn, formateDateDayMonthYear, formatPhone, formatReferrer } from "@/lib/utils"
 import { VoucherInfoCard, type AdminVoucher } from "../voucher-info-card"
+import { PaymentBadges } from "./payment-badges"
 import { DateRangeFilter, type DateRangeValue } from "./date-range-filter"
 import {
   ChipGroup,
@@ -56,12 +57,14 @@ interface VoucherTableProps {
   view: VoucherView
   created: DateRangeValue
   expires: DateRangeValue
+  paymentDisputed: boolean
   onLoadMore: () => void
   onStatusChange: (status: string) => void
   onSearchChange: (search: string) => void
   onViewChange: (view: VoucherView) => void
   onCreatedChange: (value: DateRangeValue) => void
   onExpiresChange: (value: DateRangeValue) => void
+  onPaymentDisputedChange: (value: boolean) => void
 }
 
 /**
@@ -77,12 +80,14 @@ export function VoucherTable({
   view,
   created,
   expires,
+  paymentDisputed,
   onLoadMore,
   onStatusChange,
   onSearchChange,
   onViewChange,
   onCreatedChange,
   onExpiresChange,
+  onPaymentDisputedChange,
 }: VoucherTableProps) {
   // Keyed by code and resolved against live `data`, so the open drawer
   // reflects edits (status, reschedule) as soon as the query updates.
@@ -117,6 +122,22 @@ export function VoucherTable({
         label="Status"
         disabled={isDeletedView}
       />
+      <div>
+        <button
+          type="button"
+          aria-pressed={paymentDisputed}
+          disabled={isDeletedView}
+          onClick={() => onPaymentDisputedChange(!paymentDisputed)}
+          className={cn(
+            "h-9 rounded-full border px-3 text-[13px] font-medium transition-colors disabled:opacity-45",
+            paymentDisputed
+              ? "border-red-700 bg-red-700 text-white"
+              : "border-border bg-white text-foreground hover:bg-zinc-50",
+          )}
+        >
+          Pagamento contestado
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <DateRangeFilter label="Data da compra" value={created} disabled={isDeletedView} onChange={onCreatedChange} />
         <DateRangeFilter label="Expira" value={expires} disabled={isDeletedView} onChange={onExpiresChange} />
@@ -141,7 +162,10 @@ export function VoucherTable({
                 >
                   <span className="flex items-center justify-between gap-3">
                     <span className="truncate text-sm font-medium">{voucher.name}</span>
-                    <VoucherStatusBadge status={voucher.status} />
+                    <span className="flex flex-wrap items-center justify-end gap-1">
+                      <VoucherStatusBadge status={voucher.status} />
+                      <PaymentBadges voucher={voucher} />
+                    </span>
                   </span>
                   <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
                     <span className="font-mono font-medium uppercase tracking-wide text-zinc-700">{voucher.code}</span>

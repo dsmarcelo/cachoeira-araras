@@ -16,7 +16,8 @@ type VoucherPatch = Partial<Omit<Doc<"vouchers">, "_id" | "_creationTime">>;
  * voucher contributes to revenue (status, paymentId, reversal, deletedAt,
  * isTest, priceCents, referrer, payment type/method, purchasedAt), schedules
  * `finance.recomputeDay` for the purchase day it left and the one it joined.
- * The recompute is scheduled, not inline, so payment mutations do not grow
+ * It also derives `paymentDisputed` from `paymentIssue` whenever the patch
+ * touches `paymentIssue`. The recompute is scheduled, not inline, so payment mutations do not grow
  * their read set or conflict with each other on the summary document.
  *
  * `voucher` must be the document as it was read before this patch.
@@ -28,10 +29,20 @@ export async function patchVoucher(
   voucher: Doc<"vouchers">,
   patch: VoucherPatch,
 ): Promise<void> {
-  await ctx.db.patch("vouchers", voucher._id, patch);
+  // Keep the derived `paymentDisputed` (admin filter index) in step with
+  // `paymentIssue`; `undefined` removes the field.
+  const derived: VoucherPatch =
+    "paymentIssue" in patch
+      ? {
+          paymentDisputed:
+            patch.paymentIssue?.kind === "dispute" ? true : undefined,
+        }
+      : {};
+  const fullPatch = { ...patch, ...derived };
+  await ctx.db.patch("vouchers", voucher._id, fullPatch);
 
   // Spread keeps `undefined` values, which is how `patch` removes a field.
-  const next = { ...voucher, ...patch };
+  const next = { ...voucher, ...fullPatch };
   const before = revenueContribution(voucher);
   const after = revenueContribution(next);
   if (before === after) return;
