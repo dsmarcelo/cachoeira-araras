@@ -1574,12 +1574,15 @@ export const confirmPayment = internalMutation({
       }
     };
 
-    // A voucher paid before `payments` rows existed has none; its own
-    // `paymentId` marks its Official Payment.
-    const isOfficialPayment = existingPayment
-      ? existingPayment.isOfficial
-      : voucher.paymentId === args.paymentId &&
-        paidVoucherStatuses.has(voucher.status);
+    // On a paid voucher `paymentId` is written only with the Official
+    // Payment's approval, so it also identifies that payment when its row is
+    // missing (vouchers paid before `payments` existed) or wrongly lost
+    // `isOfficial` (a non-approved update used to clear it). The write below
+    // repairs the row.
+    const isOfficialPayment =
+      (existingPayment?.isOfficial ?? false) ||
+      (voucher.paymentId === args.paymentId &&
+        paidVoucherStatuses.has(voucher.status));
 
     // The Official Payment of a paid Voucher: its provider state decides the
     // Voucher's status, reversal and payment-issue flag.

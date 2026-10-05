@@ -1040,3 +1040,47 @@ test("a repeated chargeback delivery with the same outcome changes nothing", asy
   expect(repeat).toMatchObject({ outcome: "already_processed" });
   expect((await storedVoucher(t))?.reversal).toEqual(first?.reversal);
 });
+
+/** A paid voucher whose Official Payment row lost `isOfficial`, as the old non-approved update left it. */
+async function insertVoucherWithUnflaggedOfficialRow(t: TestConvex) {
+  await insertVoucher(t, { status: "valid", paymentId: "pay-1" });
+  await t.run((ctx) =>
+    ctx.db.insert("payments", {
+      paymentId: "pay-1",
+      voucherCode: "a1b2",
+      status: "in_mediation",
+      isOfficial: false,
+      owesRefund: false,
+      createdAt: Date.now(),
+    }),
+  );
+}
+
+test("an Official Payment row that lost isOfficial is repaired and not refunded as an Excess Payment", async () => {
+  const t = convexTest(schema, modules);
+  await insertVoucherWithUnflaggedOfficialRow(t);
+
+  await observe(t, { paymentStatus: "approved", statusDetail: "accredited" });
+
+  expect(await storedPayment(t)).toMatchObject({
+    isOfficial: true,
+    owesRefund: false,
+  });
+  expect(
+    await t.run((ctx) => ctx.db.query("paymentRefunds").collect()),
+  ).toHaveLength(0);
+  expect((await storedVoucher(t))?.status).toBe("valid");
+});
+
+test("a lost chargeback still reverses a voucher whose Official Payment row lost isOfficial", async () => {
+  const t = convexTest(schema, modules);
+  await insertVoucherWithUnflaggedOfficialRow(t);
+
+  await observe(t, {
+    paymentStatus: "charged_back",
+    chargebackOutcome: "lost",
+  });
+
+  expect((await storedVoucher(t))?.status).toBe("refunded");
+  expect(await storedPayment(t)).toMatchObject({ isOfficial: true });
+});
