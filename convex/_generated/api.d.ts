@@ -20,6 +20,7 @@ import type * as lib_mercadopago from "../lib/mercadopago.js";
 import type * as lib_mercadopagoError from "../lib/mercadopagoError.js";
 import type * as lib_mercadopagoOperations from "../lib/mercadopagoOperations.js";
 import type * as lib_paymentOperation from "../lib/paymentOperation.js";
+import type * as lib_paymentReversal from "../lib/paymentReversal.js";
 import type * as lib_rateLimiter from "../lib/rateLimiter.js";
 import type * as lib_refundFailure from "../lib/refundFailure.js";
 import type * as lib_serviceAuth from "../lib/serviceAuth.js";
@@ -60,6 +61,7 @@ declare const fullApi: ApiFromModules<{
   "lib/mercadopagoError": typeof lib_mercadopagoError;
   "lib/mercadopagoOperations": typeof lib_mercadopagoOperations;
   "lib/paymentOperation": typeof lib_paymentOperation;
+  "lib/paymentReversal": typeof lib_paymentReversal;
   "lib/rateLimiter": typeof lib_rateLimiter;
   "lib/refundFailure": typeof lib_refundFailure;
   "lib/serviceAuth": typeof lib_serviceAuth;
