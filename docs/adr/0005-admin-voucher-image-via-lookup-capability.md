@@ -11,7 +11,8 @@ An admin-only operation hands the admin the voucher's existing lookup
 capability (issuing one if the voucher has none yet), and the drawer uses the
 same public image route as Meus Vouchers. It never spends the shared anonymous
 lookup budget, since the caller is an authenticated admin. Images are offered
-for every non-pending, non-deleted voucher.
+for every paid voucher (not Pending, Cancelled or deleted), the same set the
+image route can render.
 
 Sending to WhatsApp uses the device share sheet with the image file; where
 sharing files is unsupported, the image is downloaded and the customer's chat

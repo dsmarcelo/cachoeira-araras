@@ -211,7 +211,7 @@ export function VoucherInfoCard({
         <AdminVoucherRefundButton code={data.code} paymentId={data.paymentId} status={data.status} />
       ) : null}
 
-      {!isDeleted && data.status !== "pending" ? (
+      {!isDeleted && data.status !== "pending" && data.status !== "cancelled" ? (
         <AdminVoucherImage
           code={data.code}
           phone={data.phone}
