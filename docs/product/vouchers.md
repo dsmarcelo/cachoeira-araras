@@ -8,6 +8,10 @@ Prices are configured separately for standard and pool entries. Half-price quant
 
 A phone number can have one unexpired Pending purchase at a time. Visitors can resume or cancel that purchase using the saved purchase access. If payment approval wins the cancellation race, the purchase remains paid. Approval arriving after completed cancellation is refunded.
 
+## Adding a Voucher in another browser
+
+Meus Vouchers lists Vouchers saved in the current browser. A customer can add a Voucher there, in any status, with "Procurar voucher" by typing its Voucher Code and the phone used at purchase; both must match, and a wrong code or phone gets the same generic answer. After 5 wrong tries for the same phone or the same Voucher Code within 30 minutes, the search is blocked until that window ends. This grants viewing, the image and Reschedule, but not resuming or cancelling a Pending payment.
+
 ## Rescheduling
 
 A Reschedule moves a Voucher to another Visit Date and always moves its Expiry to the end of the new São Paulo day. Price, quantities and payments never change. Only the last Reschedule is kept: when it happened and who made it (the customer or a named admin).
