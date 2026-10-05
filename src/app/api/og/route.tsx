@@ -21,7 +21,8 @@ const interSemiBold = fs
  * Renders the voucher card image by code, looking up the real record on the
  * server rather than trusting name/phone/price/status from query params —
  * the old contract let anyone forge a voucher-shaped image for any code.
- * Rejects pending or unknown codes, since there is nothing to show yet.
+ * Rejects pending, cancelled or unknown codes (the lookups return nothing
+ * for cancelled), since there is nothing to show.
  * With `lookupToken` the customer capability authorizes the request; without
  * it, a signed-in staff session does.
  * Never cached: a resgate, expiração, or estorno must show up immediately.
