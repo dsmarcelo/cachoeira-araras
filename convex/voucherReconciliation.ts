@@ -1,4 +1,4 @@
-import { v, type Infer } from "convex/values";
+import { ConvexError, v, type Infer } from "convex/values";
 
 import { internal } from "./_generated/api";
 import { action, internalMutation, type ActionCtx } from "./_generated/server";
@@ -17,7 +17,8 @@ const MAX_TOKEN_LENGTH = 200;
 /**
  * What a check reports to the UI. `skipped` means no provider call was made
  * (unknown code, wrong token, not eligible, or checked within the last
- * minute); the UI must treat it as settled, never as an error. `failed` means
+ * minute, which includes a recent check that itself failed); the UI must
+ * treat it as settled, never as an error. `failed` means
  * Mercado Pago could not be asked or answered badly: the voucher is untouched
  * and Validar still lets staff redeem. `updated` means the voucher changed
  * (a pending purchase became valid, or a paid voucher was reversed, reverted
@@ -239,7 +240,7 @@ export const reconcileAdmin = action({
   handler: async (ctx, args) => {
     await requireRole(ctx, "admin");
     if (args.codes.length > MAX_ADMIN_BATCH) {
-      throw new Error("Muitos vouchers para verificar de uma vez.");
+      throw new ConvexError("Muitos vouchers para verificar de uma vez.");
     }
 
     const results: Array<{ code: string; result: ReconcileResult }> = [];
