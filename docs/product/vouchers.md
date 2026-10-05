@@ -21,3 +21,7 @@ Staff look up the Voucher Code and record entry once. Redemption requires a Vali
 Staff can reactivate a Voucher and extend its Expiry to the end of today; cancellation cannot be undone this way. Reactivation does not change the Visit Date. It does not bypass the gate's same-date requirement, so extending an older Voucher alone does not make it redeemable today.
 
 Unused Valid Vouchers become Expired during daily maintenance. Overdue Pending purchases are hidden from active views but retained. Real Vouchers are not physically deleted by daily maintenance. Test Vouchers are deleted after 30 days.
+
+## Voucher image
+
+Customers see their voucher image in Meus Vouchers once paid. Admins can view, download and send the same image for any voucher that is not Pending or deleted. Sending opens the device's share options, or the customer's WhatsApp chat with the image downloaded for attaching; the app never sends messages itself.
