@@ -6,6 +6,8 @@ import path from 'path';
 import { formatVoucherStatusWithoutBg, formatQuantity } from '@/lib/voucher';
 import { formatPhone, truncateName } from '@/lib/utils';
 import { getVoucherImageData } from '@/server/voucher-image-data';
+import { fetchAuthQuery, getCurrentAuthUser } from '@/lib/auth-server';
+import { api } from '../../../../convex/_generated/api';
 
 // Switch OG generation to node runtime to avoid Edge invocations on Vercel Free
 export const runtime = 'nodejs';
@@ -19,18 +21,36 @@ const interSemiBold = fs
  * Renders the voucher card image by code, looking up the real record on the
  * server rather than trusting name/phone/price/status from query params —
  * the old contract let anyone forge a voucher-shaped image for any code.
- * Rejects pending or unknown codes, since there is nothing to show yet.
+ * Rejects pending, cancelled or unknown codes (the lookups return nothing
+ * for cancelled), since there is nothing to show.
+ * With `lookupToken` the customer capability authorizes the request; without
+ * it, a signed-in staff session does.
  * Never cached: a resgate, expiração, or estorno must show up immediately.
  */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');
   const lookupToken = request.nextUrl.searchParams.get('lookupToken');
 
-  if (!code || !lookupToken) {
+  if (!code) {
     return new Response('Missing code', { status: 400 });
   }
 
-  const voucher = await getVoucherImageData(code, lookupToken);
+  let voucher: Awaited<ReturnType<typeof getVoucherImageData>>;
+  if (lookupToken) {
+    voucher = await getVoucherImageData(code, lookupToken);
+  } else {
+    // Staff path: the session cookie authorizes the lookup. The query throws
+    // for a missing or insufficient session, but production redacts error
+    // messages, so a failure is re-checked against the session itself: no
+    // staff user means 401, anything else is a real failure.
+    try {
+      voucher = await fetchAuthQuery(api.vouchers.getVoucherForStaffImage, { code });
+    } catch (error) {
+      const user = await getCurrentAuthUser().catch(() => null);
+      if (!user) return new Response('Unauthorized', { status: 401 });
+      throw error;
+    }
+  }
 
   if (!voucher || voucher.status === 'pending') {
     return new Response('Voucher not found', { status: 404 });

@@ -9,6 +9,7 @@ import { useSavedVouchers } from "../../_components/saved-vouchers-provider";
 import type { SavedVoucher } from "@/lib/voucher/browser-storage";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
+import { voucherImageUrl } from "@/lib/voucher/image-url";
 import { RescheduleVoucherDialog } from "./reschedule-voucher-dialog";
 import { formatQuantity } from "@/lib/voucher";
 import { formatToBRL } from "@/lib/utils";
@@ -84,7 +85,7 @@ function SavedVoucherCard({
     });
   }, [voucher?.status, entry.code, entry.managementToken, reconcilePayment]);
   // `v` changes on reschedule so the browser refetches the image with the new dates.
-  const imageUrl = `/api/og?code=${encodeURIComponent(entry.code)}&lookupToken=${encodeURIComponent(lookupToken ?? "")}&v=${voucher?.expiresAt ?? ""}`;
+  const imageUrl = voucherImageUrl(entry.code, lookupToken ?? "", voucher?.expiresAt ?? "");
 
   // Each saved voucher's own anonymous lookup, spending shared rate-limiter
   // capacity once per card — unless another component already authorized

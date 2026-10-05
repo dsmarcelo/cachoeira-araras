@@ -315,3 +315,47 @@ test("a soft-deleted voucher surfaces only in the deleted view until restored", 
   });
   expect(codesOf(searched)).toEqual(["a1b2"]);
 });
+
+test("getVoucherForStaffImage returns the image fields to admins and employees", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t);
+
+  for (const role of ["admin", "employee"] as const) {
+    const asStaff = await withAuth(t, role);
+    const image = await asStaff.query(api.vouchers.getVoucherForStaffImage, {
+      code: "a1b2",
+    });
+    expect(image).toMatchObject({
+      code: "a1b2",
+      name: "Visitante Teste",
+      phone: "11999999999",
+      priceCents: 5000,
+      status: "valid",
+    });
+    expect(image).not.toHaveProperty("lookupToken");
+    expect(image).not.toHaveProperty("paymentId");
+  }
+});
+
+test("getVoucherForStaffImage rejects anonymous callers", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t);
+
+  await expect(
+    t.query(api.vouchers.getVoucherForStaffImage, { code: "a1b2" }),
+  ).rejects.toThrow("401");
+});
+
+test("getVoucherForStaffImage returns null for deleted, pending, cancelled, unknown and malformed codes", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t, { code: "dele", deletedAt: Date.now() });
+  await insertVoucher(t, { code: "pend", status: "pending" });
+  await insertVoucher(t, { code: "canc", status: "cancelled" });
+  const asEmployee = await withAuth(t, "employee");
+
+  for (const code of ["dele", "pend", "canc", "nope", "", "x".repeat(65)]) {
+    expect(
+      await asEmployee.query(api.vouchers.getVoucherForStaffImage, { code }),
+    ).toBeNull();
+  }
+});

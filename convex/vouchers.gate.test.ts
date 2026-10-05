@@ -208,3 +208,60 @@ test("a public caller cannot reactivate", async () => {
     t.mutation(api.vouchers.reactivate, { code: "a1b2" }),
   ).rejects.toThrow();
 });
+
+test("the gate lookup by code returns the gate shape, including Test Vouchers and other days", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t, {
+    code: "test",
+    isTest: true,
+    visitDate: yesterday,
+    paymentId: "pay-1",
+  });
+  const asEmployee = await withAuth(t, "employee");
+  const asAdmin = await withAuth(t, "admin");
+
+  const forEmployee = await asEmployee.query(api.vouchers.getGateByCode, {
+    code: "test",
+  });
+  expect(forEmployee).toMatchObject({ code: "test", status: "valid" });
+  expect(forEmployee).not.toHaveProperty("paymentId");
+  expect(forEmployee).not.toHaveProperty("preferenceId");
+
+  expect(
+    await asAdmin.query(api.vouchers.getGateAdminByCode, { code: "test" }),
+  ).toMatchObject({ code: "test", paymentId: "pay-1", preferenceId: "pref-1" });
+});
+
+test("the gate lookup by code returns null for unknown, deleted and malformed codes", async () => {
+  const t = createConvexTest();
+  await t.run(async (ctx) =>
+    ctx.db.insert("vouchers", {
+      ...defaults(),
+      code: "dele",
+      deletedAt: Date.now(),
+    }),
+  );
+  const asEmployee = await withAuth(t, "employee");
+  const asAdmin = await withAuth(t, "admin");
+
+  for (const code of ["dele", "nope", "", "x".repeat(65)]) {
+    expect(await asEmployee.query(api.vouchers.getGateByCode, { code })).toBeNull();
+    expect(await asAdmin.query(api.vouchers.getGateAdminByCode, { code })).toBeNull();
+  }
+});
+
+test("the gate lookup by code enforces roles", async () => {
+  const t = createConvexTest();
+  await insertVoucher(t);
+  const asEmployee = await withAuth(t, "employee");
+
+  await expect(
+    t.query(api.vouchers.getGateByCode, { code: "a1b2" }),
+  ).rejects.toThrow("401");
+  await expect(
+    t.query(api.vouchers.getGateAdminByCode, { code: "a1b2" }),
+  ).rejects.toThrow("401");
+  await expect(
+    asEmployee.query(api.vouchers.getGateAdminByCode, { code: "a1b2" }),
+  ).rejects.toThrow("403");
+});

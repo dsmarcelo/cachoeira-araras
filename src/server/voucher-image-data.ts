@@ -11,7 +11,7 @@ export type VoucherImageData = {
   adultsPool: number;
   elderlyPool: number;
   priceCents: number;
-  status: "pending" | "valid" | "redeemed" | "expired" | "refunded";
+  status: "pending" | "valid" | "redeemed" | "expired" | "refunded" | "cancelled";
   visitDate: string;
   expiresAt: number;
 } | null;
