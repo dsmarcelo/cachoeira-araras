@@ -1,6 +1,6 @@
 # Admins render voucher images through the lookup capability
 
-Status: accepted
+Status: superseded by [0006](0006-staff-voucher-image-via-session.md)
 
 Admins need to show, download and send a customer's voucher image from the
 `/admin/tabela` drawer, identical to the one in Meus Vouchers. The image route

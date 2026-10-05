@@ -24,4 +24,4 @@ Unused Valid Vouchers become Expired during daily maintenance. Overdue Pending p
 
 ## Voucher image
 
-Customers see their voucher image in Meus Vouchers once paid. Admins can view, download and send the same image for any paid voucher (not Pending, Cancelled or deleted). Sending opens the device's share options, or the customer's WhatsApp chat with the image downloaded for attaching; the app never sends messages itself.
+Customers see their voucher image in Meus Vouchers once paid. Admins and employees can view, download and send the same image from every staff voucher view (voucher table, today's list and Validar voucher) for any paid voucher (not Pending, Cancelled or deleted). Employees still see no payment identifiers, though the image shows the price. Sending opens the device's share options, or the customer's WhatsApp chat with the image downloaded for attaching; the app never sends messages itself.
