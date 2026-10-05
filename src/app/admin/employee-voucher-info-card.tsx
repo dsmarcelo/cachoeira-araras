@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { useTransition } from "react";
 import { Check } from "lucide-react";
@@ -9,15 +9,15 @@ import { getErrorMessage } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { api } from "../../../convex/_generated/api";
 import { DetailList, describeEntries } from "./_components/admin-ui";
+import { VoucherImage, canShowVoucherImage } from "./_components/voucher-image";
 import {
   VoucherSheet,
+  VoucherSheetPlaceholder,
   WhatsAppLink,
   describeValidity,
   primaryActionClass,
   secondaryActionClass,
 } from "./_components/voucher-sheet";
-
-type EmployeeVoucher = FunctionReturnType<typeof api.vouchers.listToday>[number];
 
 function formatVoucherDate(ms: number) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -27,8 +27,31 @@ function formatVoucherDate(ms: number) {
   }).format(new Date(ms));
 }
 
-/** Employee gate drawer: no payment identifiers, just redeem/reactivate. */
+type EmployeeVoucher = NonNullable<FunctionReturnType<typeof api.vouchers.getGateByCode>>;
+
+/**
+ * Employee gate drawer for one voucher by code: no payment identifiers, just
+ * redeem/reactivate and the image.
+ */
 export default function EmployeeVoucherInfoCard({
+  code,
+  onClose,
+  open,
+}: {
+  code: string;
+  onClose: () => void;
+  open: boolean;
+}) {
+  const data = useQuery(api.vouchers.getGateByCode, { code });
+
+  if (!data) {
+    return <VoucherSheetPlaceholder code={code} loading={data === undefined} open={open} onClose={onClose} />;
+  }
+
+  return <EmployeeVoucherSheet data={data} open={open} onClose={onClose} />;
+}
+
+function EmployeeVoucherSheet({
   data,
   onClose,
   open,
@@ -90,6 +113,9 @@ export default function EmployeeVoucherInfoCard({
           { label: "Gerado em", value: formatVoucherDate(data.createdAt) },
         ]}
       />
+      {canShowVoucherImage(data.status) ? (
+        <VoucherImage code={data.code} phone={data.phone} version={`${data.status}-${data.expiresAt}`} />
+      ) : null}
     </VoucherSheet>
   );
 }

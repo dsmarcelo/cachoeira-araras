@@ -1925,6 +1925,49 @@ export const listTodayAdmin = query({
   },
 });
 
+/** Reads one non-deleted voucher by code; null for unknown or malformed codes. */
+async function findLiveVoucherByCode(ctx: { db: QueryCtx["db"] }, code: string) {
+  if (code.length === 0 || code.length > 64) {
+    return null;
+  }
+
+  const voucher = await ctx.db
+    .query("vouchers")
+    .withIndex("by_code", (q) => q.eq("code", code))
+    .unique();
+
+  return voucher && voucher.deletedAt === undefined ? voucher : null;
+}
+
+/**
+ * One voucher in the employee gate shape, for the gate drawer and the
+ * "Validar voucher" info button. Unlike `listToday` it is not limited to
+ * today or real vouchers: a staff member who typed a code (Test Vouchers
+ * included) sees that voucher. Null for unknown or deleted codes.
+ */
+export const getGateByCode = query({
+  args: { code: v.string() },
+  returns: v.union(gateVoucherValidator, v.null()),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "employee");
+
+    const voucher = await findLiveVoucherByCode(ctx, args.code);
+    return voucher ? summarizeForGate(voucher) : null;
+  },
+});
+
+/** Admin variant of `getGateByCode`, with payment identifiers and referrer. */
+export const getGateAdminByCode = query({
+  args: { code: v.string() },
+  returns: v.union(gateVoucherAdminValidator, v.null()),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    const voucher = await findLiveVoucherByCode(ctx, args.code);
+    return voucher ? summarizeForGateAdmin(voucher) : null;
+  },
+});
+
 /**
  * Redeems a voucher by code at the gate. Staff-only. Refuses (rather than
  * silently no-opping) a voucher that is already `redeemed`, so a second

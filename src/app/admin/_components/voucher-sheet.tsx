@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 
 import {
   Drawer,
@@ -27,7 +27,8 @@ export function VoucherSheet({
   actions,
 }: {
   code: string;
-  status: VoucherStatus;
+  /** Omitted while the voucher is still loading. */
+  status?: VoucherStatus;
   open: boolean;
   onClose: () => void;
   children: ReactNode;
@@ -43,7 +44,9 @@ export function VoucherSheet({
               <DrawerTitle className="font-mono text-[26px] font-semibold uppercase tracking-[0.08em]">
                 {code}
               </DrawerTitle>
-              <VoucherStatusBadge status={status} className="px-2.5 py-1 text-xs font-semibold" />
+              {status ? (
+                <VoucherStatusBadge status={status} className="px-2.5 py-1 text-xs font-semibold" />
+              ) : null}
             </div>
             <DrawerDescription className="sr-only">Detalhes do voucher {code}</DrawerDescription>
           </div>
@@ -63,6 +66,34 @@ export function VoucherSheet({
       </DrawerContent>
       <DrawerOverlay onClick={onClose} />
     </Drawer>
+  );
+}
+
+/**
+ * The drawer frame for a voucher fetched by code, shown while it loads
+ * (`voucher === undefined`) or when no such voucher exists (`null`).
+ */
+export function VoucherSheetPlaceholder({
+  code,
+  loading,
+  open,
+  onClose,
+}: {
+  code: string;
+  loading: boolean;
+  open: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <VoucherSheet code={code} open={open} onClose={onClose}>
+      {loading ? (
+        <div className="flex h-24 items-center justify-center">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" aria-label="Carregando" />
+        </div>
+      ) : (
+        <p role="alert" className="text-sm text-muted-foreground">Voucher não encontrado.</p>
+      )}
+    </VoucherSheet>
   );
 }
 
