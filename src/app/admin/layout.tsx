@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import AdminHeader from "./_components/header";
 import AdminFooter from "./_components/footer";
 import AdminFontScope from "./_components/admin-font-scope";
+import ConvexAuthGate from "./_components/convex-auth-gate";
 import PasswordLoginForm from "../_components/passwordLoginForm";
 import DashboardSidebar from "../_components/admin/admin-sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -36,7 +37,9 @@ export default async function AdminLayout({
           <DashboardSidebar role={user.role} username={user.username} />
           <div className="flex min-h-screen w-full min-w-0 flex-col">
             <AdminHeader />
-            <main className="flex-grow">{children}</main>
+            <main className="flex-grow">
+              <ConvexAuthGate>{children}</ConvexAuthGate>
+            </main>
             <AdminFooter />
           </div>
         </SidebarProvider>
