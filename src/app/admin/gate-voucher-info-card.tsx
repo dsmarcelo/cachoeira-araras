@@ -97,8 +97,8 @@ function GateVoucherSheet({
             )}
             Usar voucher
           </button>
-          {/* Valid vouchers have nothing to reactivate; refunded ones cannot be revived. */}
-          {data.status !== "valid" && data.status !== "refunded" ? (
+          {/* Valid vouchers have nothing to reactivate; refunded or reversed ones cannot be revived. */}
+          {data.status !== "valid" && data.status !== "refunded" && !data.reversal ? (
             <button
               type="button"
               className={secondaryActionClass}

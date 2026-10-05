@@ -107,7 +107,12 @@ export function VoucherInfoCard({
     })
   }
 
-  const canReschedule = !isDeleted && isAdminReschedulable(data.status)
+  // A reversed payment cannot be revived by staff (the server refuses it too).
+  const isPaymentReversed = data.reversal !== undefined || data.status === "refunded"
+  const canReschedule = !isDeleted && !isPaymentReversed && isAdminReschedulable(data.status)
+  const selectableStatuses = isPaymentReversed
+    ? correctableStatuses.filter((status) => status !== "valid")
+    : correctableStatuses
 
   return (
     <VoucherSheet
@@ -175,7 +180,7 @@ export function VoucherInfoCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {correctableStatuses.map((status) => (
+              {selectableStatuses.map((status) => (
                 <SelectItem key={status} value={status}>
                   {voucherStatusMeta[status].label}
                 </SelectItem>

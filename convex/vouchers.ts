@@ -2006,6 +2006,20 @@ export const redeemByCode = mutation({
   },
 });
 
+const PAYMENT_REVERSED_MESSAGE =
+  "O pagamento deste voucher foi estornado; ele não pode voltar a ser válido.";
+
+/**
+ * Staff cannot undo a payment reversal: a voucher carrying a `reversal` never
+ * returns to Valid by hand. Only a won chargeback does, through
+ * `confirmPayment`.
+ */
+function assertNotReversed(voucher: Doc<"vouchers">) {
+  if (voucher.reversal !== undefined) {
+    throw new ConvexError(PAYMENT_REVERSED_MESSAGE);
+  }
+}
+
 /**
  * Reactivates a voucher when a customer has a legitimate reason. Staff-only.
  * Moves only `expiresAt`, extending it to the end of today in Sao Paulo, and
@@ -2043,6 +2057,7 @@ export const reactivate = mutation({
         "Um voucher reembolsado não pode ser reativado.",
       );
     }
+    assertNotReversed(voucher);
 
     const expiresAt = endOfSaoPauloDayMs(getSaoPauloDateKey());
     await patchVoucher(ctx, voucher, { status: "valid", expiresAt });
@@ -2291,6 +2306,14 @@ export const updateStatus = mutation({
         "Um voucher cancelado é terminal e não pode ter o status alterado.",
       );
     }
+    if (args.status === "valid") {
+      // `assertNotReversed` covers reversed Expired/Redeemed vouchers; Refunded
+      // ones carry a reversal too, but stay explicit for legacy data.
+      if (voucher.status === "refunded") {
+        throw new ConvexError(PAYMENT_REVERSED_MESSAGE);
+      }
+      assertNotReversed(voucher);
+    }
     await patchVoucher(ctx, voucher, { status: args.status });
     return null;
   },
@@ -2323,6 +2346,8 @@ export const rescheduleByAdmin = mutation({
         "Só é possível reagendar vouchers pendentes, válidos ou expirados.",
       );
     }
+    // Rescheduling revives Expired vouchers, which would undo a reversal.
+    assertNotReversed(voucher);
 
     const rejection = getVisitDateRejection(args.visitDate, {
       todayKey: getSaoPauloDateKey(),
