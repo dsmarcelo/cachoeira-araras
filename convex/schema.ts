@@ -25,8 +25,10 @@ const vouchers = defineTable({
 
   // `refunded` covers any negative-terminal Mercado Pago notification
   // (refund, chargeback, or cancellation) that arrives for a Voucher that
-  // was never redeemed: it is a dead end like `expired`, never redeemable,
-  // and never reverts to `valid`.
+  // was never redeemed: it is never redeemable. It reverts only when a lost
+  // chargeback is later won (`reversal.reason === "charged_back"`, see
+  // `convex/lib/paymentReversal.ts`), back to `valid` (or `expired` when past
+  // `expiresAt`). Refunds and cancellations never revert.
   status: v.union(
     v.literal("pending"),
     v.literal("valid"),
@@ -56,15 +58,33 @@ const vouchers = defineTable({
   paymentTypeId: v.optional(v.string()),
   paymentMethodId: v.optional(v.string()),
 
-  // Set once, the first time a negative-terminal Mercado Pago notification
+  // Set the first time a negative-terminal Mercado Pago notification
   // (refund, chargeback, cancellation) arrives after the Voucher was already
-  // `valid` or `redeemed`. `reason` is the raw Mercado Pago payment status.
-  // Present alongside `status: "redeemed"`, this is the administrative
+  // `valid`, `redeemed` or `expired`. `reason` is the raw Mercado Pago payment
+  // status. Present alongside `status: "redeemed"`, this is the administrative
   // warning staff see: the entry already happened and is never undone, but
-  // the payment behind it was reversed afterwards.
+  // the payment behind it was reversed afterwards. Only a `charged_back`
+  // reversal is revertible (a won chargeback clears it); any other reason,
+  // including legacy ones, is permanent.
   reversal: v.optional(
     v.object({
       reason: v.string(),
+      notedAt: v.number(),
+    }),
+  ),
+
+  // Staff-visible flag on the Official Payment: an open dispute (mediation or
+  // undecided chargeback) or a partial refund. Mirrors the provider's state
+  // while the Voucher keeps its status; cleared when the payment returns to
+  // plain `approved`, and when the Voucher is reversed. Never shown to
+  // customers. `notedAt` is when the flag was first raised. `refundedCents`
+  // is set for `partial_refund` only.
+  paymentIssue: v.optional(
+    v.object({
+      kind: v.union(v.literal("dispute"), v.literal("partial_refund")),
+      status: v.string(),
+      statusDetail: v.optional(v.string()),
+      refundedCents: v.optional(v.number()),
       notedAt: v.number(),
     }),
   ),
@@ -190,6 +210,13 @@ const payments = defineTable({
   paymentId: v.string(),
   voucherCode: v.string(),
   status: v.union(v.string(), v.null()),
+  // Mercado Pago `status_detail`, e.g. "partially_refunded" or "in_process".
+  statusDetail: v.optional(v.string()),
+  // Last chargeback outcome seen for this payment; with `status` and
+  // `statusDetail`, it makes `confirmPayment` idempotent.
+  chargebackOutcome: v.optional(
+    v.union(v.literal("open"), v.literal("won"), v.literal("lost")),
+  ),
   isOfficial: v.boolean(),
   owesRefund: v.boolean(),
   createdAt: v.number(),
