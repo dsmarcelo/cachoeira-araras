@@ -38,6 +38,7 @@ import {
 import { countsAsRealVoucher } from "./lib/financeSummary";
 import { patchVoucher } from "./lib/voucherWrites";
 import {
+  confirmPaymentResult,
   decideReversalPatch,
   paidVoucherStatuses,
   paymentIssueValidator,
@@ -1521,8 +1522,9 @@ const negativeTerminalPaymentStatuses = new Set([
  * cannot both validate the same Voucher.
  *
  * Every further approval is an Excess Payment, recorded with `isOfficial: false`
- * and `owesRefund: true`. It leaves a Valid, Redeemed, Expired, Cancelled, or
- * Refunded Voucher untouched.
+ * and `owesRefund: true`. It leaves the Voucher untouched, whatever its status.
+ * Only the Official Payment's provider state can change a paid Voucher (see
+ * the reversal policy below).
  *
  * Redelivering the same payment identifier with the same status, status
  * detail and chargeback outcome is idempotent and reports no new conversion.
@@ -1561,19 +1563,7 @@ export const confirmPayment = internalMutation({
       v.union(v.literal("open"), v.literal("won"), v.literal("lost")),
     ),
   },
-  returns: v.union(
-    v.object({
-      outcome: v.union(
-        v.literal("redeemed"),
-        v.literal("already_processed"),
-        v.literal("updated"),
-        v.literal("reversed"),
-      ),
-      becameValid: v.boolean(),
-      isTest: v.boolean(),
-    }),
-    v.object({ outcome: v.literal("not_found") }),
-  ),
+  returns: confirmPaymentResult,
   handler: async (ctx, args) => {
     const voucher = await ctx.db
       .query("vouchers")

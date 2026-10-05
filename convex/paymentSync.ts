@@ -7,6 +7,7 @@ import {
   chargebackOutcome,
   findChargebacksByPayment,
 } from "./lib/mercadopagoOperations";
+import { confirmPaymentResult } from "./lib/paymentReversal";
 
 /** A payment as last observed at Mercado Pago, tied to the voucher it paid for. */
 export const observedPayment = v.object({
@@ -22,21 +23,7 @@ export const observedPayment = v.object({
 });
 export type ObservedPayment = Infer<typeof observedPayment>;
 
-/** Same shape `confirmPayment` returns (it is the webhook's response contract). */
-export const syncPaymentResult = v.union(
-  v.object({
-    outcome: v.union(
-      v.literal("redeemed"),
-      v.literal("already_processed"),
-      v.literal("updated"),
-      v.literal("reversed"),
-    ),
-    becameValid: v.boolean(),
-    isTest: v.boolean(),
-  }),
-  v.object({ outcome: v.literal("not_found") }),
-);
-export type SyncPaymentResult = Infer<typeof syncPaymentResult>;
+export type SyncPaymentResult = Infer<typeof confirmPaymentResult>;
 
 /**
  * The one path every observed Mercado Pago payment takes into a voucher
@@ -86,7 +73,7 @@ export function observedFromSnapshot(
 /** Action wrapper of `syncObservedPayment`, used by the HTTP webhook endpoint. */
 export const syncPayment = internalAction({
   args: observedPayment,
-  returns: syncPaymentResult,
+  returns: confirmPaymentResult,
   handler: async (ctx, args): Promise<SyncPaymentResult> =>
     syncObservedPayment(ctx, args),
 });
