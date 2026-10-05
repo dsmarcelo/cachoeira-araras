@@ -5,6 +5,7 @@ import { useAction, usePaginatedQuery, useQuery } from "convex/react"
 import { VoucherTable, type VoucherView } from "./voucher-table"
 import { columns } from "./columns"
 import { api } from "../../../../convex/_generated/api"
+import { paidVoucherStatuses } from "../../../../convex/lib/paymentReversal"
 import type { AdminVoucher } from "../voucher-info-card"
 import type { DateRangeValue } from "./date-range-filter"
 
@@ -18,9 +19,6 @@ function endOfSaoPauloDayMs(dateKey: string): number {
 }
 
 type StatusFilter = "all" | AdminVoucher["status"]
-
-/** Statuses of vouchers whose payment was approved at some point. */
-const paidStatuses = new Set<AdminVoucher["status"]>(['valid', 'redeemed', 'expired', 'refunded'])
 
 const PAGE_SIZE = 25
 const SEARCH_DEBOUNCE_MS = 300
@@ -79,7 +77,7 @@ export default function DataTable() {
   const paidCodes = React.useMemo(
     () =>
       active.results
-        .filter((voucher) => voucher.paymentId && paidStatuses.has(voucher.status))
+        .filter((voucher) => voucher.paymentId && paidVoucherStatuses.has(voucher.status))
         .map((voucher) => voucher.code),
     [active.results],
   )

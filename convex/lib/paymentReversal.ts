@@ -18,6 +18,24 @@ export type ProviderPaymentState = {
   chargebackOutcome?: ChargebackOutcome;
 };
 
+/**
+ * What `confirmPayment` returns (the webhook's response contract); the payment
+ * sync action reuses it.
+ */
+export const confirmPaymentResult = v.union(
+  v.object({
+    outcome: v.union(
+      v.literal("redeemed"),
+      v.literal("already_processed"),
+      v.literal("updated"),
+      v.literal("reversed"),
+    ),
+    becameValid: v.boolean(),
+    isTest: v.boolean(),
+  }),
+  v.object({ outcome: v.literal("not_found") }),
+);
+
 /** Staff-visible flag on the Official Payment (`vouchers.paymentIssue`). */
 export const paymentIssueValidator = v.object({
   kind: v.union(v.literal("dispute"), v.literal("partial_refund")),

@@ -64,9 +64,9 @@ const vouchers = defineTable({
   // `valid`, `redeemed` or `expired`. `reason` is the raw Mercado Pago payment
   // status. Present alongside `status: "redeemed"`, this is the administrative
   // warning staff see: the entry already happened and is never undone, but
-  // the payment behind it was reversed afterwards. Only a `charged_back`
-  // reversal is revertible (a won chargeback clears it); any other reason,
-  // including legacy ones, is permanent.
+  // the payment behind it was reversed afterwards. A reversal
+  // whose reason is `charged_back` (legacy or recorded now) is revertible: a
+  // won chargeback clears it. Any other reason is permanent.
   reversal: v.optional(
     v.object({
       reason: v.string(),

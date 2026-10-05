@@ -11,7 +11,7 @@ import { api } from "../../../convex/_generated/api";
 import { formatCents } from "./dashboard/financeiro/format";
 import { AdminVoucherRefundButton } from "./admin-voucher-refund-button";
 import { DetailList, describeEntries } from "./_components/admin-ui";
-import { gateReconcileFailedMessage, paymentIssueLabel, useGateReconcile } from "./_components/use-gate-reconcile";
+import { gateReconcileFailedMessage, paymentIssueLabel, providerCodeLabel, useGateReconcile } from "./_components/use-gate-reconcile";
 import { VoucherImage, canShowVoucherImage } from "./_components/voucher-image";
 import {
   VoucherSheet,
@@ -97,8 +97,8 @@ function GateVoucherSheet({
             )}
             Usar voucher
           </button>
-          {/* Valid vouchers have nothing to reactivate; refunded ones cannot be revived. */}
-          {data.status !== "valid" && data.status !== "refunded" ? (
+          {/* Valid vouchers have nothing to reactivate; refunded or reversed ones cannot be revived. */}
+          {data.status !== "valid" && data.status !== "refunded" && !data.reversal ? (
             <button
               type="button"
               className={secondaryActionClass}
@@ -120,8 +120,8 @@ function GateVoucherSheet({
         <div role="alert" className="rounded-[10px] border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-900">
           <p className="font-medium">{paymentIssueLabel(data.paymentIssue.kind)}</p>
           <p className="mt-1 break-words">
-            Status: {data.paymentIssue.status}
-            {data.paymentIssue.statusDetail ? ` (${data.paymentIssue.statusDetail})` : ""}
+            Status: {providerCodeLabel(data.paymentIssue.status)}
+            {data.paymentIssue.statusDetail ? ` (${providerCodeLabel(data.paymentIssue.statusDetail)})` : ""}
             {" · "}
             {formateDate(new Date(data.paymentIssue.notedAt).toISOString())}
             {data.paymentIssue.refundedCents !== undefined
@@ -132,7 +132,7 @@ function GateVoucherSheet({
       ) : null}
       {data.reversal ? (
         <p role="alert" className="rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-medium text-red-700">
-          Atenção: pagamento estornado ({formateDate(new Date(data.reversal.notedAt).toISOString())}).
+          Atenção: pagamento estornado ({providerCodeLabel(data.reversal.reason)}, {formateDate(new Date(data.reversal.notedAt).toISOString())}).
         </p>
       ) : null}
       <DetailList

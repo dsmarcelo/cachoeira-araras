@@ -17,8 +17,9 @@ type VoucherPatch = Partial<Omit<Doc<"vouchers">, "_id" | "_creationTime">>;
  * isTest, priceCents, referrer, payment type/method, purchasedAt), schedules
  * `finance.recomputeDay` for the purchase day it left and the one it joined.
  * It also derives `paymentDisputed` from `paymentIssue` whenever the patch
- * touches `paymentIssue`. The recompute is scheduled, not inline, so payment mutations do not grow
- * their read set or conflict with each other on the summary document.
+ * touches `paymentIssue`. The recompute is scheduled, not inline, so payment
+ * mutations do not grow their read set or conflict with each other on the
+ * summary document.
  *
  * `voucher` must be the document as it was read before this patch.
  * `convex/import.ts` inserts in bulk and skips this; run `finance.rebuildAll`
