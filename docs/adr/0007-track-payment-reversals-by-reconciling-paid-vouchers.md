@@ -29,7 +29,7 @@ The provider state maps to the Voucher as follows:
 
 | Provider state of the Official Payment | Voucher |
 | --- | --- |
-| `approved` | unchanged |
+| `approved` | unchanged; a reversal caused by a chargeback is undone, since the money stayed with the seller |
 | `approved` / `partially_refunded` | unchanged; flagged as a partial refund with the refunded amount |
 | `in_mediation`, or `charged_back` with the case undecided | unchanged; flagged as a payment in dispute |
 | `charged_back`, case lost | reversed |
@@ -44,7 +44,7 @@ payment's `settled`/`reimbursed` detail, which Mercado Pago documents
 inconsistently.
 
 A Voucher reversed by a lost chargeback is the one exception to "Refunded never
-reverts": if the case is later won, it returns to Valid (or Expired when past
+reverts": if the case is later won (or the payment returns to `approved`), it returns to Valid (or Expired when past
 its Expiry) and its revenue counts again. Refunds and cancellations never
 revert.
 

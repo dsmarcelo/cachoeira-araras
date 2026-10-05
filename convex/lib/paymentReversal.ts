@@ -71,7 +71,8 @@ export function isRevertibleReversal(
  * never go through here; they only update their own `payments` row.
  *
  * - `approved`: unchanged, except `partially_refunded` flags a partial refund
- *   and any other approval clears the flag.
+ *   and any other approval clears the flag. The money stayed with the seller,
+ *   so a chargeback-caused reversal is undone as for a won case.
  * - `in_mediation`, or `charged_back` with an open or unknown case: flags a
  *   dispute. The outcome is never guessed, so only a lost case reverses.
  * - `charged_back` lost: reversed. The reason stays `charged_back`, so a
@@ -95,10 +96,17 @@ export function decideReversalPatch(
   if (!paidVoucherStatuses.has(voucher.status)) return null;
 
   switch (provider.status) {
-    case "approved":
-      return provider.statusDetail === "partially_refunded"
-        ? flag(voucher, "partial_refund", provider, now)
-        : clearFlag(voucher);
+    case "approved": {
+      const restored = isRevertibleReversal(voucher.reversal)
+        ? resolveWonChargeback(voucher, now)
+        : null;
+      const current = restored ? { ...voucher, ...restored } : voucher;
+      const issue =
+        provider.statusDetail === "partially_refunded"
+          ? flag(current, "partial_refund", provider, now)
+          : clearFlag(current);
+      return restored ? { ...restored, ...issue } : issue;
+    }
     case "in_mediation":
       return flag(voucher, "dispute", provider, now);
     case "charged_back":

@@ -8,7 +8,7 @@ This is a single domain context. Use these terms throughout the project.
 - **Visit Date**: the São Paulo calendar day chosen at purchase. Staff reactivation does not change it.
 - **Expiry**: the instant after which an unused Voucher is overdue. Separate from Visit Date.
 - **Pending / Valid / Redeemed / Expired / Cancelled / Refunded**: respectively awaiting approval, available for entry, entry recorded, overdue, abandoned before approval, and payment reversed before entry (see Refunded below).
-- **Refunded**: a Voucher whose payment was returned before entry. A refund or cancellation is permanent. A reversal caused by a lost chargeback is the one that can revert (to Valid, or Expired if past Expiry) if the case is later won. A redeemed or expired Voucher keeps its status and records the reversal, which removes its revenue.
+- **Refunded**: a Voucher whose payment was returned before entry. A refund or cancellation is permanent. A reversal caused by a lost chargeback is the one that can revert (to Valid, or Expired if past Expiry) if the case is later won or the payment is approved again, since the money stayed with the seller. A redeemed or expired Voucher keeps its status and records the reversal, which removes its revenue.
 - **Official Payment**: the first approved payment accepted for a Voucher.
 - **Excess Payment**: another approved payment, or an approval after cancellation; refunded without granting another entry.
 - **Payment Dispute**: a mediation or an undecided chargeback on the Official Payment. The Voucher stays usable and staff see a warning; it is reversed only if the chargeback is lost.

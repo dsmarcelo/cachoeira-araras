@@ -919,6 +919,19 @@ test("a lost chargeback reverses the voucher and a later win restores it to vali
   expect(restored?.paymentIssue).toBeUndefined();
 });
 
+test("a chargeback-reversed voucher is restored when the payment returns to approved", async () => {
+  const t = convexTest(schema, modules);
+  await insertPaidVoucher(t);
+  await observe(t, { paymentStatus: "charged_back", chargebackOutcome: "lost" });
+  expect((await storedVoucher(t))?.status).toBe("refunded");
+
+  // Mercado Pago may report a won case as a plain approval: the money stayed.
+  await observe(t, { paymentStatus: "approved", statusDetail: "accredited" });
+  const restored = await storedVoucher(t);
+  expect(restored?.status).toBe("valid");
+  expect(restored?.reversal).toBeUndefined();
+});
+
 test("a lost chargeback won after the expiry restores the voucher to expired", async () => {
   const t = convexTest(schema, modules);
   await insertPaidVoucher(t);

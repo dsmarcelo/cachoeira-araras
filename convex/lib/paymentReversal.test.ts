@@ -94,13 +94,54 @@ describe("approved", () => {
       }),
     ).toEqual({ paymentIssue: { ...paymentIssue, refundedCents: 2500 } });
   });
+});
 
-  test("does not undo an existing reversal", () => {
+describe("approved after a chargeback reversal", () => {
+  test("undoes a chargeback reversal: the money stayed with the seller", () => {
     expect(
       decide(voucher({ status: "refunded", reversal: chargebackReversal }), {
         status: "approved",
         statusDetail: "accredited",
       }),
+    ).toEqual({ status: "valid", reversal: undefined });
+  });
+
+  test("restores to expired when past the expiry", () => {
+    expect(
+      decide(
+        voucher({
+          status: "refunded",
+          expiresAt: past,
+          reversal: chargebackReversal,
+        }),
+        { status: "approved" },
+      ),
+    ).toEqual({ status: "expired", reversal: undefined });
+  });
+
+  test("restores and flags a partial refund in one patch", () => {
+    expect(
+      decide(voucher({ status: "refunded", reversal: chargebackReversal }), {
+        status: "approved",
+        statusDetail: "partially_refunded",
+        refundedCents: 500,
+      }),
+    ).toMatchObject({
+      status: "valid",
+      reversal: undefined,
+      paymentIssue: { kind: "partial_refund", refundedCents: 500 },
+    });
+  });
+
+  test("never undoes a refund or cancellation", () => {
+    expect(
+      decide(
+        voucher({
+          status: "refunded",
+          reversal: { reason: "refunded", notedAt: 1 },
+        }),
+        { status: "approved" },
+      ),
     ).toBeNull();
   });
 });
