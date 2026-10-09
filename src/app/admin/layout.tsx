@@ -15,7 +15,7 @@ export default async function AdminLayout({
 
   if (!role) {
     return (
-      <div className="flex min-h-screen w-full flex-col items-center justify-center px-4">
+      <div className="admin-theme flex min-h-screen w-full flex-col items-center justify-center px-4">
         <PasswordLoginForm />
       </div>
     );
@@ -23,7 +23,7 @@ export default async function AdminLayout({
   return (
     <SidebarProvider>
       <DashboardSidebar role={role} />
-      <div className="flex min-h-screen w-full flex-col">
+      <div className="admin-theme flex min-h-screen w-full flex-col">
         <AdminHeader>
           <SidebarTrigger className="" />
         </AdminHeader>

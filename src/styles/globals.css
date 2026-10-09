@@ -76,4 +76,23 @@
     /* Explicit hsl avoids Safari showing white before CSS variables resolve */
     background-color: hsl(240 10% 3.9%);
   }
+
+  /* Admin pages render a light theme: the .admin-theme marker in app/admin/layout.tsx
+     switches the variables on <html>, so portaled dialogs/popovers get them too. */
+  html:has(.admin-theme) {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    background-color: hsl(0 0% 100%);
+    color-scheme: light;
+  }
+
+  html:has(.admin-theme) body {
+    background-color: hsl(0 0% 100%);
+    color: hsl(240 10% 3.9%);
+  }
 }
