@@ -46,6 +46,17 @@ const config = {
   async headers() {
     return [
       {
+        // Video is large and never changes under the same name: cache it for a year
+        // so repeat views are served by the browser/CDN, not downloaded again.
+        source: "/videos/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
         // matching og image API routes
         source: "/api/og",
         headers: apiCorsHeaders,

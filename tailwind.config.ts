@@ -149,8 +149,14 @@ const config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        // Light streak sweeping continuously across a button (see /video).
+        shine: {
+          from: { transform: "translateX(-150%) skewX(-20deg)" },
+          to: { transform: "translateX(350%) skewX(-20deg)" },
+        },
       },
       animation: {
+        shine: "shine 2s linear infinite",
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },
