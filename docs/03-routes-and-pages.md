@@ -7,6 +7,7 @@
 - `/pagamento` — página de retorno pós-checkout (interpreta status e parâmetros).
 - `/pagamento/aprovado` — página de confirmação de pagamento aprovado.
 - `/voucher` — página de exibição do voucher com base em `code` e `pid` na query.
+- `/video` — vídeo de apresentação em tela cheia (~35s, autoplay mudo). Ao terminar, oferece "Reproduzir novamente" e "Conhecer mais" (vai para `/`). O arquivo fica em `public/videos/` e é cacheado por 1 ano: ao trocar o vídeo, use um novo nome de arquivo e atualize `VIDEO_SRC` em `src/app/video/video-player.tsx`.
 - `/comprar` — redireciona para `/` (rota legada).
 
 ## Rotas admin
