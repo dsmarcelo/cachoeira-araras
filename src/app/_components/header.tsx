@@ -1,6 +1,11 @@
 import Link from "next/link";
 import React from "react";
-import { FaFacebook, FaInstagram, FaWhatsapp } from "react-icons/fa";
+import {
+  FaFacebook,
+  FaInstagram,
+  FaPlayCircle,
+  FaWhatsapp,
+} from "react-icons/fa";
 import Image from "next/image";
 
 export default function Header() {
@@ -19,6 +24,14 @@ export default function Header() {
           />
         </Link>
         <nav className="flex shrink-0 items-center gap-1">
+          <Link
+            href="/video"
+            prefetch={false}
+            aria-label="Assistir ao vídeo"
+            className="flex h-10 w-10 items-center justify-center rounded-lg p-2 text-current transition-colors hover:bg-bg-blue/20 md:h-12 md:w-12"
+          >
+            <FaPlayCircle className="h-5 w-5" />
+          </Link>
           <Link
             href={"https://www.facebook.com/C.Araras/?locale=pt_BR"}
             target="_blank"
