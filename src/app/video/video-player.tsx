@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { RiArrowRightSLine } from "react-icons/ri";
 
 /**
@@ -14,6 +14,12 @@ const VIDEO_SRC = "/videos/cachoeira-araras.mp4";
 /** If the video has not started playing by then, give up and go to the site. */
 const LOAD_TIMEOUT_MS = 15_000;
 
+/**
+ * Delay before showing the native controls after the unmute tap, so that tap
+ * (or the click that follows it on iOS) doesn't also reveal them.
+ */
+const CONTROLS_DELAY_MS = 500;
+
 /** Any of these counts as a user gesture that lets browsers play audio. */
 const UNMUTE_GESTURES = ["click", "touchend", "keydown"] as const;
 
@@ -21,7 +27,10 @@ const UNMUTE_GESTURES = ["click", "touchend", "keydown"] as const;
  * Plays the video as soon as the page opens, with sound when the browser allows.
  * Browsers (Chrome, Safari, iOS) block unmuted autoplay unless the visitor has
  * already interacted with the site, so when blocked it starts muted and turns
- * the sound on at the visitor's first tap, click or key press.
+ * the sound on at the visitor's first tap, click or key press, restarting the
+ * video from the beginning. The native controls stay hidden until after that
+ * tap, so it doesn't dim the video or show the pause button (notably on iOS);
+ * a second tap shows them as usual.
  * A loading screen covers the video until it starts playing.
  * When it ends, or if it fails to load or play (or takes too long), it goes
  * straight to the site (home); a small button at the bottom lets the visitor
@@ -32,20 +41,32 @@ export function VideoPlayer() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [waitingForGesture, setWaitingForGesture] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+
+  // Logs why the video was abandoned, to make field reports diagnosable.
+  const skipToSite = useCallback(
+    (reason: string) => {
+      console.warn("[video] skipping to site:", reason);
+      router.replace("/");
+    },
+    [router],
+  );
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    let controlsTimeout: ReturnType<typeof setTimeout> | undefined;
 
-    function unmute(event: Event) {
+    function unmute() {
       if (!video) return;
-      // A tap on the video itself would also toggle pause via the native
-      // controls; this tap is only meant to turn the sound on.
-      if (event.target === video) event.preventDefault();
       video.muted = false;
+      video.currentTime = 0;
       // Covers a muted start that was interrupted before the gesture.
-      if (video.paused && !video.ended)
-        void video.play().catch(() => undefined);
+      if (video.paused) void video.play().catch(() => undefined);
+      controlsTimeout = setTimeout(
+        () => setShowControls(true),
+        CONTROLS_DELAY_MS,
+      );
       stopListening();
     }
     function stopListening() {
@@ -62,25 +83,36 @@ export function VideoPlayer() {
         !(error instanceof DOMException) ||
         error.name !== "NotAllowedError"
       ) {
-        router.replace("/");
+        skipToSite(`play() rejected: ${String(error)}`);
         return;
       }
       // Set via property: React's `muted` attribute is unreliable before play().
       video.muted = true;
       setWaitingForGesture(true);
-      video.play().catch(() => router.replace("/"));
+      setShowControls(false);
+      video
+        .play()
+        .catch((e: unknown) =>
+          skipToSite(`muted play() rejected: ${String(e)}`),
+        );
       for (const type of UNMUTE_GESTURES)
         window.addEventListener(type, unmute, true);
     });
 
-    return stopListening;
-  }, [router]);
+    return () => {
+      stopListening();
+      clearTimeout(controlsTimeout);
+    };
+  }, [skipToSite]);
 
   useEffect(() => {
     if (ready) return;
-    const timeout = setTimeout(() => router.replace("/"), LOAD_TIMEOUT_MS);
+    const timeout = setTimeout(
+      () => skipToSite("load timeout"),
+      LOAD_TIMEOUT_MS,
+    );
     return () => clearTimeout(timeout);
-  }, [ready, router]);
+  }, [ready, skipToSite]);
 
   return (
     <div className="relative flex min-h-[100dvh] w-full items-center justify-center overflow-hidden">
@@ -89,7 +121,7 @@ export function VideoPlayer() {
         className="max-h-[100dvh] w-full object-contain"
         src={VIDEO_SRC}
         playsInline
-        controls
+        controls={showControls}
         controlsList="nodownload"
         preload="auto"
         onPlaying={() => setReady(true)}
@@ -97,7 +129,9 @@ export function VideoPlayer() {
           if (!event.currentTarget.muted) setWaitingForGesture(false);
         }}
         onEnded={() => router.push("/")}
-        onError={() => router.replace("/")}
+        onError={(event) =>
+          skipToSite(`media error code ${event.currentTarget.error?.code}`)
+        }
       />
 
       {!ready && (
